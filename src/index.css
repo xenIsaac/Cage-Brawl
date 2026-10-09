@@ -1,0 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,800;1,900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Artistic dot grid background */
+.artistic-dot-grid {
+  background-image: radial-gradient(circle at 2px 2px, #27272a 1.5px, transparent 0);
+  background-size: 24px 24px;
+}
+
+/* Custom Styled Scrollbar for PC / Desktop */
+@media (min-width: 768px), (pointer: fine) {
+  /* Global PC scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgba(18, 18, 22, 0.6);
+    border-radius: 6px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(82, 82, 91, 0.7);
+    border-radius: 6px;
+    border: 1px solid rgba(39, 39, 42, 0.5);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(161, 161, 170, 0.9);
+  }
+
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(113, 113, 122, 0.8) rgba(24, 24, 27, 0.6);
+    overscroll-behavior: contain;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(24, 24, 27, 0.7);
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(113, 113, 122, 0.8);
+    border-radius: 4px;
+    border: 1px solid rgba(39, 39, 42, 0.6);
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(161, 161, 170, 1.0);
+  }
+
+  .custom-scrollbar-cyan {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(6, 182, 212, 0.6) rgba(18, 18, 22, 0.6);
+    overscroll-behavior: contain;
+  }
+  .custom-scrollbar-cyan::-webkit-scrollbar-thumb {
+    background: rgba(6, 182, 212, 0.6);
+  }
+  .custom-scrollbar-cyan::-webkit-scrollbar-thumb:hover {
+    background: rgba(6, 182, 212, 0.9);
+  }
+
+  .custom-scrollbar-red {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(239, 68, 68, 0.6) rgba(18, 18, 22, 0.6);
+    overscroll-behavior: contain;
+  }
+  .custom-scrollbar-red::-webkit-scrollbar-thumb {
+    background: rgba(239, 68, 68, 0.6);
+  }
+  .custom-scrollbar-red::-webkit-scrollbar-thumb:hover {
+    background: rgba(239, 68, 68, 0.9);
+  }
+}
+
+/* Ambient glow lights */
+.ambient-glow-left {
+  position: absolute;
+  left: -5rem;
+  top: 0;
+  bottom: 0;
+  width: 16rem;
+  background-color: rgba(239, 68, 68, 0.05); /* red-600 */
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ambient-glow-right {
+  position: absolute;
+  right: -5rem;
+  top: 0;
+  bottom: 0;
+  width: 16rem;
+  background-color: rgba(37, 99, 235, 0.05); /* blue-600 */
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glow-box-blue {
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.15);
+}
+
+.glow-box-purple {
+  box-shadow: 0 0 25px rgba(168, 85, 247, 0.15);
+}
+
+.glow-box-legendary {
+  box-shadow: 0 0 35px rgba(234, 179, 8, 0.25);
+}
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.35; }
+}
+
+.bg-radial-gradient {
+  background: radial-gradient(circle at center, rgba(24, 24, 27, 0.8) 0%, rgba(9, 9, 11, 0.98) 100%);
+}
+
+/* Active Gameplay mode separation: Disable browser bounce, pull-to-refresh and gesture conflicts */
+.in-active-gameplay {
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  overflow: hidden !important;
+}
+
+/* Dynamic Mobile Scaling & Touch Friction Elimination */
+@media (pointer: coarse), (max-width: 1024px) {
+  /* Prevent browser gestures from fighting with touch controls */
+  canvas {
+    touch-action: none !important;
+  }
+
+  button, input, select {
+    touch-action: manipulation;
+  }
+}
+
+/* Safe area padding utilities for notched mobile devices */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0.5rem);
+}
+
+
