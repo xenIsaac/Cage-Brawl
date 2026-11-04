@@ -694,36 +694,24 @@ export default function PostMatchHUD({
               </button>
             )}
 
-            {/* 2. [ REMATCH ]: Secondary Blue Action */}
-            <button
-              onClick={() => {
-                soundManager.playRollTick?.();
-                onVoteRematch();
-              }}
-              disabled={rematchRequested || opponentDisconnected}
-              className={`w-full py-2.5 sm:py-3 px-3 rounded-lg font-mono font-bold uppercase text-xs tracking-wider transition flex items-center justify-center gap-2 shadow-md active:scale-95 cursor-pointer border ${
-                rematchRequested
-                  ? 'bg-emerald-600 text-white border-emerald-400 cursor-default animate-pulse'
-                  : opponentDisconnected
-                    ? 'bg-zinc-850 text-zinc-500 border-zinc-800 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400/50 shadow-blue-600/20'
-              }`}
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>{rematchRequested ? 'REMATCHING...' : (isOnlineMatch ? 'REMATCH' : 'REMATCH')}</span>
-            </button>
-
-            {/* 3. [ CHAMBER ]: Quick Access to Gacha/Keys (Amber) */}
-            {onGoToGacha && (
+            {/* 2. [ REMATCH ]: Secondary Blue Action (Online Matches Only - AI opponents cannot be rematched directly) */}
+            {isOnlineMatch && (
               <button
                 onClick={() => {
                   soundManager.playRollTick?.();
-                  onGoToGacha();
+                  onVoteRematch();
                 }}
-                className="w-full py-2 sm:py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-black font-mono font-bold uppercase text-xs tracking-wider rounded-lg shadow-md shadow-amber-500/20 active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer border border-amber-300"
+                disabled={rematchRequested || opponentDisconnected}
+                className={`w-full py-2.5 sm:py-3 px-3 rounded-lg font-mono font-bold uppercase text-xs tracking-wider transition flex items-center justify-center gap-2 shadow-md active:scale-95 cursor-pointer border ${
+                  rematchRequested
+                    ? 'bg-emerald-600 text-white border-emerald-400 cursor-default animate-pulse'
+                    : opponentDisconnected
+                      ? 'bg-zinc-850 text-zinc-500 border-zinc-800 cursor-not-allowed'
+                      : 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400/50 shadow-blue-600/20'
+                }`}
               >
-                <Dices className="w-4 h-4 text-black" />
-                <span>CHAMBER</span>
+                <RotateCcw className="w-4 h-4" />
+                <span>{rematchRequested ? 'REMATCHING...' : 'REMATCH'}</span>
               </button>
             )}
 

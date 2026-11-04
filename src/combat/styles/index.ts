@@ -1,4 +1,6 @@
-import { FightingStyleModule, LightStageData } from './types';
+
+import { resolveModernStyleModule } from "../../styles";
+import { FightingStyleModule, LightStageData } from "./types";
 import { CombatFighter } from '../types';
 import { StatModifiers } from '../../types';
 
@@ -18,6 +20,7 @@ import { cqcStyle } from './cqc';
 import { aikidoStyle } from './aikido';
 
 export * from './types';
+export * from './street_tkd.config';
 export {
   flowBoxingStyle,
   sluggerStyle,
@@ -57,6 +60,10 @@ export const STYLE_MODULES: Record<string, FightingStyleModule> = {
  */
 export const getStyleModule = (styleId?: string): FightingStyleModule => {
   if (!styleId) return flowBoxingStyle;
+  // Strangler Fig Bridge: Check modern plugin engine first
+  const modern = resolveModernStyleModule(styleId);
+  if (modern) return modern;
+  // Fallback to legacy style module
   return STYLE_MODULES[styleId] || flowBoxingStyle;
 };
 
@@ -220,6 +227,9 @@ export const tickStyleMechanics = (fighter: CombatFighter): void => {
  * Retrieve post-S4 heavy lockout delay in frames (60fps) from style definition
  */
 export const getStylePostS4HeavyDelay = (styleId: string): number => {
+  if (styleId === 'street_taekwondo') {
+    return 0; // Street TKD allows M2 to be used in any sequence of M1 with no delay
+  }
   const mod = getStyleModule(styleId);
   if (mod.lightAttack.postComboDelaySec !== undefined) {
     return Math.round(mod.lightAttack.postComboDelaySec * 60);

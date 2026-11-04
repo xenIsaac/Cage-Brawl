@@ -109,6 +109,7 @@ export const getFighterVisualTransform = (
     if (fighter.styleId === 'cqc') maxWindup = 90;
     if (fighter.styleId === 'aikido') maxWindup = fighter.maxHeavyWindup || 15;
     if (fighter.styleId === 'kyokushin') maxWindup = 33; // 0.55s = 33 frames
+    if (fighter.styleId === 'street_taekwondo') maxWindup = fighter.maxHeavyWindup || 21;
     
     const ratio = Math.min(1, Math.max(0, (maxWindup - fighter.heavyWindup) / maxWindup));
     
@@ -144,6 +145,35 @@ export const getFighterVisualTransform = (
       const harmonicFloat = Math.sin(gameTime * 0.12566) * 1.5;
       visualAngle += baseStanceAngle;
       lungeOffset += harmonicFloat;
+    } else if (fighter.styleId === 'street_taekwondo') {
+      // Street Taekwondo M2 Brazilian Kick: Rear-Coil Arc Stance & Feint Rotation
+      const maxWindup = fighter.maxHeavyWindup || 21;
+      const wRatio = Math.min(1.0, Math.max(0, (maxWindup - fighter.heavyWindup) / maxWindup));
+      const split = 0.4286; // 0.15s / 0.35s boundary (9f / 21f)
+
+      if (wRatio < split) {
+        // Phase 1 (0.00s-0.15s / 9 Frames): Body circle dips slightly, coiling hips to prep forward torque
+        const p1 = wRatio / split;
+        const ease1 = Math.sin(p1 * Math.PI * 0.5);
+        visualAngle += ease1 * 0.14; // Clockwise coil toward rear
+        lungeOffset -= ease1 * fighter.radius * 0.05;
+      } else {
+        // Phase 2 (0.15s-0.35s / 12 Frames): Wide arc sweep & snap pull-back with synchronized torso recoil
+        const p2 = (wRatio - split) / (1.0 - split);
+        if (p2 <= 0.60) {
+          // Sweeps forward toward quarter-line
+          const sweepT = p2 / 0.60;
+          const sweepEase = Math.sin(sweepT * Math.PI * 0.5);
+          visualAngle += (0.14 - sweepEase * 0.40); // Rotates forward into the arc relative to facing angle
+          lungeOffset = -fighter.radius * 0.05 + sweepEase * fighter.radius * 0.18;
+        } else {
+          // Snaps and pulls back toward chamber with synchronized torso recoil
+          const pullT = (p2 - 0.60) / 0.40;
+          const pullEase = pullT * pullT * (3 - 2 * pullT);
+          visualAngle += (-0.26 + pullEase * 0.10); // Recoils backward slightly relative to facing angle
+          lungeOffset = fighter.radius * 0.13 - pullEase * fighter.radius * 0.06; // Recoils backward
+        }
+      }
     }
   } else {
     if (fighter.styleId === 'shotokan' && rightFist && rightFist.isHeavy) {
@@ -689,9 +719,8 @@ export const getFighterVisualTransform = (
           visualAngle += baseStanceAngle * (1 - retEase) + 0.18 * retEase;
           lungeOffset += retEase * fighter.radius * 0.55;
         }
-      } else if (leftProgress > 0 && (stage === 1 || leftFist?.comboStage === 1 || fighter.comboStage === 1 || fighter.comboStage === 2)) {
+      } else if (leftProgress > 0 && (stage === 1 || leftFist?.comboStage === 1)) {
         // Sequence 2: Left arm sweep pullback is longer to the back, then rotates far to the right
-        // Torso primes left on the long pullback, then rotates much further to the right through the full circle slash
         const isForward = leftFist ? leftFist.isPunching : false;
         const windupSplit = 0.44;
         if (isForward) {
@@ -711,12 +740,15 @@ export const getFighterVisualTransform = (
           visualAngle += baseStanceAngle + retEase * 1.55;
           lungeOffset += retEase * fighter.radius * 0.35;
         }
-      } else if (rightProgress > 0 && stage === 2) {
-        // Sequence 3: Tenkan Pivot Strike (Rotational Off-Balance)
-        // Flowing, silky smooth circular body turn stepping outside opponent attack line
-        const tenkanEase = Math.sin(rightProgress * Math.PI);
-        visualAngle += baseStanceAngle + tenkanEase * 0.52;
-        lungeOffset += tenkanEase * fighter.radius * 0.36;
+      } else if (leftProgress > 0 && (stage === 2 || leftFist?.comboStage === 2)) {
+        // Sequence 3: Left Straight Thrust Committed Open-Palm Drive (Zero Spin-Out, Snappy & Smooth)
+        const isForward = leftFist ? leftFist.isPunching : false;
+        // Explosive snap into the thrust: fast pop out, smooth apex lock, clean fluid return
+        const thrustSnap = isForward ? (1 - Math.pow(1 - leftProgress, 3.5)) : (leftProgress * leftProgress * (3 - 2 * leftProgress));
+        // Torso Torque Reach: Body circle rotates 30° forward into punch (counter-clockwise torque = -30° = -0.5236 rad)
+        visualAngle -= (30 * Math.PI / 180) * thrustSnap;
+        // Shifts left shoulder & body forward by +18px, physically extending S3's reach into opponent's guard!
+        lungeOffset += thrustSnap * (fighter.radius * 0.44 + 18);
       } else if (rightProgress > 0 && stage === 3) {
         // Sequence 4: Shomenuchi Palm Drive (Downward Collar Finisher)
         // Squares hips (visualAngle -> 0) while raising arm high, then chops downward into core
@@ -739,6 +771,9 @@ export const getFighterVisualTransform = (
           visualAngle += baseStanceAngle * (1 - retEase);
           lungeOffset += retEase * fighter.radius * 0.50;
         }
+      } else if (fighter.aikiM2ActiveWindow && fighter.aikiM2ActiveWindow > 0) {
+        visualAngle += baseStanceAngle - 0.22;
+        lungeOffset -= fighter.radius * 0.10;
       } else if (isBlockingActive) {
         visualAngle += baseStanceAngle - 0.10;
         lungeOffset -= fighter.radius * 0.05;
@@ -747,6 +782,107 @@ export const getFighterVisualTransform = (
         const harmonicFloat = Math.sin(gameTime * 0.12566) * 1.5;
         visualAngle += baseStanceAngle;
         lungeOffset += harmonicFloat;
+      }
+    } else if (fighter.styleId === 'street_taekwondo') {
+      // STREET TAEKWONDO: LOOSE URBAN BOUNCE & HIGH-SPEED HIP WHIPPING
+      const isHeavy = rightFist && rightFist.isHeavy;
+      const isM2Active = (fighter.heavyWindup && fighter.heavyWindup > 0) || (rightProgress > 0 && isHeavy);
+      const isLeftFistActive = leftFist && (leftFist.isPunching || (leftProgress > 0 && (leftFist.comboStage === 2 || leftFist.comboStage === 3)));
+      const activeFist = isLeftFistActive ? leftFist : ((rightProgress > 0 || (rightFist && rightFist.isPunching)) ? rightFist : leftFist);
+      const stage = activeFist?.comboStage !== undefined 
+        ? activeFist.comboStage 
+        : (fighter.comboStage === 0 ? 3 : ((fighter.comboStage || 1) - 1));
+      const p = activeFist ? activeFist.punchProgress : Math.max(leftProgress, rightProgress);
+
+      if (isM2Active) {
+        if (fighter.heavyWindup && fighter.heavyWindup > 0) {
+          // WINDUP / FEINT PHASES:
+          const maxWindup = (fighter.maxHeavyWindup || 21);
+          const wRatio = Math.min(1.0, Math.max(0, (maxWindup - fighter.heavyWindup) / maxWindup));
+          const split = 0.4286; // Phase 1 (0.15s / 9 Frames) vs Phase 2 (0.20s / 12 Frames)
+
+          if (wRatio < split) {
+            // Phase 1: Deep coiled stance load (body circle dips slightly, coiling hips)
+            const p1 = wRatio / split;
+            visualAngle += 0.14 * p1;
+            lungeOffset = -fighter.radius * 0.05 * p1;
+          } else {
+            // Phase 2: Forward Right Arc Sweep followed by sharp Snap & synchronized Torso Recoil
+            const p2 = (wRatio - split) / (1.0 - split);
+            if (p2 <= 0.60) {
+              const sweepT = p2 / 0.60;
+              const sweepEase = Math.sin(sweepT * Math.PI * 0.5);
+              visualAngle += (0.14 - sweepEase * 0.40);
+              lungeOffset = -fighter.radius * 0.05 + sweepEase * fighter.radius * 0.18;
+            } else {
+              const pullT = (p2 - 0.60) / 0.40;
+              const pullEase = pullT * pullT * (3 - 2 * pullT);
+              visualAngle += (-0.26 + pullEase * 0.10); // Torso recoils backward in unison with chamber pull-back
+              lungeOffset = fighter.radius * 0.13 - pullEase * fighter.radius * 0.06;
+            }
+          }
+        } else {
+          // Phase 3 Release: Body circle uncoils, rotating aggressively forward into downward collar chop
+          const p = rightProgress;
+          const isForward = rightFist ? rightFist.isPunching : true;
+          if (isForward) {
+            const snapEase = Math.sin(p * Math.PI * 0.5);
+            visualAngle += (-0.16 - snapEase * 0.64); // down to -0.80 rad relative to facing angle
+            lungeOffset = fighter.radius * 0.08 + snapEase * fighter.radius * 0.45;
+          } else {
+            // Clean Retraction: Body circle smoothly untwists back to neutral guard
+            const retEase = p * p * (3 - 2 * p);
+            visualAngle += (-0.80 * retEase);
+            lungeOffset = retEase * fighter.radius * 0.20;
+          }
+        }
+      } else if (stage === 0 || stage === 1) {
+        // S1 & S2 Right Slanted Snap Kick
+        // Smoothstep torso torque so sway builds acceleration naturally (not instant)
+        const smoothP = p * p * (3 - 2 * p);
+        visualAngle -= smoothP * 0.32;
+        lungeOffset += smoothP * fighter.radius * 0.38;
+      } else if (stage === 2) {
+        // S3: Spinning Back Kick (Left Leg): deliberate, smooth full-body reverse spin over 20 frames (~0.33s)
+        const isForward = activeFist ? activeFist.isPunching : false;
+        if (isForward) {
+          // Full 360° counter-clockwise (leftward) reverse spin from 0° to 360° (2 * Math.PI)
+          // p progresses from 0.0 to 1.0 across the 20 frames
+          visualAngle -= p * Math.PI * 2;
+          lungeOffset += Math.sin(p * Math.PI) * fighter.radius * 0.28;
+        } else {
+          // Retraction DS Phase (0.10s DS): Hips settled facing target ready for S4 side whip
+          const retEase = p * p * (3 - 2 * p);
+          visualAngle -= Math.PI * 2;
+          lungeOffset += retEase * fighter.radius * 0.10;
+        }
+      } else if (stage === 3) {
+        // ------------------------------------------------------------------
+        // S4: Side Kick Finisher (Left Leg)
+        // 🎬 MINI-SPEC: STREET TKD M1 S4 (SIDE KICK FINISHER)
+        // 1. Torso Pivot: Body circle rotates sharply to the right (≈ 45° clockwise / +Math.PI/4)
+        //    to open the hips for the side kick.
+        // 2. Retraction & Stance Untwist: As the leg pulls in, the body circle untwists
+        //    smoothly back to the left into neutral stance with zero bounce.
+        // ------------------------------------------------------------------
+        const isForward = activeFist ? activeFist.isPunching : false;
+        if (isForward) {
+          const strikeEase = Math.sin(p * Math.PI * 0.5);
+          visualAngle += strikeEase * (Math.PI / 4); // Rotates sharply right (≈ 45° clockwise)
+          lungeOffset += strikeEase * fighter.radius * 0.22;
+        } else {
+          const retEase = p * p * (3 - 2 * p);
+          visualAngle += retEase * (Math.PI / 4); // Untwists smoothly back to left
+          lungeOffset += retEase * fighter.radius * 0.22;
+        }
+      } else if (isBlockingActive) {
+        lungeOffset -= fighter.radius * 0.05;
+      } else {
+        // Loose Urban Bounce Stance Alignment: light mobile side stance with loose/low hands
+        const urbanBounce = Math.sin(gameTime * 0.16) * 1.8;
+        const urbanSway = Math.cos(gameTime * 0.08) * 0.04;
+        visualAngle += 0.22 + urbanSway; // Light angled side stance
+        lungeOffset += urbanBounce;
       }
     } else {
       // SECTION 1.12 & 1.16: Universal Torso Torque during extension; free rotation during retraction
@@ -789,7 +925,8 @@ export const getFighterVisualTransform = (
   // Universal Downed State Visual Rotation (Spin Out / Downed Slide on floor) - Disabled completely on Death
   const globalSpinTimer = (fighter.spinOutTimer || 0) > 0 ? fighter.spinOutTimer : ((fighter.kyokushinSpinOutTimer || 0) > 0 ? fighter.kyokushinSpinOutTimer : 0);
   if (!fighter.isDead && globalSpinTimer && globalSpinTimer > 0) {
-    const spinProgress = (180 - globalSpinTimer) * 0.16;
+    const isTkdSpin = (fighter.spinOutTimer || 0) > 0 && (fighter.spinOutTimer || 0) <= 60;
+    const spinProgress = isTkdSpin ? ((60 - (fighter.spinOutTimer || 0)) * 0.22) : ((180 - globalSpinTimer) * 0.16);
     visualAngle += spinProgress;
   }
 
@@ -829,9 +966,7 @@ export const getFighterVisualTransform = (
  * The Super Armor visual only applies to Aikido.
  */
 export function isFighterSuperArmorActive(fighter: CombatFighter): boolean {
-  if (!fighter || fighter.isDead) return false;
-  if (fighter.styleId !== 'aikido') return false;
-  if (fighter.aikiM2StanceTimer && fighter.aikiM2StanceTimer > 0 && (fighter.aikiM2SuperArmorHits || 0) > 0) return true;
+  // Super Armor completely removed from Aikido across all moves
   return false;
 }
 
@@ -985,6 +1120,14 @@ export const drawFighter = (
     ctx.stroke();
   }
 
+  // Directional Overhead Cage Ground Shadow (High-contrast theatrical grounded shadow)
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.beginPath();
+  ctx.ellipse(4, 9, fighter.radius * 1.2, fighter.radius * 0.7, Math.PI / 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
   // Persistent Cripple Speed Debuff Ring (Pulsing at 1.0 Hz in dark purple)
   if (fighter.crippleTime && fighter.crippleTime > 0) {
     ctx.save();
@@ -1023,6 +1166,28 @@ export const drawFighter = (
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(0, 0, fighter.radius * 1.25, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Kickboxing: Cadence Opening Radiant Aura (+15% Exec, +20% Atk Spd)
+  if (fighter.kickboxingCadenceTimer && fighter.kickboxingCadenceTimer > 0) {
+    ctx.save();
+    const pulse = Math.sin(gameTime * 0.30) * 0.12 + 1.0;
+    ctx.strokeStyle = '#22c55e'; // Radiant Emerald
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#4ade80';
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.arc(0, 0, fighter.radius * 1.40 * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ef4444'; // Crimson Accent
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#f87171';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(0, 0, fighter.radius * 1.20, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }
@@ -2037,110 +2202,409 @@ export const drawFighter = (
     ctx.restore();
   }
 
-  // DRAW STREET TAEKWONDO LEGS & CHAMBER GUARD
+  // ============================================================================
+  // DRAW SEPARATE STREET TAEKWONDO LEGS & KICKS (UNDER THE CIRCLE BY LAYER)
+  // Simple bold rectangles matching Kyokushin anatomy standard:
+  // Solid clean rectangles with drop shadow, crisp outline, and subtle inner highlight.
+  // Rendered UNDER the circle by layer so the body circle sits on top of hip roots!
+  // ============================================================================
   if (fighter.styleId === 'street_taekwondo') {
-    const stage = fighter.comboStage === 0 ? 3 : ((fighter.comboStage || 1) - 1);
-    const isHeavy = rightFist && rightFist.isHeavy;
-    const isChamberingM2 = (fighter.heavyWindup && fighter.heavyWindup > 0);
-    const isM2Striking = rightProgress > 0 && isHeavy;
+    const isHeavy = !!(rightFist && rightFist.isHeavy);
+    const isM2Active = (fighter.heavyWindup && fighter.heavyWindup > 0) || (rightProgress > 0 && isHeavy);
 
-    const drawTaekwondoLeg = (
-      x: number,
-      y: number,
-      angle: number,
-      rectW: number,
-      rectH: number
-    ) => {
-      // 20% increased leg width (cross-sectional thickness)
-      const legWidth = rectH * 1.20;
+    // Leg geometry: Simple solid bold rectangle (Matched to Kyokushin Karate leg size)
+    const legThickness = fighter.radius * 0.72;
+    const fixedLegThickness = legThickness;
+    const fixedLegLen = fighter.radius * 1.85; // Matched to Kyokushin Karate leg size (1.85 * radius)
+    const baseLegLen = fighter.radius * 1.85;
+    const minChamberLen = fighter.radius * 0.35;
+    const maxKickReach = baseLegLen;
+    const primaryColor = '#52525b';
+    const outlineColor = '#111115';
+    const halfWidth = fixedLegThickness / 2;
+
+    if (isM2Active) {
+      // ----------------------------------------------------------------------
+      // 🎬 MINI-SPEC: STREET TKD M2 (REAR-COIL ARC BRAZILIAN KICK — REVISED)
+      //
+      // 📐 Starting Geometry & Rigid Constraints:
+      // - Strict Fixed Size (ZERO Stretching):
+      //   - The leg DOES NOT STRETCH, ELONGATE, OR RESCALE.
+      //   - Its length and width remain 100% fixed and static throughout the entire animation sequence.
+      // - Spawn Location & Angle (Facing Backward):
+      //   - Spawns just outside right flank of body circle, pointing rearward/backward
+      //     (≈ 180° / Math.PI relative to forward target line) to simulate coiled hip load.
+      // - The Pivot Hinge: The inner base of rectangle is permanently pinned as hinge
+      //   on right hip node. The fixed-size PURE_RECTANGLE sweeps exclusively via rotational
+      //   angular math around this anchor.
+      //
+      // 🎬 3-Phase Kinematic Breakdown (60 FPS):
+      // [ Phase 1: Rear Spawn (0.00s – 0.15s / 9 Frames) ] Points backward (180°), hips coiled & loaded.
+      // [ Phase 2: Arc Feint & Snap Pull-Back (0.15s – 0.35s / 12 Frames) ] Whips forward via right arc,
+      //   snaps at quarter-line, recoils with torso into chamber (Detects Parry).
+      // [ Phase 3: Instant Chop (Near-zero delay) ] Yellow trail ignites, uncoils immediately into collar chop!
+      // ----------------------------------------------------------------------
+      const hipX = fighter.radius * 0.32; // Just outside right flank
+      const hipY = fighter.radius * 0.52; // Right hip node hinge
+
+      const rearAngle = Math.PI; // 180° pointing straight backward (coiled hip load)
+      const quarterLineAngle = 0.35; // Forward quarter-line (~20° from straight forward)
+      const chamberAngle = Math.PI * 0.5; // Loaded chamber (90° side flank)
+      const collarLineAngle = -0.28; // Downward chop collar line (-16° across centerline)
+      const guardRetractAngle = 0.50; // Neutral guard angle
+
+      let legAngle = rearAngle;
+      let isPhase3Snap = false;
+      let phase3Forward = false;
+      let phase3Prog = 0;
+
+      if (fighter.heavyWindup && fighter.heavyWindup > 0) {
+        // WINDUP: Phase 1 (0.00s-0.15s / 9 Frames) & Phase 2 (0.15s-0.35s / 12 Frames)
+        const maxWindup = (fighter.maxHeavyWindup || 21);
+        const wRatio = Math.min(1.0, Math.max(0, (maxWindup - fighter.heavyWindup) / maxWindup));
+        const split = 0.4286; // 9f / 21f
+
+        if (wRatio < split) {
+          // ------------------------------------------------------------------
+          // Phase 1: Rear-Facing Stance Load (0.00s – 0.15s / 9 Frames)
+          // - Fixed-size leg renders outside right body circle pointing directly
+          //   toward rear flank (180° / Math.PI).
+          // - Body circle dips slightly, coiling hips to prep forward torque.
+          // ------------------------------------------------------------------
+          legAngle = rearAngle;
+        } else {
+          // ------------------------------------------------------------------
+          // Phase 2: The Right Arc Feint & Snap Pull-Back (0.15s – 0.35s / 0.20s Duration)
+          // - The Forward Right Arc Sweep: Fixed-size leg swings forward along wide
+          //   rightward circular arc (sweeping from rear 180° toward target).
+          // - The Snap & Chamber Pull-Back: Just as it reaches forward quarter-line,
+          //   leg snaps sharply to check forward momentum and pulls back into chamber.
+          // - Leg remains 100% visible in loaded chamber with ZERO stretching.
+          // ------------------------------------------------------------------
+          const p2 = (wRatio - split) / (1.0 - split);
+          if (p2 <= 0.60) {
+            // Forward Right Arc Sweep: from rearAngle (Math.PI) to quarterLineAngle
+            const sweepT = p2 / 0.60;
+            const sweepEase = Math.sin(sweepT * Math.PI * 0.5);
+            legAngle = rearAngle - sweepEase * (rearAngle - quarterLineAngle);
+          } else {
+            // Snap & Chamber Pull-Back: from quarterLineAngle snaps back into chamberAngle
+            const pullT = (p2 - 0.60) / 0.40;
+            const pullEase = pullT * pullT * (3 - 2 * pullT);
+            legAngle = quarterLineAngle + pullEase * (chamberAngle - quarterLineAngle);
+          }
+        }
+      } else {
+        // --------------------------------------------------------------------
+        // Phase 3: Immediate True Chop Execution (A Few Milliseconds Later)
+        // - Near-Zero Delay (Instant Re-Fire): Leg does NOT sit idle in chamber.
+        // - Yellow Trail & Downward Chop: Electric-Yellow Arc Trail (#FFD600) blazes
+        //   at outer tip. Body uncoils, leg chops straight down into opponent's collar line.
+        // - Clean Retraction: Smoothly decelerates & retracts inward as body untwists.
+        // - Strict Fixed Size: Length and width remain 100% fixed throughout.
+        // --------------------------------------------------------------------
+        isPhase3Snap = true;
+        const p = rightProgress;
+        const isForward = rightFist ? rightFist.isPunching : true;
+        phase3Forward = isForward;
+        phase3Prog = p;
+
+        if (isForward) {
+          const snapEase = Math.sin(p * Math.PI * 0.5);
+          // Whips through forward arc from chamberAngle to collarLineAngle
+          legAngle = chamberAngle - snapEase * (chamberAngle - collarLineAngle);
+        } else {
+          // Clean Retraction: Smoothly decelerates from collarLineAngle back to guardRetractAngle
+          const retEase = p * p * (3 - 2 * p);
+          legAngle = collarLineAngle + (1 - retEase) * (guardRetractAngle - collarLineAngle);
+        }
+      }
+
+      // Draw Electric-Yellow Kinetic Trail Arc behind limb during Phase 3 strike
+      if (isPhase3Snap && phase3Forward && phase3Prog > 0) {
+        ctx.save();
+        ctx.translate(hipX, hipY);
+        const trailStartAngle = chamberAngle; // Sweeps from chamber angle (+90°)
+        if (Math.abs(legAngle - trailStartAngle) > 0.03) {
+          ctx.beginPath();
+          // Sweep counter-clockwise from chamberAngle to legAngle
+          ctx.arc(0, 0, fixedLegLen, trailStartAngle, legAngle, true);
+          ctx.lineWidth = fixedLegThickness * 0.95;
+          ctx.strokeStyle = 'rgba(255, 214, 0, 0.40)';
+          ctx.lineCap = 'round';
+          ctx.stroke();
+
+          // Bright electric-yellow core sweep line with outer glow (#FFD600)
+          ctx.beginPath();
+          ctx.arc(0, 0, fixedLegLen, trailStartAngle, legAngle, true);
+          ctx.lineWidth = 4.0;
+          ctx.strokeStyle = '#FFD600';
+          ctx.shadowColor = '#FFD600';
+          ctx.shadowBlur = 14;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
 
       ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(angle);
+      ctx.translate(hipX, hipY);
+      ctx.rotate(legAngle);
 
-      // Soft drop shadow for grounding
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      // 1. Drop Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.beginPath();
-      ctx.rect(-rectW / 2, -legWidth / 2 + 3, rectW, legWidth);
+      ctx.rect(0, -halfWidth + 3, fixedLegLen, fixedLegThickness);
       ctx.fill();
 
-      // Pure rectangular leg: 1 singular solid grey rectangle with crisp black outline (no segments, no roundRect)
-      ctx.fillStyle = '#6b7280';
-      ctx.strokeStyle = '#000000';
+      // 2. Simple Solid Bold Rectangle Leg (ZERO STRETCHING, 100% FIXED DIMENSIONS)
+      ctx.fillStyle = primaryColor;
+      ctx.strokeStyle = outlineColor;
       ctx.lineWidth = 3.5;
       ctx.beginPath();
-      ctx.rect(-rectW / 2, -legWidth / 2, rectW, legWidth);
+      ctx.rect(0, -halfWidth, fixedLegLen, fixedLegThickness);
       ctx.fill();
       ctx.stroke();
 
+      // 3. Inner fabric seam highlight
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.20)';
+      ctx.fillRect(4, -halfWidth / 2, Math.max(1, fixedLegLen - 8), halfWidth);
+
+      // 4. Electric-Yellow Kinetic Tip Ignition during Phase 3
+      if (isPhase3Snap && phase3Forward) {
+        ctx.save();
+        ctx.fillStyle = '#FFD600';
+        ctx.shadowColor = '#FFD600';
+        ctx.shadowBlur = 16;
+        ctx.beginPath();
+        ctx.arc(fixedLegLen, 0, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
       ctx.restore();
-    };
 
-    if (isChamberingM2) {
-      const maxWFrames = 28;
-      const t = Math.min(1, Math.max(0, 1 - (fighter.heavyWindup || 0) / maxWFrames));
-      const spinA = t * Math.PI * 2.0;
+    } else {
+      // ----------------------------------------------------------------------
+      // M1 4-COMBO SEQUENCE (S1-S4: PURE RECTANGLES)
+      // ----------------------------------------------------------------------
+      const rightActive = rightFist && (rightFist.isPunching || rightProgress > 0);
+      const leftActive = leftFist && (leftFist.isPunching || leftProgress > 0);
 
-      const spinLegW = fighter.radius * 1.95;
-      const spinLegH = fighter.radius * 0.56;
-      drawTaekwondoLeg(Math.cos(spinA) * fighter.radius * 0.35, Math.sin(spinA) * fighter.radius * 0.35, spinA, spinLegW, spinLegH);
-      drawTaekwondoLeg(Math.cos(spinA + Math.PI) * fighter.radius * 0.35, Math.sin(spinA + Math.PI) * fighter.radius * 0.35, spinA + Math.PI, spinLegW, spinLegH);
-    } else if (isM2Striking) {
-      const ease = Math.sin(rightProgress * Math.PI);
-      const legW = fighter.radius * (1.5 + ease * 0.95);
-      const legH = fighter.radius * 0.58;
-      const rectX = fighter.radius * 0.25 + legW * 0.40;
-      const rectY = fighter.radius * 0.42; // Aligned to right flank
-      drawTaekwondoLeg(rectX, rectY, 0, legW, legH);
-    } else if (leftProgress > 0) {
-      const ease = Math.sin(leftProgress * Math.PI);
-      if (stage === 0) {
-        // S1 Lead Snap Kick - Left leg aligned to left flank
-        const legW = fighter.radius * (1.4 + ease * 0.85);
-        const legH = fighter.radius * 0.56;
-        const rectX = fighter.radius * 0.20 + legW * 0.40;
-        const rectY = -fighter.radius * 0.42;
-        drawTaekwondoLeg(rectX, rectY, 0, legW, legH);
-      } else if (stage === 2) {
-        // S3 Stance Switch Jump Kick - Left leg aligned to left flank
-        const legW = fighter.radius * (1.45 + ease * 0.85);
-        const legH = fighter.radius * 0.56;
-        const rectX = fighter.radius * 0.25 + legW * 0.40;
-        const rectY = -fighter.radius * 0.45;
-        drawTaekwondoLeg(rectX, rectY, 0, legW, legH);
+      if (rightActive || leftActive) {
+        // Active fist and stage detection:
+        const isLeftActiveStage = leftActive && (leftFist?.comboStage === 2 || leftFist?.comboStage === 3 || leftFist?.isPunching);
+        const activeFist = isLeftActiveStage ? leftFist : (rightActive ? rightFist : leftFist);
+        const stage = activeFist?.comboStage !== undefined 
+          ? activeFist.comboStage 
+          : (fighter.comboStage === 0 ? 3 : ((fighter.comboStage || 1) - 1));
+        const p = activeFist ? activeFist.punchProgress : 0;
+        const isForward = activeFist ? activeFist.isPunching : true;
+
+        if (stage === 0 || stage === 1) {
+          // ------------------------------------------------------------------
+          // S1 & S2: Seamless Double-Tap Transition
+          // 🎬 MINI-SPEC: S1 ➔ S2 SEAMLESS DOUBLE-TAP TRANSITION
+          //
+          // 1. 🚫 Anti-Reset Rule (No Full Animation Loop):
+          //    - Chaining S1 into S2 must NOT reset the entire character back to Frame 0
+          //      or restart the kick from scratch.
+          //    - No Despawning: Kicking leg does NOT disappear, and does NOT pull
+          //      all the way back inside the body circle.
+          //
+          // 2. ⚡ The Chamber Pull-Back (Snap Retract ➔ Instant Fire):
+          // 2. ⚡ The Chamber Pull-Back (Snap Retract ➔ Instant Fire):
+          //    - S1 hits at 100% reach -> visible chamber pull-back to 35% extension over 6 frames (~0.10s).
+          //    - Persistent Chamber Hold (0.4s): Leg stays visibly chambered for 0.4s.
+          //    - The instant S2 is fired, it uncoils directly from that cocked 35% chamber position!
+          // ------------------------------------------------------------------
+          const hipX = fighter.radius * 0.15;
+          const hipY = fighter.radius * 0.65;
+          const chamber35Len = minChamberLen + 0.35 * (maxKickReach - minChamberLen);
+
+          let legAngle = 0;
+          let curLegLen = minChamberLen;
+
+          if (stage === 0) {
+            // S1: Slanted Snap Kick
+            if (isForward) {
+              const slantStartAngle = 0.70;
+              const straightenT = Math.max(0, (p - 0.26) / 0.74);
+              const smoothStraighten = straightenT * straightenT * (3 - 2 * straightenT);
+              legAngle = slantStartAngle * (1 - smoothStraighten);
+              const extendEase = Math.sin(p * Math.PI * 0.5);
+              curLegLen = minChamberLen + extendEase * (maxKickReach - minChamberLen);
+            } else {
+              if (fighter.tkdChamberRetracting) {
+                // Visible Chamber Retraction (0.10s / 6 frames): snaps back from 100% to 35% chamber depth
+                const clampedP = Math.max(0.35, Math.min(1.0, p));
+                curLegLen = minChamberLen + clampedP * (maxKickReach - minChamberLen);
+                legAngle = 0;
+              } else if (fighter.tkdInChamber) {
+                // Persistent Chamber Hold (0.4s): Leg stays visibly chambered at 35% depth outside the body
+                curLegLen = chamber35Len;
+                legAngle = 0;
+              } else {
+                // Natural DS Retraction back toward hip after chamber hold expires
+                const retEase = p * p * (3 - 2 * p);
+                legAngle = 0;
+                curLegLen = minChamberLen + retEase * (maxKickReach - minChamberLen);
+              }
+            }
+          } else {
+            // S2: Repeat Snap Kick (Fires directly out of the pulled-back 35% chamber position!)
+            if (isForward) {
+              const s2T = Math.max(0, Math.min(1.0, (p - 0.35) / 0.65));
+              const s2Ease = Math.sin(s2T * Math.PI * 0.5);
+              curLegLen = chamber35Len + s2Ease * (maxKickReach - chamber35Len);
+              legAngle = 0; // Straight forward piston thrust from cocked 35% chamber
+            } else {
+              // S2 Retraction / recovery back to hip
+              const retEase = p * p * (3 - 2 * p);
+              legAngle = 0;
+              curLegLen = minChamberLen + retEase * (maxKickReach - minChamberLen);
+            }
+          }
+
+          ctx.save();
+          ctx.translate(hipX, hipY);
+          ctx.rotate(legAngle);
+
+          // 1. Drop Shadow
+          ctx.fillStyle = 'rgba(0,0,0,0.45)';
+          ctx.beginPath();
+          ctx.rect(0, -legThickness / 2 + 3, curLegLen, legThickness);
+          ctx.fill();
+
+          // 2. Simple Bold Rectangle Leg
+          ctx.fillStyle = primaryColor;
+          ctx.strokeStyle = outlineColor;
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.rect(0, -legThickness / 2, curLegLen, legThickness);
+          ctx.fill();
+          ctx.stroke();
+
+          // 3. Inner fabric seam highlight
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.20)';
+          ctx.fillRect(4, -legThickness / 4, Math.max(1, curLegLen - 8), legThickness / 2);
+
+          ctx.restore();
+
+        } else if (stage === 2) {
+          // ------------------------------------------------------------------
+          // S3: Spinning Back Kick (Left Leg)
+          // "for S3 anim, I want the leg to snap 90 degrees at the end, actually straight(like M2),
+          // but I stated I wanted you to actually change it only at the end sequence!
+          // The Anim is fine but the rotation just isn't enough (S3)"
+          // ------------------------------------------------------------------
+          const fixedLegLen = fighter.radius * 1.85; // Strict fixed straight length matched to Kyokushin Karate
+          const targetReach = fixedLegLen;
+          const leftSnapAngle = -Math.PI * 0.5;  // Crisp 90 degrees snap straight to the side (-90°)
+          const halfWidth = legThickness / 2;
+
+          let curLegLen = targetReach;
+          let targetAngleRad = 0;
+
+          if (isForward) {
+            if (p < 0.70) {
+              // 1. "The Anim is fine": Progressive spin & straight extension untouched until the end sequence!
+              const straightenT = p / 0.70;
+              const straightenEase = Math.sin(straightenT * Math.PI * 0.5);
+              curLegLen = minChamberLen + straightenEase * (targetReach - minChamberLen);
+              targetAngleRad = 0; // Pure straight rectangle extending from the hip along spin
+            } else {
+              // 2. Changed ONLY at the end sequence (p >= 0.70):
+              // Leg snaps a full, clean 90 degrees at the end, actually straight like M2!
+              const snapT = (p - 0.70) / 0.30;
+              const snapEase = 1 - Math.pow(1 - snapT, 2.0); // Sharp, high-speed martial arts snap landing firmly at 90°
+              targetAngleRad = leftSnapAngle * snapEase; // Snaps a crisp, authoritative 90 degrees (-90°)
+              curLegLen = targetReach; // Actually straight like M2!
+            }
+          } else {
+            // 3. Retraction DS Phase: Preserves crisp 90° snap angle and stays actually straight like M2!
+            targetAngleRad = leftSnapAngle;
+            curLegLen = targetReach; // Holds full straight length like M2 throughout follow-through
+          }
+
+          // Hip root anchor (x_0, y_0) permanently pinned at inner hip node on left flank:
+          const hipAnchorX = fighter.radius * 0.10;
+          const hipAnchorY = -fighter.radius * 0.65; // Left flank of character
+
+          ctx.save();
+          ctx.translate(hipAnchorX, hipAnchorY); // Anchored inside the body circle
+          ctx.rotate(targetAngleRad);            // Entire rigid rectangle pivots 90° to the side
+
+          // 1. Drop Shadow (offset slightly in Y)
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+          ctx.beginPath();
+          ctx.rect(0, -halfWidth + 3, curLegLen, legThickness);
+          ctx.fill();
+
+          // 2. Pure Solid Rigid Straight Rectangle (like M2 - zero warping)
+          ctx.fillStyle = primaryColor;
+          ctx.strokeStyle = outlineColor;
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.rect(0, -halfWidth, curLegLen, legThickness);
+          ctx.fill();
+          ctx.stroke();
+
+          // 3. Inner fabric seam highlight along the rigid rectangle
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.20)';
+          ctx.fillRect(4, -halfWidth / 2, Math.max(1, curLegLen - 8), halfWidth);
+
+          ctx.restore();
+        } else if (stage === 3) {
+          // ------------------------------------------------------------------
+          // S4: Side Kick Finisher (Left Leg)
+          // ------------------------------------------------------------------
+          const hipAnchorX = fighter.radius * 0.10;
+          const hipAnchorY = -fighter.radius * 0.65; // Left flank of character
+          const halfWidth = legThickness / 2;
+          const targetReach = baseLegLen; // Matched to Kyokushin Karate leg size (1.85 * radius)
+
+          let curLegLen = minChamberLen;
+          let legAngle = 0;
+
+          if (isForward) {
+            const strikeEase = Math.sin(p * Math.PI * 0.5);
+            curLegLen = minChamberLen + strikeEase * (targetReach - minChamberLen);
+            // Along primary strike vector: compensates for body circle 45° clockwise rotation
+            legAngle = -strikeEase * (Math.PI / 4);
+          } else {
+            const retEase = p * p * (3 - 2 * p);
+            curLegLen = minChamberLen + retEase * (targetReach - minChamberLen);
+            legAngle = -retEase * (Math.PI / 4);
+          }
+
+          ctx.save();
+          ctx.translate(hipAnchorX, hipAnchorY);
+          ctx.rotate(legAngle);
+
+          // 1. Drop Shadow
+          ctx.fillStyle = 'rgba(0,0,0,0.45)';
+          ctx.beginPath();
+          ctx.rect(0, -halfWidth + 3, curLegLen, legThickness);
+          ctx.fill();
+
+          // 2. Pure Solid Rigid Rectangle (No warping)
+          ctx.fillStyle = primaryColor;
+          ctx.strokeStyle = outlineColor;
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.rect(0, -halfWidth, curLegLen, legThickness);
+          ctx.fill();
+          ctx.stroke();
+
+          // 3. Inner fabric seam highlight
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.20)';
+          ctx.fillRect(4, -halfWidth / 2, Math.max(1, curLegLen - 8), halfWidth);
+
+          ctx.restore();
+        }
       }
-    } else if (rightProgress > 0) {
-      const ease = Math.sin(rightProgress * Math.PI);
-      if (stage === 1) {
-        // S2 Roundhouse Whip - Right leg aligned to right flank
-        const kickAngle = Math.PI * 0.30 - ease * Math.PI * 0.60;
-        const dist = fighter.radius * (1.1 + ease * 0.35);
-        const rectX = Math.cos(kickAngle) * dist;
-        const rectY = Math.sin(kickAngle) * dist + fighter.radius * 0.25;
-        const legW = fighter.radius * 2.10;
-        const legH = fighter.radius * 0.56;
-        drawTaekwondoLeg(rectX, rectY, kickAngle, legW, legH);
-      } else if (stage === 3) {
-        // S4 360 Tornado Kick - Right leg whip
-        const totalProgress = rightFist?.isPunching ? (rightProgress * 0.5) : (0.5 + (1.0 - rightProgress) * 0.5);
-        const kickAngle = totalProgress * Math.PI * 2.0;
-        const dist = fighter.radius * 1.15;
-        const rectX = Math.cos(kickAngle) * dist;
-        const rectY = Math.sin(kickAngle) * dist + Math.sin(kickAngle) * fighter.radius * 0.20;
-        const legW = fighter.radius * 2.25;
-        const legH = fighter.radius * 0.58;
-        drawTaekwondoLeg(rectX, rectY, kickAngle, legW, legH);
-      }
-    } else if (isBlockingActive) {
-      const kneeBlockW = fighter.radius * 1.50;
-      const kneeBlockH = fighter.radius * 0.65;
-      const kneeX = fighter.radius * 0.50;
-      const kneeY = -fighter.radius * 0.30;
-      const kneeAngle = -Math.PI / 8;
-      drawTaekwondoLeg(kneeX, kneeY, kneeAngle, kneeBlockW, kneeBlockH);
     }
   }
-
 
   // 2. Draw Fighter Core Circle
   const isKickboxingS1Windup = fighter.styleId === 'kickboxing' && (fighter.heavyWindup || 0) > 0 && !fighter.kickboxingIsSeq2;
@@ -2172,6 +2636,28 @@ export const drawFighter = (
     ctx.beginPath();
     ctx.arc(0, 0, fighter.radius * 1.15, 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  // 🛡️ Aikido M2 Active Parry Stance: Dual-Layer Opacity Visual FX (During Active Window)
+  if (fighter.styleId === 'aikido' && (fighter.aikiM2ActiveWindow || 0) > 0) {
+    ctx.save();
+    // 1. Fixed Light-Blue Base: Fighter’s body circle renders with a steady, translucent Light-Blue Aura Overlay
+    ctx.fillStyle = 'rgba(0, 229, 255, 0.35)';
+    ctx.beginPath();
+    ctx.arc(0, 0, fighter.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2. Pulsing White Blink: Layered directly on top, the fighter's rim flashes with an oscillating White Opacity Pulse (0.1 to 0.8 at 6 Hz)
+    const blinkPhase = 0.5 + 0.5 * Math.sin(gameTime * 0.62831853);
+    const blinkAlpha = 0.10 + 0.70 * blinkPhase;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${blinkAlpha.toFixed(3)})`;
+    ctx.lineWidth = 4.0;
+    ctx.shadowColor = '#00e5ff';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(0, 0, fighter.radius + 1.0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   if (fighter.isDashing || (fighter.dashProgress && fighter.dashProgress > 0) || (fighter.dashWhiteFrameFlashTime && fighter.dashWhiteFrameFlashTime > 0)) {
@@ -2573,8 +3059,6 @@ export const drawFighter = (
       ctx.restore();
     }
   }
-
-
   // 3. Draw Fists using Inverse Kinematics (IK) jointed arms
   if (isBlockingActive) {
     renderBlockArc(ctx, fighter);
@@ -2599,7 +3083,7 @@ export const drawFighter = (
       (fighter.heavyWindup && fighter.heavyWindup > 0) ||
       (rightFistForM2 && rightFistForM2.isHeavy && rightFistForM2.punchProgress > 0)
     );
-    if (isCapoeiraM2 || (fighter.styleId === 'street_taekwondo' && isBlockingActive)) {
+    if (isCapoeiraM2) {
       ctx.restore();
       return;
     }
@@ -2874,6 +3358,27 @@ export const drawFighter = (
           sAngle = (Math.PI / 2.0) - sweepSin * 0.30;
         }
         shoulderAngle = sAngle;
+      }
+    }
+    if (fighter.styleId === 'street_taekwondo') {
+      const isHeavy = !!(rightFist && rightFist.isHeavy);
+      const isM2 = (fighter.heavyWindup && fighter.heavyWindup > 0) || (rightProgress > 0 && isHeavy);
+      const isLeftFistActive = leftFist && (leftFist.isPunching || (leftProgress > 0 && (leftFist.comboStage === 2 || leftFist.comboStage === 3)));
+      const activeFist = isLeftFistActive ? leftFist : ((rightProgress > 0 || (rightFist && rightFist.isPunching)) ? rightFist : leftFist);
+      const stage = activeFist?.comboStage !== undefined 
+        ? activeFist.comboStage 
+        : (fighter.comboStage === 0 ? 3 : ((fighter.comboStage || 1) - 1));
+      const isS1orS2 = stage === 0 || stage === 1 || fist.comboStage === 0 || fist.comboStage === 1;
+      if (!isLeft && (isS1orS2 || isM2) && rightProgress > 0) {
+        // "The sway is not instant": Smoothstep easing ensures gradual acceleration from 0
+        const p = rightProgress;
+        const sway = p * p * (3 - 2 * p);
+        shoulderAngle = (Math.PI / 2.3) + sway * 0.28;
+      } else if (isLeft && (stage === 3 || fist.comboStage === 3) && leftProgress > 0) {
+        // S4 Left Arm Sway: arm swings back smoothly along the left flank as kinetic counterbalance
+        const p = leftProgress;
+        const sway = p * p * (3 - 2 * p);
+        shoulderAngle = (-Math.PI / 2.3) - sway * 0.32;
       }
     }
     shoulderAngle = getKickShoulderAngle(fighter, isLeft, shoulderAngle);
@@ -3248,15 +3753,51 @@ export const drawFighter = (
             actualFistY = targetFistY;
           }
         }
-      } else if (!isLeft && curlEase > 0.001 && rightProgress === 0) {
-        // Curls up ONLY after S1 finishes, and uncurls ONLY after S2 finishes!
-        // Smoothly blend standard geometric elbow IK with curled chamber position:
-        const chamberElbowX = shoulderX + fighter.radius * 0.38;
-        const chamberElbowY = shoulderY + fighter.radius * 0.34;
-        elbowX = elbowX * (1 - curlEase) + chamberElbowX * curlEase;
-        elbowY = elbowY * (1 - curlEase) + chamberElbowY * curlEase;
+      } else if (isLeft && leftProgress > 0 && (stage === 2 || leftFist?.comboStage === 2)) {
+        // ✋ M1 S3 Left Thrust Palm: Snappy linear unbending along centerline (Zero Arm Stretch)
         actualFistX = targetFistX;
         actualFistY = targetFistY;
+        elbowX = shoulderX + (actualFistX - shoulderX) * 0.50;
+        elbowY = shoulderY + (actualFistY - shoulderY) * 0.50;
+      } else {
+        const isRightArm = !isLeft;
+        const recoilSideSign = isRightArm ? 1 : -1; // + for Right, - for Left
+        const isCounterPulling = (isRightArm && leftProgress > 0) || (!isRightArm && rightProgress > 0);
+        const isRetracting = !fist.isPunching && fist.punchProgress > 0;
+
+        if (isCounterPulling || isRetracting) {
+          // 🌊 Synchronized Continuous Recoil: Interpolate smoothly across exact strike timeline using easeOutQuad (No Instant Snapping)
+          const activeProgress = isCounterPulling ? (isRightArm ? leftProgress : rightProgress) : fist.punchProgress;
+          const isForward = isCounterPulling
+            ? (isRightArm ? (leftFist?.isPunching ?? false) : (rightFist?.isPunching ?? false))
+            : fist.isPunching;
+          const easedT = isForward ? (activeProgress * (2 - activeProgress)) : (activeProgress * activeProgress * (3 - 2 * activeProgress));
+
+          // Smooth outward curve along flank:
+          const lateralFlankOffset = fighter.radius * 0.40;
+          const startElbowX = shoulderX + L1 * Math.cos(shoulderAngle);
+          const startElbowY = shoulderY + L1 * Math.sin(shoulderAngle);
+          const targetElbowX = shoulderX - L1 * 0.72;
+          const targetElbowY = shoulderY + (recoilSideSign * lateralFlankOffset);
+
+          elbowX = startElbowX * (1 - easedT) + targetElbowX * easedT;
+          elbowY = startElbowY * (1 - easedT) + targetElbowY * easedT;
+
+          const startFistX = targetFistX;
+          const startFistY = targetFistY;
+          const targetFistXRecoil = shoulderX - L1 * 0.32;
+          const targetFistYRecoil = shoulderY + (recoilSideSign * (lateralFlankOffset + fighter.radius * 0.10));
+
+          actualFistX = startFistX * (1 - easedT) + targetFistXRecoil * easedT;
+          actualFistY = startFistY * (1 - easedT) + targetFistYRecoil * easedT;
+        } else if (!isLeft && curlEase > 0.001 && rightProgress === 0) {
+          const chamberElbowX = shoulderX + fighter.radius * 0.38;
+          const chamberElbowY = shoulderY + fighter.radius * 0.34;
+          elbowX = elbowX * (1 - curlEase) + chamberElbowX * curlEase;
+          elbowY = elbowY * (1 - curlEase) + chamberElbowY * curlEase;
+          actualFistX = targetFistX;
+          actualFistY = targetFistY;
+        }
       }
     } else if (fighter.styleId === 'keysi') {
       const stage = fighter.comboStage === 0 ? 3 : ((fighter.comboStage || 1) - 1);
@@ -3623,6 +4164,99 @@ export const drawFighter = (
           actualFistY = elbowY + L2 * Math.sin(foldAngle);
         }
       }
+    } else if (fighter.styleId === 'street_taekwondo') {
+      const isHeavy = !!(rightFist && rightFist.isHeavy);
+      const isM2 = (fighter.heavyWindup && fighter.heavyWindup > 0) || (rightProgress > 0 && isHeavy);
+      const isLeftFistActive = leftFist && (leftFist.isPunching || (leftProgress > 0 && (leftFist.comboStage === 2 || leftFist.comboStage === 3)));
+      const activeFist = isLeftFistActive ? leftFist : ((rightProgress > 0 || (rightFist && rightFist.isPunching)) ? rightFist : leftFist);
+      const stage = activeFist?.comboStage !== undefined 
+        ? activeFist.comboStage 
+        : (fighter.comboStage === 0 ? 3 : ((fighter.comboStage || 1) - 1));
+      const isS1orS2 = stage === 0 || stage === 1 || fist.comboStage === 0 || fist.comboStage === 1;
+      if (!isLeft && (isS1orS2 || isM2) && rightProgress > 0) {
+        // "for S1 and S2, Right arm sways back smoothly"
+        // "The sway is not instant, The wrist is slanted. - Animation should be smoother."
+        // "you slanted the hand, not the wrist. The slant shouldnt be to the back but yknow, make it face a little front."
+        // "The wrist should be rotated abit to the right more when doing the arm sway but never too straight"
+
+        // 1. Smoothstep easing curve: 0 initial acceleration velocity -> zero instant snap, silky smooth acceleration into sway
+        const p = rightProgress;
+        const sway = p * p * (3 - 2 * p);
+
+        // 2. Base neutral joint angles from resting stance:
+        const neutralUpperAngle = Math.atan2(elbowY - shoulderY, elbowX - shoulderX);
+        const neutralForearmAngle = Math.atan2(actualFistY - elbowY, actualFistX - elbowX);
+
+        // 3. Peak sway target angles:
+        // - Right upper arm sways backward along the right flank:
+        const swayUpperAngle = Math.PI * 0.5 + 0.42; // ~114° pointing backward-right
+        // - Wrist is slanted, facing front (+X), rotated a bit more to the right (+Y), never too straight:
+        const swayWristAngle = 0.46; // ~26.4° to the right of forward (distinctly rotated to the right, never too straight)
+
+        // Shortest-arc angle difference helper to guarantee smooth continuous interpolation:
+        const normAngleDiff = (target: number, current: number) => {
+          let diff = target - current;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          return diff;
+        };
+
+        const curUpperAngle = neutralUpperAngle + normAngleDiff(swayUpperAngle, neutralUpperAngle) * sway;
+        const curForearmAngle = neutralForearmAngle + normAngleDiff(swayWristAngle, neutralForearmAngle) * sway;
+
+        elbowX = shoulderX + L1 * Math.cos(curUpperAngle);
+        elbowY = shoulderY + L1 * Math.sin(curUpperAngle);
+        actualFistX = elbowX + L2 * Math.cos(curForearmAngle);
+        actualFistY = elbowY + L2 * Math.sin(curForearmAngle);
+      } else if (isLeft && (stage === 3 || fist.comboStage === 3) && leftProgress > 0) {
+        // "S4 will do an armsway on the left arm"
+        // Smoothstep easing ensures gradual acceleration from 0 into sway
+        const p = leftProgress;
+        const sway = p * p * (3 - 2 * p);
+
+        const neutralUpperAngle = Math.atan2(elbowY - shoulderY, elbowX - shoulderX);
+        const neutralForearmAngle = Math.atan2(actualFistY - elbowY, actualFistX - elbowX);
+
+        // Left upper arm sways backward further along the left flank
+        const swayUpperAngle = -Math.PI * 0.5 - 0.70; // pointing backward-left (~160°)
+        // Wrist is slanted, facing front (+X), rotated a bit to the left (-Y), never too straight
+        const swayWristAngle = -0.55;
+
+        const normAngleDiff = (target: number, current: number) => {
+          let diff = target - current;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          return diff;
+        };
+
+        const curUpperAngle = neutralUpperAngle + normAngleDiff(swayUpperAngle, neutralUpperAngle) * sway;
+        const curForearmAngle = neutralForearmAngle + normAngleDiff(swayWristAngle, neutralForearmAngle) * sway;
+
+        elbowX = shoulderX + L1 * Math.cos(curUpperAngle);
+        elbowY = shoulderY + L1 * Math.sin(curUpperAngle);
+        actualFistX = elbowX + L2 * Math.cos(curForearmAngle);
+        actualFistY = elbowY + L2 * Math.sin(curForearmAngle);
+      } else if (stage === 2 && activeFist?.isPunching) {
+        // Phase 1 (Frames 0 - 8): Hands remain tucked at chest level to generate rotational torque
+        const prog = activeFist.punchProgress;
+        const tuckT = Math.min(1.0, prog / 0.45);
+        const tuckEase = Math.sin(tuckT * Math.PI * 0.5);
+        if (isLeft) {
+          const tuckUpperAngle = -0.25 * tuckEase;
+          const tuckForearmAngle = Math.PI - 0.35 * tuckEase;
+          elbowX = shoulderX + L1 * Math.cos(tuckUpperAngle);
+          elbowY = shoulderY + L1 * Math.sin(tuckUpperAngle);
+          actualFistX = elbowX + L2 * Math.cos(tuckForearmAngle);
+          actualFistY = elbowY + L2 * Math.sin(tuckForearmAngle);
+        } else {
+          const tuckUpperAngle = 0.25 * tuckEase;
+          const tuckForearmAngle = -Math.PI + 0.35 * tuckEase;
+          elbowX = shoulderX + L1 * Math.cos(tuckUpperAngle);
+          elbowY = shoulderY + L1 * Math.sin(tuckUpperAngle);
+          actualFistX = elbowX + L2 * Math.cos(tuckForearmAngle);
+          actualFistY = elbowY + L2 * Math.sin(tuckForearmAngle);
+        }
+      }
     } else {
       const kickArm = getKickArmIK(fighter, fist, isLeft, shoulderX, shoulderY, L1, L2);
       if (kickArm.isOverridden) {
@@ -3635,7 +4269,7 @@ export const drawFighter = (
 
     const armThickness = fist.radius * 1.9;
 
-    // Enforce fixed segment lengths L1 and L2 so arms never stretch or detach
+    // Enforce fixed segment lengths L1 and L2 so arms NEVER stretch or detach
     const curUpperArmLen = Math.hypot(elbowX - shoulderX, elbowY - shoulderY);
     if (curUpperArmLen > 0) {
       elbowX = shoulderX + ((elbowX - shoulderX) / curUpperArmLen) * L1;
@@ -3650,9 +4284,9 @@ export const drawFighter = (
     const upperArmLen = L1;
     const forearmLen = L2;
 
-    // Aikido Super Armor arm-only visual effect (Super Armor Visual ONLY applies to Aikido, arms ONLY, no Circle VFX)
-    const isArmSuperArmorFlashing = fighter.styleId === 'aikido' && saFlashAlpha > 0.04 && !isHitFlashing && !isCqcM2HitFlashing;
-    const isArmSuperArmorActive = fighter.styleId === 'aikido' && isFighterSuperArmorActive(fighter) && !isHitFlashing && !isCqcM2HitFlashing;
+    // Super Armor completely removed from Aikido across all moves
+    const isArmSuperArmorFlashing = false;
+    const isArmSuperArmorActive = false;
 
     // 1. Draw UPPER ARM block
     ctx.save();
@@ -3794,7 +4428,10 @@ export const drawFighter = (
     ctx.save();
     ctx.translate(actualFistX, actualFistY);
     let gloveRot = getKickGloveRotation(fighter, fist, isLeft, forearmAngle);
-    if (fighter.styleId === 'street_boxing' || fighter.styleId === 'boxing_shell') {
+    if (fighter.styleId === 'street_taekwondo') {
+      // Forearm & wrist itself is slanted facing front; hand aligns naturally with the slanted wrist facing front
+      gloveRot = forearmAngle;
+    } else if (fighter.styleId === 'street_boxing' || fighter.styleId === 'boxing_shell') {
       // Hands align straight with the forearm
       gloveRot = forearmAngle;
     } else if (fighter.styleId === 'basic') {
@@ -3805,29 +4442,8 @@ export const drawFighter = (
         gloveRot = forearmAngle - slantAmount;
       }
     } else if (fighter.styleId === 'aikido') {
-      const stage = fighter.comboStage === 0 ? 3 : ((fighter.comboStage || 1) - 1);
-      if (isLeft && leftProgress > 0 && (stage === 1 || stage === 0 || leftFist?.comboStage === 1)) {
-        // S2: Left hand flows smoothly from long rear pullback before rotating far to the right like a tegatana blade slash
-        const windupSplit = 0.44;
-        if (leftProgress < windupSplit) {
-          const wT = leftProgress / windupSplit;
-          gloveRot = forearmAngle - 0.45 * Math.sin(wT * Math.PI * 0.5);
-        } else {
-          const sT = (leftProgress - windupSplit) / (1 - windupSplit);
-          const slashEase = 0.5 - 0.5 * Math.cos(sT * Math.PI);
-          gloveRot = forearmAngle + (-0.45 * (1 - slashEase) + slashEase * 0.70);
-        }
-      } else if (stage === 2 && ((isLeft && leftProgress > 0) || (!isLeft && rightProgress > 0))) {
-        // S3 Tenkan Arm-Cross Sweep: Both square gloves curl inward toward chest profile in interlocking scissor/trap motion
-        const rightFist = fighter.fists ? (fighter.fists.find(f => f.punchType === 'right') || fighter.fists[1]) : undefined;
-        const prog = rightFist ? rightFist.punchProgress : 0;
-        const curlMag = Math.sin(prog * Math.PI) * 0.45;
-        const curlAngle = isLeft ? curlMag : -curlMag;
-        gloveRot = forearmAngle + curlAngle;
-      } else {
-        // Hands align straight with the wrist and forearm
-        gloveRot = forearmAngle;
-      }
+      // 🔒 Rigid Hand-Wrist Stasis: strictly equal the arm's vector angle (zero independent spin)
+      gloveRot = forearmAngle;
     }
     ctx.rotate(gloveRot);
 
@@ -3858,8 +4474,8 @@ export const drawFighter = (
     const isP1 = fighter.isP1 !== undefined ? fighter.isP1 : fighter.isPlayer;
     const gloveColor = isImpactSil ? '#050505' : (isCqcM2HitFlashing ? '#ff0033' : (isHitFlashing ? '#f43f5e' : (isArmSuperArmorFlashing ? (saFlashAlpha > 0.6 ? '#bae6fd' : '#00e5ff') : (isArmSuperArmorActive ? '#38bdf8' : (fighter.styleId === 'street_boxing' ? '#2E7D32' : (fighter.styleId === 'boxing_shell' ? '#9333ea' : (fighter.styleId === 'keysi' ? '#1A1A1A' : (fighter.styleId === 'cqc' ? '#111111' : (isP1 ? '#ef4444' : '#2563eb')))))))));
     const stage = fighter.comboStage === 0 ? 3 : ((fighter.comboStage || 1) - 1);
-    const isAikidoS2Chop = fighter.styleId === 'aikido' && isLeft && leftProgress > 0 && (stage === 1 || stage === 0 || leftFist?.comboStage === 1);
-    const isOpenHandBlade = isAikidoS2Chop;
+    // All Aikido strikes use Square Glove (Fist/Palm) rendering
+    const isOpenHandBlade = false;
 
     if (isArmSuperArmorFlashing) {
       ctx.shadowColor = '#00e5ff';

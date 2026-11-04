@@ -1,3 +1,4 @@
+import { frameInspector } from './inspector';
 import { Fighter } from '../types';
 import { getClampedFistPos } from './fistIK';
 import { getFighterVisualTransform } from './renderFighter';
@@ -208,5 +209,13 @@ export function drawHitboxOverlay(
     drawFighterHurtbox(dummy, false);
   }
 
+  
+  // Render Dojo Frame Inspector diagnostic telemetry if enabled
+  if (frameInspector.isEnabled() && player) {
+    frameInspector.renderOverlay(ctx, player.id || "player", player.x, player.y, (player as any).facing || 1);
+  }
+  if (frameInspector.isEnabled() && dummy) {
+    frameInspector.renderOverlay(ctx, dummy.id || "dummy", dummy.x, dummy.y, (dummy as any).facing || -1);
+  }
   ctx.restore();
 }

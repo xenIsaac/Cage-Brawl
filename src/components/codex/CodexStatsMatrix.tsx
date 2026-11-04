@@ -92,9 +92,11 @@ export const CodexStatsMatrix: React.FC<CodexStatsMatrixProps> = ({ style }) => 
       badges.push({ label: 'CHAIN REACTION (0.25s M2)', type: 'special', desc: 'Landing S4 drops M2 windup to 0.25s' });
       badges.push({ label: '80% ARMOR STRIP TEEP', type: 'buff', desc: 'Two-stage heavy destroys armor HP' });
     } else if (style.id === 'street_taekwondo') {
-      badges.push({ label: 'COUNTER-BAIT (0.8s I-FRAMES)', type: 'buff', desc: 'Parries against spin dash trigger I-Frames' });
-      badges.push({ label: '+8% COMBO ACCELERATION', type: 'buff', desc: 'Landing M2 boosts next light sequence speed' });
-      badges.push({ label: 'AIRBORNE I-FRAME KICK', type: 'special', desc: 'S3 jumping kick evades low strikes' });
+      badges.push({ label: 'BRAZILIAN FEINT TRAP', type: 'special', desc: 'M2 feint chamber baits parries into 1.0s Spin-Out & 3.0s Confusion' });
+      badges.push({ label: 'DEFLECTIVE CADENCE', type: 'buff', desc: '+30% Posture Regeneration speed for 8.0s on manual parry' });
+      badges.push({ label: '0.10s SPINNING BACK KICK', type: 'buff', desc: 'Lightning-fast 360° reverse torque S3 kick' });
+      badges.push({ label: '1.05x EXECUTION SPEED', type: 'buff', desc: '+5% limb velocity (~100ms extension travel)' });
+      badges.push({ label: '1.15x SWEEPING REACH', type: 'buff', desc: 'Extended reach via wide sweeping leg arcs' });
     } else if (style.id === 'kyokushin') {
       badges.push({ label: 'SUPER ARMOR M2', type: 'buff', desc: 'M2 windup cannot be interrupted' });
       badges.push({ label: 'UNBREAKABLE HP GUARD', type: 'buff', desc: 'Immune to standard guard breaks' });

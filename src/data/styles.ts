@@ -83,13 +83,14 @@ export const FIGHTING_STYLES: FightingStyle[] = [
     isBlocked: false,
   }),
   createFightingStyle(kickboxingStyle, {
-    reworkStatus: 'pending_rework',
-    reworkNotes: 'Prepared for Dutch kickboxing low-kick combo loop rework.',
+    reworkStatus: 'reworked',
+    reworkNotes: 'Kickboxing Base Rework: Base Stats (Damage: 1.05x | Attack Execution: 0.95x | Attack Speed: 1.10x). Passive Cadence Opening: landing both M2 strikes grants +15% Attack Execution and +20% Attack Speed. Passive Chain Reaction: every landed hit reduces M2 cooldown by 0.2s. M2 Dynamic Cooldowns: S1 Hit, S2 Whiff (4s) | S2 Hit, S1 Whiff (5s) | Both Hit (6s) | Both Whiff (8s).',
+    isBlocked: false,
   }),
   createFightingStyle(streetTaekwondoStyle, {
-    reworkStatus: 'undergoing_rework',
-    reworkNotes: 'Undergoing Rework: All old mechanics removed. Preparing for complete overhaul.',
-    isBlocked: true,
+    reworkStatus: 'active',
+    reworkNotes: 'Street Taekwondo Rework (Aggressive Feint Striker): Brazilian Kick (Question Mark Kick), Neuro-Trauma Hallucination feint trap with 1.0s Spin-Out and 3.0s Confusion State, and Deflective Cadence +30% Posture Regen.',
+    isBlocked: false,
   }),
   createFightingStyle(streetBoxingStyle, {
     reworkStatus: 'active',

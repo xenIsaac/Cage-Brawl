@@ -169,8 +169,8 @@ export default function MobileControls({
         else if (styleId === 'capoeira') baseHeavyCD = 318;
         else if (styleId === 'slugger') baseHeavyCD = 150;
         else if (styleId === 'kyokushin') baseHeavyCD = 564;
-        else if (styleId === 'kickboxing') baseHeavyCD = 192;
-        else if (styleId === 'street_taekwondo') baseHeavyCD = 270;
+        else if (styleId === 'kickboxing') baseHeavyCD = 480;
+        else if (styleId === 'street_taekwondo') baseHeavyCD = 420;
         else if (styleId === 'keysi') baseHeavyCD = 720;
         else if (styleId === 'cqc') baseHeavyCD = 900;
         else if (styleId === 'boxing_shell') baseHeavyCD = 600;
@@ -184,6 +184,8 @@ export default function MobileControls({
         const isShellLocked = (p.shellLockoutTimer || 0) > 0;
         const isSuperCrippled = (p.superCrippleTimer || 0) > 0;
         const isM2WhiffLocked = (p.sluggerM2WhiffLockoutTimer || 0) > 0;
+        const isAikidoM2Active = (p.styleId || p.style?.id) === 'aikido' && (p.aikiM2ActiveWindow || 0) > 0;
+        const isAikidoSlamReactive = (p.styleId || p.style?.id) === 'aikido' && (p.aikiSlamReactiveWindow || 0) > 0;
 
         // M1 (Light) disabled check:
         const m1Disabled = 
@@ -197,6 +199,7 @@ export default function MobileControls({
           isShellLocked ||
           isSuperCrippled ||
           isM2WhiffLocked ||
+          (isAikidoM2Active && !isAikidoSlamReactive) ||
           p.isPostureLocked === true ||
           (p.postureCd || 0) > 0 ||
           (p.strikeCooldown || 0) > 0 || 
@@ -218,6 +221,7 @@ export default function MobileControls({
           isShellLocked ||
           isSuperCrippled ||
           isM2WhiffLocked ||
+          isAikidoM2Active ||
           (p.keysiVulnerableTimer || 0) > 0 ||
           hCd > 0;
 
@@ -504,18 +508,6 @@ export default function MobileControls({
               if (item.id === 'light') {
                 handleButtonRelease(item.id, stopLightHold, e);
               } else if (item.id === 'block') {
-                // Ignore hit-induced cancellation for mobile touch controls:
-                // Only remain in block if block is currently active (not guard broken)
-                const isBlockActive = !!(
-                  isBlockButtonHeldRef.current &&
-                  stateRef.current?.player &&
-                  (stateRef.current.player.isBlocking || stateRef.current.isBlockInputHeld) &&
-                  (stateRef.current.player.armorBreakTime || 0) <= 0
-                );
-                if (isBlockActive) {
-                  e.preventDefault();
-                  return;
-                }
                 handleButtonRelease(item.id, onBlockEnd, e);
               } else if (item.id === 'sprint') {
                 handleButtonRelease(item.id, handleSprintRelease, e);

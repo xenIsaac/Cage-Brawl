@@ -29,7 +29,10 @@ export function getAikidoFistPos(ctx: FistIKContext): { fistX: number; fistY: nu
   let fistX = 0;
   let fistY = 0;
 
-  if (fighter.aikiSlamStage) {
+  if (fighter.aikiM2ActiveWindow && fighter.aikiM2ActiveWindow > 0) {
+    fistX = isLeft ? fighter.radius * 1.05 : fighter.radius * 1.35;
+    fistY = isLeft ? -fighter.radius * 0.25 : fighter.radius * 0.20;
+  } else if (fighter.aikiSlamStage) {
     const slamProgress = Math.min(1.0, Math.max(0, (90 - ((fighter as any).aikiSlamTimer || 0)) / 90));
     if (slamProgress < 0.25) {
       fistX = isLeft ? fighter.radius * 0.70 : fighter.radius * 1.85;
@@ -108,32 +111,18 @@ export function getAikidoFistPos(ctx: FistIKContext): { fistX: number; fistY: nu
         fistY = rightBaseY;
       }
     } else {
-      if (stage === 3) {
-        const stabRatio = Math.sin(rightProgress * Math.PI * 0.5);
-        fistX = leftBaseX + stabRatio * (fighter.radius * 0.42 - leftBaseX);
-        fistY = leftBaseY + stabRatio * (-fighter.radius * 0.45 - leftBaseY);
-      } else if (stage === 2) {
-        // S3 Left Counter-Arm: Harmonizes seamlessly with the right sweep in an interlocking Aiki trap
-        const isForward = rightFist ? (rightFist.isPunching || !!rightFist.isLingerActive) : false;
-        const p = rightProgress;
-        if (isForward) {
-          const sweepEase = Math.sin(p * Math.PI * 0.5);
-          const arcLift = Math.sin(p * Math.PI) * fighter.radius * 0.22;
-          fistX = leftBaseX * (1 - sweepEase) + (fighter.radius * 1.45) * sweepEase;
-          fistY = leftBaseY * (1 - sweepEase) + (fighter.radius * 0.18) * sweepEase + arcLift;
-        } else {
-          const retEase = p * p * (3 - 2 * p);
-          fistX = leftBaseX * (1 - retEase) + (fighter.radius * 1.45) * retEase;
-          fistY = leftBaseY * (1 - retEase) + (fighter.radius * 0.18) * retEase;
-        }
-      } else {
-        fistX = leftBaseX;
-        fistY = leftBaseY;
-      }
+      // 🌊 Synchronized Continuous Recoil (Left Arm counter-pulls alongside right arm strikes)
+      const isForward = rightFist ? (rightFist.isPunching || !!rightFist.isLingerActive) : false;
+      const p = rightProgress;
+      const easedT = isForward ? (p * (2 - p)) : (p * p * (3 - 2 * p)); // easeOutQuad
+      const curlTargetX = -fighter.radius * 0.30; // -30% extension offset
+      const curlTargetY = -fighter.radius * 0.48; // Outward flank clearance along left ribcage
+      fistX = leftBaseX * (1 - easedT) + curlTargetX * easedT;
+      fistY = leftBaseY * (1 - easedT) + curlTargetY * easedT;
     }
   } else if (leftProgress > 0) {
     if (isLeft) {
-      if (stage === 1 || stage === 0 || leftFist?.comboStage === 1) {
+      if (stage === 1 || leftFist?.comboStage === 1) {
         const isForward = leftFist ? (leftFist.isPunching || !!leftFist.isLingerActive) : false;
         const windupSplit = 0.44;
         if (isForward) {
@@ -156,13 +145,28 @@ export function getAikidoFistPos(ctx: FistIKContext): { fistX: number; fistY: nu
           fistX = leftBaseX + retEase * (fighter.radius * 2.65 - leftBaseX);
           fistY = leftBaseY + retEase * (fighter.radius * 1.55 - leftBaseY);
         }
+      } else if (stage === 2 || leftFist?.comboStage === 2) {
+        // ✋ S3: Full Natural Reach Left Open-Palm (+18px Extended Torso Torque Reach)
+        const isForward = leftFist ? (leftFist.isPunching || !!leftFist.isLingerActive) : false;
+        const p = leftProgress;
+        const snapEase = isForward ? (1 - Math.pow(1 - p, 3.5)) : (p * p * (3 - 2 * p));
+        // Max anatomical reach: +18px extended reach shift straight into opponent guard
+        const targetReach = fighter.radius * 1.68 + 18;
+        fistX = leftBaseX + snapEase * (targetReach - leftBaseX);
+        fistY = leftBaseY * (1 - snapEase) + (-fighter.radius * 0.05) * snapEase;
       } else {
         fistX = leftBaseX + easeProgress * fighter.radius * 1.5;
         fistY = leftBaseY;
       }
     } else {
-      fistX = rightBaseX;
-      fistY = rightBaseY;
+      // 🌊 Synchronized Continuous Recoil: Right Arm smoothly pulls back tight against right ribs simultaneously (Zero instant jumps)
+      const isForward = leftFist ? (leftFist.isPunching || !!leftFist.isLingerActive) : false;
+      const p = leftProgress;
+      const easedT = isForward ? (p * (2 - p)) : (p * p * (3 - 2 * p)); // easeOutQuad
+      const ribsX = -fighter.radius * 0.20; // Glides smoothly from 30% to -20%
+      const ribsY = fighter.radius * 0.48; // Outward flank clearance along right ribcage
+      fistX = rightBaseX * (1 - easedT) + ribsX * easedT;
+      fistY = rightBaseY * (1 - easedT) + ribsY * easedT;
     }
   } else {
     fistX = isLeft ? leftBaseX : rightBaseX;

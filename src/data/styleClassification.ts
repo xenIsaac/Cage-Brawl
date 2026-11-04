@@ -381,12 +381,12 @@ export const STYLE_CLASSIFICATIONS: Record<string, StyleClassification> = {
     specialty: 'Combo',
     playstyle: 'Aggressive',
     type: 'Street',
-    status: 'Potential Rework',
-    tacticalIdentity: 'High-flying spinning kick strings, dynamic stance switches with I-frames, and flying roundhouses.',
-    combatCadence: 'Rapid, aerial kicking strings with deceptive angle changes.',
-    winCondition: 'Baiting opponent counters during stance switches to land unblockable jumping kicks.',
-    spacingStrategy: 'Dynamic mid-range kicking arcs with sudden forward spin dashes.',
-    originDescription: 'Acrobatic street-adapted Korean kicking discipline.'
+    status: 'Current (Reworked)',
+    tacticalIdentity: 'Deceptive urban angles, high-speed hip whipping, and the devastating, trajectory-shifting Brazilian Kick (Question Mark Kick).',
+    combatCadence: 'Snappy slanted snap kicks, 360° torque spinning back kicks, and feint-trap Brazilian kicks.',
+    winCondition: 'Baiting opponent parries during the Brazilian Kick feint to trigger 1.0s Spin-Out and 3.0s Confusion State.',
+    spacingStrategy: 'Loose urban bounce mobile side stance, angling kicks from deceptive mid-range perimeters.',
+    originDescription: 'Aggressive street-adapted Taekwondo emphasizing deceptive chambering and whip torque.'
   }
 };
 

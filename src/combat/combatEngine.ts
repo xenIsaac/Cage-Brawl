@@ -99,6 +99,13 @@ export interface M1SpeedConfig {
  */
 export function getStyleM1Speeds(styleId: string, stage: number = 0): M1SpeedConfig {
   const returnSpeed = getStyleSequenceReturnSpeed(styleId, stage);
+  if (styleId === 'street_taekwondo') {
+    let punchSpeed = 1.0 / 12; // S1 startup: 12 frames (~0.20s deliberate opening windup)
+    if (stage === 1) punchSpeed = 1.0 / 10; // S2 startup: 10 frames (~0.16s readable second kick)
+    else if (stage === 2) punchSpeed = 1.0 / 20; // S3 startup: 20 frames (~0.33s deliberate 400° spin windup)
+    else if (stage === 3) punchSpeed = 1.0 / 16; // S4 startup: 16 frames (~0.26s coiled torque before side snap)
+    return { punchSpeed, returnSpeed };
+  }
   return { 
     punchSpeed: UNIVERSAL_BASELINE_EXECUTION_SPEED, 
     returnSpeed 
@@ -128,12 +135,16 @@ export function getStyleM1BetweenCooldown(styleId: string, comboStage: number): 
     case 'capoeira':
       return 22; // ~0.37s (acrobatic Ginga flow)
     case 'kickboxing':
-      // Cadence Opening: 10% faster jabs for S1 and S2
-      return (comboStage === 0 || comboStage === 1) ? 18 : 21;
+      // Base Attack Speed: 1.10x
+      return (comboStage === 0 || comboStage === 1) ? 16 : 19;
     case 'kyokushin':
       return 24; // ~0.40s (dense full-contact reverse thrust interval)
     case 'street_taekwondo':
-      return 24; // ~0.40s (chambering interval)
+      // Inter-Combo Delays & Attack Speed Cadence:
+      // S1➔S2: 36 frames (~0.60s) (Forces S1 to fully retract & chamber before S2)
+      // S2➔S3: 30 frames (~0.50s) (Clear pause before starting S3 spin)
+      // S3➔S4: 32 frames (~0.53s) (Clear pause before launching S4 side kick)
+      return (comboStage === 0) ? 36 : ((comboStage === 1) ? 30 : 32);
     case 'keysi':
       return 18; // ~0.30s (rapid point-blank brawling cadence)
     case 'cqc':
@@ -308,11 +319,11 @@ export function resetFighterRoundState(fighter: Fighter): void {
   fighter.ashiharaParryLockout = 0;
   fighter.ashiharaM2Stage = 0;
   fighter.ashiharaM2Timer = 0;
-  fighter.tkdSpinDashTimer = 0;
-  fighter.tkdSpinDashActive = false;
-  fighter.tkdCounterBaitIFrames = 0;
-  fighter.tkdIFrameTimer = 0;
-  fighter.tkdOffBalanceTimer = 0;
+  fighter.tkdFeintWindowActive = false;
+  fighter.tkdFeintTrapped = false;
+  fighter.tkdConfusionTimer = 0;
+  fighter.deflectiveCadenceTimer = 0;
+  fighter.tkdSpinHoldTimer = 0;
   fighter.damageFlashTime = 0;
 
   // Aikido & Super Armor reset

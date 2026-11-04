@@ -9,6 +9,7 @@ import { FIGHTING_STYLES } from '../data/styles';
 import { getRankInfo } from '../utils/elo';
 import { soundManager } from './SoundManager';
 import { wsService, OnlinePlayer, ActiveRoomInfo, DirectMessage, FriendRequest, SavedFriend } from '../services/websocket';
+import { useResponsiveLayout } from '../utils/useResponsiveLayout';
 
 interface OnlinePlayerListModalProps {
   currentUser?: UserSession;
@@ -41,6 +42,7 @@ export default function OnlinePlayerListModal({
   onStart1v1Match,
   isNavHidden = false
 }: OnlinePlayerListModalProps) {
+  const { isPortrait, isLandscape, isMobile, isCompactLandscape } = useResponsiveLayout();
   const [tab, setTab] = useState<'all' | 'matches' | 'friends' | 'requests'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayer[]>(wsService.onlinePlayers);
@@ -380,7 +382,7 @@ export default function OnlinePlayerListModal({
 
   return (
     <div className={`fixed inset-0 bg-zinc-950/90 backdrop-blur-xl flex items-center justify-center p-2 sm:p-4 z-50 select-none ${
-      isNavHidden ? 'pl-2 sm:pl-4' : 'pl-14 sm:pl-20'
+      isNavHidden || isPortrait || isMobile ? 'pl-2 sm:pl-4' : 'pl-14 sm:pl-20'
     }`}>
       <div className="w-full max-w-4xl bg-zinc-950 border border-zinc-800/90 rounded-3xl p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4 max-h-[94vh] flex flex-col relative overflow-hidden">
         

@@ -8,3 +8,4 @@ export * from './OnlinePlayersView';
 export * from './GameInfoView';
 export * from './HudEditorView';
 export * from './CodexView';
+export * from './UpdateLogsModal';

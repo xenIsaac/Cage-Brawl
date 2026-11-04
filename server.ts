@@ -6,6 +6,14 @@ import { createServer as createViteServer } from 'vite';
 
 const PORT = 3000;
 
+process.on('uncaughtException', (err) => {
+  console.error('[Uncaught Exception]', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Unhandled Rejection]', reason);
+});
+
 interface PlayerInfo {
   fighterId?: string;
   name: string;
@@ -59,6 +67,14 @@ async function startServer() {
   const app = express();
   const server = http.createServer(app);
   const wss = new WebSocketServer({ server });
+
+  server.on('error', (err: any) => {
+    console.error('[HTTP Server Error]', err);
+  });
+
+  wss.on('error', (err: any) => {
+    console.error('[WS Server Error]', err);
+  });
 
   // WebSockets Connection Handler
   wss.on('connection', (socket: WebSocket) => {
@@ -1403,7 +1419,10 @@ const SIMULATED_ONLINE_PLAYERS = [
   // Vite dev middleware / static serving
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === 'true' ? false : { server },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -1420,4 +1439,6 @@ const SIMULATED_ONLINE_PLAYERS = [
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('[Fatal Error starting server]', err);
+});

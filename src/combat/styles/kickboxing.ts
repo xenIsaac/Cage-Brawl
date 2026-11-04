@@ -7,63 +7,68 @@ export const kickboxingStyle: FightingStyleModule = {
   isTesting: false,
   color: '#dc2626',
   secondaryColor: '#ffffff',
-  description: 'An athletic, striking-focused martial art that trades footwork speed for extended kicking reach, heavy punches, and specialized armor-stripping mixups.',
-  passiveName: 'Cadence Opening, Heavy Momentum & Chain Reaction',
-  passiveDesc: '[ Cadence Opening ]: S1 & S2 jabs execute 10% faster. [ Heavy Momentum ]: S4 combo finisher deals +20% increased physical knockback distance. [ Chain Reaction ]: Landing full S1-S4 combo reduces next M2 Sequence 1 windup from 0.44s down to 0.25s.',
+  description: 'An aggressive, striking-focused martial art combining explosive punch-kick combinations, rapid cadence acceleration, and dynamic heavy cooldown loops.',
+  passiveName: 'Cadence Opening & Chain Reaction',
+  passiveDesc: '[ Base Stats ]: Damage: 1.05x | Attack Execution: 0.95x | Attack Speed: 1.10x. [ Cadence Opening ]: Landing both M2 strikes grants +15% Attack Execution and +20% Attack Speed. [ Chain Reaction ]: Every landed hit reduces M2 cooldown by 0.2s. [ Dynamic M2 Cooldowns ]: S1 Hit/S2 Whiff: 4s | S2 Hit/S1 Whiff: 5s | Both Hit: 6s | Both Whiff: 8s.',
   strikeName: 'S1 Jab → S2 Jab → S3 Calf Kick → S4 Straight Punch',
   statModifiers: {
-    speed: 0.90,
-    reach: 1.15,
-    power: 1.15,
+    speed: 1.10, // Attack Speed: 1.10x
+    reach: 1.04,
+    power: 1.05, // Damage: 1.05x
     defense: 1.00,
-    knockback: 1.10,
+    knockback: 1.05,
+    executionSpeed: 0.95, // Attack Execution: 0.95x
     healthMax: 0,
   },
   auraStyle: 'none',
-  lightAttackEffect: '4-Sequence Combo (S1 Jab, S2 Jab, S3 Calf Kick, S4 Straight Punch). Cadence Opening boosts S1 & S2 jab speed by 10%. Heavy Momentum boosts S4 knockback by +20%. Chain Reaction lowers next M2 Seq 1 windup to 0.25s.',
-  heavyAttackEffect: 'Dazing Hook to Teep (4.5s CD / 3.2s Whiff): Sequence 1 Short Hook (0.44s / 0.25s windup, 20% Armor Chip, unlocks Seq 2). Sequence 2 Front Kick / Teep (0.2s windup, 80% Armor Chip, breaks guard if <=80% HP, 1.8s Concussion). Whiffing S1 or S2 triggers 3.2s Lockout State.',
+  lightAttackEffect: '4-Sequence Combo (S1 Jab, S2 Jab, S3 Calf Kick, S4 Straight Punch). Landing any hit reduces M2 cooldown by 0.2s via Chain Reaction.',
+  heavyAttackEffect: 'Dazing Hook to Teep (Dynamic CD: 4s / 5s / 6s / 8s): Sequence 1 Short Hook (20% Armor Chip) combos into Sequence 2 Teep Kick (80% Armor Chip, 1.8s Concussion). Landing both strikes activates Cadence Opening (+15% Attack Execution & +20% Attack Speed). Every landed hit reduces M2 CD by 0.2s via Chain Reaction.',
 
   lightAttack: {
     comboLength: 4,
-    getStageData: (stage: number): LightStageData => {
-      const damages = [4.0, 4.0, 6.0, 8.0];
+    getStageData: (stage: number, fighter?: CombatFighter): LightStageData => {
+      const damages = [4.5, 4.5, 6.0, 8.5];
       const punchType: 'left' | 'right' = stage % 2 === 0 ? 'left' : 'right';
-      // Cadence Opening: S1 & S2 jabs 10% faster
-      const windup = (stage === 0 || stage === 1) ? (0.12 * 0.9) : (0.14 + stage * 0.02);
-      const kb = stage === 3 ? (10.0 * 1.20) : 5.0; // Heavy Momentum +20% kb on S4
+      const isCadenceActive = fighter?.kickboxingCadenceTimer && fighter.kickboxingCadenceTimer > 0;
+      const execMultiplier = isCadenceActive ? (0.95 * 1.15) : 0.95;
+      const baseWindup = (stage === 0 || stage === 1) ? 0.12 : (0.14 + stage * 0.02);
+      const windup = baseWindup / execMultiplier;
+      const kb = stage === 3 ? 10.0 : 5.0;
 
       return {
-        damage: damages[stage] || 4.0,
-        chipDamage: 2.8,
+        damage: damages[stage] || 4.5,
+        chipDamage: 2.5,
         windupSec: windup,
-        recoverySec: 0.18,
+        recoverySec: isCadenceActive ? 0.14 : 0.17,
         knockback: kb,
         hitstunSec: stage === 3 ? 0.42 : 0.26,
         punchType,
         sfx: stage === 2 ? 'kick' : 'jab',
       };
     },
-    onComboFinish: (fighter: CombatFighter) => {
-      fighter.hasChainReaction = true;
-    },
-    postComboDelaySec: 0.20,
+    onComboFinish: () => {},
+    postComboDelaySec: 0.18,
   },
 
   heavyAttack: {
     getWindupSec: (fighter: CombatFighter): number => {
-      if (fighter.kickboxingIsSeq2) return 0.20;
-      if (fighter.hasChainReaction) return 0.25;
-      return 0.44;
+      const isCadenceActive = fighter.kickboxingCadenceTimer && fighter.kickboxingCadenceTimer > 0;
+      const execMultiplier = isCadenceActive ? (0.95 * 1.15) : 0.95;
+      if (fighter.kickboxingIsSeq2) return 0.20 / execMultiplier;
+      return 0.40 / execMultiplier;
     },
-    getCooldownSec: (hit: boolean): number => {
-      return hit ? 4.5 : 3.2;
+    getCooldownSec: (hit: boolean, fighter?: CombatFighter): number => {
+      const s1 = !!fighter?.kickboxingS1Hit;
+      const s2 = !!fighter?.kickboxingS2Hit;
+      if (s1 && s2) return 6.0;
+      if (s1 && !s2) return 4.0;
+      if (!s1 && s2) return 5.0;
+      return 8.0;
     },
-    baseDamage: 12.0,
-    chipDamage: 8.0,
-    knockback: 12.0,
-    onExecute: (fighter: CombatFighter) => {
-      fighter.hasChainReaction = false;
-    },
+    baseDamage: 14.0,
+    chipDamage: 14.4,
+    knockback: 18.0,
+    onExecute: () => {},
     onHit: (attacker: CombatFighter, defender: CombatFighter) => {
       if (attacker.kickboxingIsSeq2) {
         defender.concussTime = 108; // 1.8s concussion
@@ -72,8 +77,8 @@ export const kickboxingStyle: FightingStyleModule = {
   },
 
   dash: {
-    getCooldownSec: () => 3.2,
-    durationSec: 0.35,
+    getCooldownSec: () => 3.0,
+    durationSec: 0.32,
     hasIFrames: true,
   },
 

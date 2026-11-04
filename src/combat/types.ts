@@ -58,6 +58,9 @@ export interface CombatFighter extends Fighter {
   kickboxingSeq2Ready?: boolean;
   kickboxingSeq2Window?: number;
   kickboxingIsSeq2?: boolean;
+  kickboxingS1Hit?: boolean;
+  kickboxingS2Hit?: boolean;
+  kickboxingCadenceTimer?: number;
   cqcM2Stage?: 'windup' | 'dash' | 'assault' | null;
   cqcWindupTimer?: number;
   cqcLockedTarget?: CombatFighter | null;
@@ -143,6 +146,26 @@ export interface CombatFighter extends Fighter {
   aiParryReactionPending?: boolean;
   aiPostParryChoice?: 'counter_parry' | 'evade_dash' | 'guard_backpedal';
   aiPostParryDecided?: boolean;
+  // Aikido Fields
+  aikiParryActive?: boolean;
+  aikiM2ActiveWindow?: number;
+  aikiWhiffSlowTimer?: number;
+  aikiSlamReactiveWindow?: number;
+  aikiPassiveSlamCd?: number;
+  aikiSlamStage?: 'clamp' | 'lift' | 'slam' | null;
+  aikiSlamDamage?: number;
+  aikiSlamTimer?: number;
+  aikiSlamFrame?: number;
+  aikiSlamBaseAngle?: number;
+  aikiSlamTarget?: CombatFighter | null;
+  aikiIsFreeSlam?: boolean;
+  aikiSlamUninterruptible?: boolean;
+  aikiSlamVictimStage?: 'clamp' | 'lift' | 'slam' | null;
+  aikiOverheadScale?: number;
+  aikiLockoutTimer?: number;
+  aikiSpinDownTimer?: number;
+  aikiCentrifugalKnockbackTimer?: number;
+  aikiManualM2UsedInSequence?: boolean;
 }
 
 export interface FloatingTextParticle extends Particle {

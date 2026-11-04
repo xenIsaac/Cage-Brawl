@@ -52,9 +52,7 @@ export function getKickAttackInfo(
 
   const style = fighter.styleId;
 
-  if (style === 'street_taekwondo') {
-    isKick = true;
-  } else if (style === 'capoeira') {
+  if (style === 'capoeira') {
     isKick = true;
     isCapoeiraKick = true;
   } else if (style === 'kickboxing') {
@@ -85,6 +83,8 @@ export function getKickAttackInfo(
     if (isRightActive && stage === 3 && !isHeavy) {
       isKick = true;
     }
+  } else if (style === 'street_taekwondo') {
+    isKick = true;
   } else if (style === 'kyokushin') {
     if (isRightActive && stage === 1 && !isHeavy) {
       isKick = true; // S2 Gedan Geri (Calf Kick)
@@ -93,7 +93,7 @@ export function getKickAttackInfo(
     isKick = true;
   }
 
-  const isArmWhipKickStyle = style === 'street_taekwondo' || (fighter as any).isKickingStyle || !!(activeFist as any)?.isArmWhipKick;
+  const isArmWhipKickStyle = (fighter as any).isKickingStyle || !!(activeFist as any)?.isArmWhipKick;
 
   return {
     isKick,

@@ -47,20 +47,20 @@ export const RulebookModal: React.FC<RulebookModalProps> = ({ isOpen, onClose })
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-5xl max-h-[92vh] flex flex-col bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden font-sans text-zinc-200"
+          className="relative w-full max-w-5xl max-h-[92vh] flex flex-col bg-black border-4 border-amber-500 -skew-x-1 shadow-[8px_8px_0px_#f59e0b] overflow-hidden text-zinc-200"
         >
-          {/* TOP MODAL HEADER */}
-          <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-gradient-to-r from-zinc-900 via-zinc-950 to-zinc-900 border-b border-zinc-800 shrink-0">
+          {/* TOP MODAL HEADER (PERSONA 5 STYLING) */}
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 bg-black border-b-2 border-amber-500/80 shrink-0">
             <div className="flex items-center gap-2.5 sm:gap-3">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-sm">
-                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
+              <div className="w-8 h-8 sm:w-9 sm:h-9 -skew-x-12 bg-amber-400 text-black border-2 border-white flex items-center justify-center font-black shrink-0 shadow-[2px_2px_0px_#000000]">
+                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-mono text-amber-400 uppercase font-bold tracking-widest">
-                    OCTAGON COMBAT CODEX
+                  <span className="text-[9px] font-mono text-amber-400 uppercase font-black tracking-widest">
+                    // OCTAGON COMBAT CODEX
                   </span>
-                  <span className="text-[8px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold uppercase">
+                  <span className="text-[8px] font-mono px-2 py-0.5 -skew-x-12 bg-black text-amber-300 border border-amber-400 font-black uppercase shadow-[1px_1px_0px_#f59e0b]">
                     Official Rulebook
                   </span>
                 </div>
@@ -72,39 +72,40 @@ export const RulebookModal: React.FC<RulebookModalProps> = ({ isOpen, onClose })
 
             <button
               onClick={onClose}
-              className="p-1.5 sm:p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 transition cursor-pointer"
+              className="px-3 py-1.5 -skew-x-12 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase text-xs border-2 border-black shadow-[2px_2px_0px_#ffffff] transition cursor-pointer flex items-center gap-1 active:scale-95"
               title="Close Rulebook"
             >
-              <X className="w-5 h-5" />
+              <span>CLOSE</span>
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* PRIMARY 2-TAB SELECTOR */}
-          <div className="px-4 sm:px-6 py-2.5 bg-zinc-900/90 border-b border-zinc-800 flex items-center justify-between gap-3 shrink-0">
+          <div className="px-4 sm:px-6 py-2.5 bg-zinc-950 border-b-2 border-zinc-800 flex items-center justify-between gap-3 shrink-0">
             <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
               {/* TAB 1: GLOBAL RULES */}
               <button
                 onClick={() => { setActiveMainTab('global_rules'); setSearchQuery(''); }}
-                className={`px-4 sm:px-5 py-2 rounded-xl font-display font-black italic uppercase text-xs sm:text-sm tracking-wider flex items-center justify-center gap-2 transition cursor-pointer border ${
+                className={`px-4 sm:px-5 py-2 -skew-x-12 font-display font-black italic uppercase text-xs sm:text-sm tracking-wider flex items-center justify-center gap-2 transition cursor-pointer border-2 ${
                   activeMainTab === 'global_rules'
-                    ? 'bg-gradient-to-r from-cyan-600/30 via-zinc-900 to-cyan-500/20 border-cyan-500/60 text-cyan-300 shadow-md shadow-cyan-950/40'
-                    : 'bg-zinc-950/60 border-zinc-850 text-zinc-400 hover:text-white hover:bg-zinc-850'
+                    ? 'bg-cyan-400 text-black border-white shadow-[3px_3px_0px_#000000]'
+                    : 'bg-black border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
                 }`}
               >
-                <Shield className={`w-4 h-4 ${activeMainTab === 'global_rules' ? 'text-cyan-400' : 'text-zinc-500'}`} />
+                <Shield className={`w-4 h-4 ${activeMainTab === 'global_rules' ? 'text-black' : 'text-zinc-500'}`} />
                 <span>1. Global Rules</span>
               </button>
 
               {/* TAB 2: RANKED EVALUATION */}
               <button
                 onClick={() => { setActiveMainTab('ranked_evaluation'); setSearchQuery(''); }}
-                className={`px-4 sm:px-5 py-2 rounded-xl font-display font-black italic uppercase text-xs sm:text-sm tracking-wider flex items-center justify-center gap-2 transition cursor-pointer border ${
+                className={`px-4 sm:px-5 py-2 -skew-x-12 font-display font-black italic uppercase text-xs sm:text-sm tracking-wider flex items-center justify-center gap-2 transition cursor-pointer border-2 ${
                   activeMainTab === 'ranked_evaluation'
-                    ? 'bg-gradient-to-r from-amber-600/30 via-zinc-900 to-amber-500/20 border-amber-500/60 text-amber-300 shadow-md shadow-amber-950/40'
-                    : 'bg-zinc-950/60 border-zinc-850 text-zinc-400 hover:text-white hover:bg-zinc-850'
+                    ? 'bg-amber-400 text-black border-white shadow-[3px_3px_0px_#000000]'
+                    : 'bg-black border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
                 }`}
               >
-                <TrendingUp className={`w-4 h-4 ${activeMainTab === 'ranked_evaluation' ? 'text-amber-400' : 'text-zinc-500'}`} />
+                <TrendingUp className={`w-4 h-4 ${activeMainTab === 'ranked_evaluation' ? 'text-black' : 'text-zinc-500'}`} />
                 <span>2. Ranked Evaluation</span>
               </button>
             </div>

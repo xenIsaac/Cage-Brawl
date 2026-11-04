@@ -1260,6 +1260,7 @@ export class OfflineQuestManager {
       const q = REVISED_OFFLINE_QUESTS.find(quest => quest.id === id);
       if (!q) return;
       const item = hub.progress[id] || { current: 0, completed: false, claimed: false, skipped: false };
+      hub.progress[id] = item;
       if (item.claimed || item.skipped) return;
 
       const prev = item.current;

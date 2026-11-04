@@ -14,6 +14,7 @@ import {
   grantFighterPostureReduction,
   executeIronBoxingS4InstantChain,
   applyGlobalM2RetractionOverride,
+  isS2FullyRetractedToStance,
 } from './combatEngine';
 
 export interface AiCallbacks {
@@ -141,10 +142,28 @@ export const executeAiLightStrike = (fighter: CombatFighter, opponent: CombatFig
 
   if (!canExecuteLight) return false;
 
-  if (fighter.styleId === 'aikido' && fighter.aikiCounterSlamWindow && fighter.aikiCounterSlamWindow > 0) {
-    fighter.aikiCounterSlamWindow = 0;
+  // Aikido Parry Attack Lockout: Cannot attack during Aikido parry / block / active M2 parry stance window
+  if (fighter.styleId === 'aikido') {
+    const isParryingState = fighter.isBlocking || !!fighter.aikiParryActive || ((fighter.aikiM2ActiveWindow || 0) > 0) || ((fighter.heavyWindup || 0) > 0) || ((fighter.parryFlashTime || 0) > 0);
+    if (isParryingState && (!fighter.aikiSlamReactiveWindow || fighter.aikiSlamReactiveWindow <= 0)) {
+      return false;
+    }
+  }
+
+  // Aikido S2 ➔ S3 Retraction Gate:
+  // S3 (Left Thrust) is physically locked from firing until S2 has 100% completed its retraction back to stance (0% extension)
+  if (fighter.styleId === 'aikido') {
+    const currentStage = fighter.comboStage || 0;
+    if ((currentStage === 1 || currentStage === 2) && !isS2FullyRetractedToStance(fighter)) {
+      return false;
+    }
+  }
+
+  if (fighter.styleId === 'aikido' && fighter.aikiSlamReactiveWindow && fighter.aikiSlamReactiveWindow > 0) {
+    fighter.aikiSlamReactiveWindow = 0;
+    fighter.aikiPassiveSlamCd = 900;
     fighter.aikiSlamStage = 'clamp';
-    fighter.aikiSlamDamage = 10.0;
+    fighter.aikiSlamDamage = 6.0;
     fighter.aikiSlamTimer = 90;
     fighter.aikiSlamFrame = 0;
     fighter.aikiSlamBaseAngle = fighter.facingAngle;
@@ -241,14 +260,11 @@ export const executeAiLightStrike = (fighter: CombatFighter, opponent: CombatFig
       if (f) { f.isPunching = true; f.punchProgress = 0; f.comboStage = currentStage; }
     }
   } else if (fighter.styleId === 'street_taekwondo') {
-    if (currentStage === 0 || currentStage === 2) {
-      const f = fighter.fists.find(拳 => 拳.punchType === 'left');
-      if (f) { f.isPunching = true; f.punchProgress = 0; f.comboStage = currentStage; }
-      if (currentStage === 2) {
-        fighter.tkdIFrameTimer = 24;
-      }
-    } else {
+    if (currentStage === 0 || currentStage === 1) {
       const f = fighter.fists.find(拳 => 拳.punchType === 'right');
+      if (f) { f.isPunching = true; f.punchProgress = 0; f.comboStage = currentStage; }
+    } else {
+      const f = fighter.fists.find(拳 => 拳.punchType === 'left');
       if (f) { f.isPunching = true; f.punchProgress = 0; f.comboStage = currentStage; }
     }
   } else if (fighter.styleId === 'boxing_shell') {
@@ -307,12 +323,16 @@ export const executeAiLightStrike = (fighter: CombatFighter, opponent: CombatFig
       if (f) { f.isPunching = true; f.punchProgress = 0; f.comboStage = 3; }
     }
   } else if (fighter.styleId === 'aikido') {
-    if (currentStage === 1) {
+    if (currentStage === 1 || currentStage === 2) {
       const f = fighter.fists.find(拳 => 拳.punchType === 'left');
       if (f) { f.isPunching = true; f.punchProgress = 0; f.comboStage = currentStage; }
     } else {
       const f = fighter.fists.find(拳 => 拳.punchType === 'right');
       if (f) { f.isPunching = true; f.punchProgress = 0; f.comboStage = currentStage; }
+      if (currentStage === 3) {
+        fighter.vx += Math.cos(fighter.facingAngle) * 3.8;
+        fighter.vy += Math.sin(fighter.facingAngle) * 3.8;
+      }
     }
   } else {
     if (currentStage === 0 || currentStage === 2) {
@@ -402,7 +422,7 @@ export const executeAiHeavyStrike = (fighter: CombatFighter, opponent: CombatFig
     !fighter.isDashing &&
     (fighter.dashProgress || 0) <= 0 &&
     (fighter.postDashAttackLockout || 0) <= 0 &&
-    !(fighter.styleId === 'aikido' && fighter.aikiM2StanceTimer && fighter.aikiM2StanceTimer > 0) &&
+    !(fighter.styleId === 'aikido' && ((fighter.aikiM2StanceTimer && fighter.aikiM2StanceTimer > 0) || (fighter.aikiM2ActiveWindow && fighter.aikiM2ActiveWindow > 0))) &&
     !(fighter.spinOutTimer && fighter.spinOutTimer > 0) &&
     !(fighter.kyokushinSpinOutTimer && fighter.kyokushinSpinOutTimer > 0) &&
     !(fighter.shellLockoutTimer && fighter.shellLockoutTimer > 0) &&
@@ -414,13 +434,23 @@ export const executeAiHeavyStrike = (fighter: CombatFighter, opponent: CombatFig
 
   if (!canExecuteHeavy) return false;
 
+  // Aikido Parry Attack Lockout: Cannot attack during Aikido parry / block / active M2 parry stance window
+  if (fighter.styleId === 'aikido') {
+    const isParryingState = fighter.isBlocking || !!fighter.aikiParryActive || ((fighter.aikiM2ActiveWindow || 0) > 0) || ((fighter.heavyWindup || 0) > 0) || ((fighter.parryFlashTime || 0) > 0);
+    if (isParryingState) {
+      return false;
+    }
+  }
+
   // Section 1.18: Global M2 Retraction Override
   applyGlobalM2RetractionOverride(fighter);
   fighter.isBlocking = false;
   const fMods = getHeightModifiers(fighter.baseHeight);
 
   if (isKickboxingSeq2Ready) {
-    fighter.heavyWindup = 9;
+    let exec = 0.95;
+    if (fighter.kickboxingCadenceTimer && fighter.kickboxingCadenceTimer > 0) exec *= 1.15;
+    fighter.heavyWindup = Math.round(9 / exec);
     fighter.kickboxingIsSeq2 = true;
     fighter.kickboxingSeq2Ready = false;
     fighter.kickboxingSeq2Window = 0;
@@ -477,6 +507,14 @@ export const executeAiHeavyStrike = (fighter: CombatFighter, opponent: CombatFig
   if (fighter.styleId === 'slugger') { heavyWindupFrames = 48; }
   if (fighter.styleId === 'kyokushin') { heavyWindupFrames = 33; }
   if (fighter.styleId === 'boxing_shell') { heavyWindupFrames = 11; }
+  if (fighter.styleId === 'kickboxing') {
+    fighter.kickboxingIsSeq2 = false;
+    fighter.kickboxingS1Hit = false;
+    fighter.kickboxingS2Hit = false;
+    let exec = 0.95;
+    if (fighter.kickboxingCadenceTimer && fighter.kickboxingCadenceTimer > 0) exec *= 1.15;
+    heavyWindupFrames = Math.round(24 / exec);
+  }
   if (fighter.styleId === 'keysi') {
     if (fighter.keysiM2Primed) {
       heavyWindupFrames = 6;
@@ -501,21 +539,16 @@ export const executeAiHeavyStrike = (fighter: CombatFighter, opponent: CombatFig
     }));
   }
   if (fighter.styleId === 'aikido') {
-    heavyWindupFrames = 9;
-    fighter.aikiM2StanceTimer = 300;
-    fighter.aikiM2SuperArmorHits = 2;
-    fighter.aikiM2HitLanded = false;
-    fighter.aikiManualM2UsedInSequence = true;
+    heavyWindupFrames = 0;
+    fighter.aikiM2ActiveWindow = 42; // 0.70s active parry window
+    fighter.aikiM2Guarding = true;
   }
   if (fighter.styleId === 'street_taekwondo') {
-    heavyWindupFrames = 26;
-    fighter.tkdSpinDashActive = true;
-    fighter.isDashing = true;
-    fighter.dashProgress = heavyWindupFrames;
-    const dashForce = 8.0 * fMods.speedFactor;
-    fighter.vx = Math.cos(fighter.facingAngle) * dashForce;
-    fighter.vy = Math.sin(fighter.facingAngle) * dashForce;
-    fighter.attackLockedAngle = fighter.facingAngle;
+    heavyWindupFrames = 21; // 100% standard speed: ~0.35s total (9f Phase 1 rear load + 12f Phase 2 feint arc & pull-back)
+    fighter.maxHeavyWindup = 21;
+    fighter.tkdFeintWindowActive = false; // Phase 1 is rear coil; Phase 2 activates parry-detect window
+    fighter.tkdFeintTrapped = false;
+    fighter.heavyCooldown = 240; // 4.0s (240 frames) whiff base
   }
   if (fighter.styleId === 'kickboxing') {
     fighter.kickboxingIsSeq2 = false;
@@ -550,11 +583,19 @@ export const navigateAiToSparringRange = (
   const dy = opponent.y - fighter.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
   
-  const canSprint = (fighter.stamina || 100) > 15 && !fighter.isBlocking && (fighter.heavyWindup || 0) <= 0 && (fighter.stunTime || 0) <= 0 && (fighter.armorBreakTime || 0) <= 0 && (!fighter.postSprintDisable || fighter.postSprintDisable <= 0);
+  const canSprint = (fighter.stamina || 100) > 15 && !fighter.isBlocking && (fighter.heavyWindup || 0) <= 0 && (fighter.stunTime || 0) <= 0 && (fighter.armorBreakTime || 0) <= 0 && (!fighter.postSprintDisable || fighter.postSprintDisable <= 0) && (!fighter.aikiM2ActiveWindow || fighter.aikiM2ActiveWindow <= 0) && (!fighter.aikiWhiffSlowTimer || fighter.aikiWhiffSlowTimer <= 0);
   if (dist > effectiveTarget + 40 && canSprint) {
     fighter.isSprinting = true;
-  } else if (dist < effectiveTarget + 15 || fighter.isBlocking || (fighter.heavyWindup || 0) > 0) {
+  } else if (dist < effectiveTarget + 15 || fighter.isBlocking || (fighter.heavyWindup || 0) > 0 || (fighter.aikiM2ActiveWindow && fighter.aikiM2ActiveWindow > 0) || (fighter.aikiWhiffSlowTimer && fighter.aikiWhiffSlowTimer > 0)) {
     fighter.isSprinting = false;
+  }
+
+  if (fighter.aikiM2ActiveWindow && fighter.aikiM2ActiveWindow > 0) {
+    fighter.isSprinting = false;
+    speedMultiplier *= 0.10; // -90% Movement Speed tactical crawl during M2 active parry
+  } else if (fighter.aikiWhiffSlowTimer && fighter.aikiWhiffSlowTimer > 0) {
+    fighter.isSprinting = false;
+    speedMultiplier *= 0.30; // -70% Movement Speed on whiff
   }
 
   const sprintBoost = fighter.isSprinting ? 1.35 : 1.0;
@@ -598,6 +639,9 @@ export const updateFighterAI = (
   // The bot is NOT artificially paralyzed. It assesses its situation dynamically with full human survival agency:
   if (fighter.parriedStun && fighter.parriedStun > 0) {
     fighter.isSprinting = false;
+    fighter.isDashing = false;
+    fighter.dashProgress = 0;
+    fighter.dashCooldown = Math.max(fighter.dashCooldown || 0, fighter.parriedStun + 15);
     if (!fighter.isDashing) {
       fighter.vx = 0;
       fighter.vy = 0;
@@ -605,13 +649,13 @@ export const updateFighterAI = (
     if (!fighter.aiPostParryDecided) {
       const roll = Math.random();
       if (behaviorTier === 'amethyst') {
-        fighter.aiPostParryChoice = roll < 0.38 ? 'counter_parry' : (roll < 0.72 ? 'evade_dash' : 'guard_backpedal');
+        fighter.aiPostParryChoice = roll < 0.38 ? 'counter_parry' : 'guard_backpedal';
       } else if (behaviorTier === 'diamond') {
-        fighter.aiPostParryChoice = roll < 0.28 ? 'counter_parry' : (roll < 0.62 ? 'evade_dash' : 'guard_backpedal');
+        fighter.aiPostParryChoice = roll < 0.28 ? 'counter_parry' : 'guard_backpedal';
       } else if (behaviorTier === 'gold') {
-        fighter.aiPostParryChoice = roll < 0.18 ? 'counter_parry' : (roll < 0.50 ? 'evade_dash' : 'guard_backpedal');
+        fighter.aiPostParryChoice = roll < 0.18 ? 'counter_parry' : 'guard_backpedal';
       } else if (behaviorTier === 'silver') {
-        fighter.aiPostParryChoice = roll < 0.08 ? 'counter_parry' : (roll < 0.38 ? 'evade_dash' : 'guard_backpedal');
+        fighter.aiPostParryChoice = roll < 0.08 ? 'counter_parry' : 'guard_backpedal';
       } else {
         fighter.aiPostParryChoice = 'guard_backpedal';
       }
@@ -682,7 +726,7 @@ export const updateFighterAI = (
   }
 
   // 1. PASSIVE DUMMY
-  if (behaviorTier === 'passive') {
+  if (behaviorTier === 'passive' || behaviorTier === 'idle') {
     const dx = opponent.x - fighter.x;
     const dy = opponent.y - fighter.y;
     updateFighterSteering(fighter, Math.atan2(dy, dx));
@@ -715,8 +759,8 @@ export const updateFighterAI = (
     return;
   }
 
-  // 3. ACTIVE GUARD: SENTIENT (or legacy 'block')
-  if (behaviorTier === 'active_guard_sentient' || behaviorTier === 'block') {
+  // 3. ACTIVE GUARD: SENTIENT (or legacy 'block' / 'block_only')
+  if (behaviorTier === 'active_guard_sentient' || behaviorTier === 'block' || behaviorTier === 'block_only') {
     const dx = opponent.x - fighter.x;
     const dy = opponent.y - fighter.y;
     updateFighterSteering(fighter, Math.atan2(dy, dx));
@@ -734,8 +778,8 @@ export const updateFighterAI = (
     return;
   }
 
-  // 4. ACTIVE GUARD: AUTO PARRY (Practice Dojo Auto Parry Mode)
-  if (behaviorTier === 'auto_parry') {
+  // 4. ACTIVE GUARD: AUTO PARRY (Practice Dojo Auto Parry Mode / 'counter')
+  if (behaviorTier === 'auto_parry' || behaviorTier === 'counter') {
     const dx = opponent.x - fighter.x;
     const dy = opponent.y - fighter.y;
     // Direct, instant angle tracking so directional block checks never get bypassed by flank movement
@@ -877,8 +921,8 @@ export const updateFighterAI = (
     return;
   }
 
-  // 9. RANKED SPARRING AI TIERS (Rookie, Silver, Gold, Diamond, Amethyst)
-  if (behaviorTier === 'rookie' || behaviorTier === 'silver' || behaviorTier === 'gold' || behaviorTier === 'diamond' || behaviorTier === 'amethyst') {
+  // 9. RANKED SPARRING AI TIERS (Rookie, Silver, Gold, Diamond, Amethyst, Aggressive)
+  if (behaviorTier === 'rookie' || behaviorTier === 'silver' || behaviorTier === 'gold' || behaviorTier === 'diamond' || behaviorTier === 'amethyst' || behaviorTier === 'aggressive') {
     const dx = opponent.x - fighter.x;
     const dy = opponent.y - fighter.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -896,7 +940,7 @@ export const updateFighterAI = (
     const oppWhiffing = opponent.fists.some(f => f.isPunching && !f.hasHit && f.punchProgress > 0.45) || (opponent.postBlockAttackLockout || 0) > 0;
     const oppIsVulnerable = (opponent.postureCd && opponent.postureCd > 0) || opponent.isPostureLocked || (opponent.armorBreakTime || 0) > 0 || (opponent.stunTime || 0) > 0 || (opponent.concussTime || 0) > 0;
 
-    const fighterCanDash = (!fighter.dashCooldown || fighter.dashCooldown <= 0) && !fighter.isDashing && (!fighter.concussTime || fighter.concussTime <= 0) && (fighter.stunTime || 0) <= 0 && (fighter.armorBreakTime || 0) <= 0;
+    const fighterCanDash = (!fighter.dashCooldown || fighter.dashCooldown <= 0) && !fighter.isDashing && (!fighter.concussTime || fighter.concussTime <= 0) && (fighter.stunTime || 0) <= 0 && (fighter.parriedStun || 0) <= 0 && (fighter.armorBreakTime || 0) <= 0;
     const fighterCanBlock = (fighter.armorBreakTime || 0) <= 0 && (fighter.stunTime || 0) <= 0 && !fighter.capoeiraExhausted && (fighter.postBlockAttackLockout || 0) <= 0;
     const fighterCanHeavy = (fighter.heavyCooldown || 0) <= 0 && (fighter.keysiVulnerableTimer || 0) <= 0 && (fighter.postS4HeavyLockout || 0) <= 0 && (fighter.strikeCooldown || 0) <= 0 && (fighter.heavyWindup || 0) <= 0 && (fighter.stunTime || 0) <= 0 && (fighter.armorBreakTime || 0) <= 0;
 

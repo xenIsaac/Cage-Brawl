@@ -79,6 +79,8 @@ interface TrainingDrawerProps {
   onExitArena: () => void;
   getStyleRarityColor?: (rarity: string) => string;
   isNavHidden?: boolean;
+  gameSpeed?: number;
+  onGameSpeedChange?: (speed: number) => void;
 }
 
 const RANK_TIERS = [
@@ -141,6 +143,8 @@ export const TrainingDrawer: React.FC<TrainingDrawerProps> = ({
   onExitArena,
   getStyleRarityColor,
   isNavHidden = false,
+  gameSpeed = 1.0,
+  onGameSpeedChange,
 }) => {
   const [isLandscape, setIsLandscape] = useState(false);
 
@@ -197,7 +201,7 @@ export const TrainingDrawer: React.FC<TrainingDrawerProps> = ({
       className={`absolute z-30 pointer-events-auto select-none transition-all duration-300 ${
         isLandscape
           ? 'top-2 sm:top-3 left-2 sm:left-3'
-          : 'top-12 sm:top-16 left-2 sm:left-4'
+          : 'top-14 sm:top-16 left-2 sm:left-4'
       }`}
     >
       <AnimatePresence mode="wait">
@@ -208,38 +212,51 @@ export const TrainingDrawer: React.FC<TrainingDrawerProps> = ({
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: -16, scale: 0.98 }}
             transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-            className={`bg-zinc-950/95 border border-cyan-500/30 rounded-2xl ${
+            className={`bg-zinc-950/95 border-2 border-white/80 ${
               isLandscape
-                ? 'w-[340px] sm:w-[380px] max-w-[calc(100vw-16px)] h-[calc(100vh-16px)] max-h-[calc(100vh-16px)]'
-                : 'w-[calc(100vw-20px)] sm:w-[420px] max-h-[calc(100vh-68px)]'
-            } overflow-hidden flex flex-col shadow-[0_0_40px_rgba(0,0,0,0.85)] backdrop-blur-2xl text-zinc-300 font-mono text-[11px]`}
+                ? 'w-[340px] sm:w-[380px] max-w-[calc(100vw-16px)] h-[calc(100vh-20px)] max-h-[calc(100vh-20px)]'
+                : 'w-[calc(100vw-24px)] sm:w-[420px] max-h-[38vh]'
+            } overflow-hidden flex flex-col shadow-[4px_4px_0px_#ef4444] text-zinc-200 font-mono text-[11px]`}
           >
-            {/* 1. HUD HEADER */}
-            <div className="p-2.5 sm:p-3 border-b border-zinc-800 bg-zinc-900/60 flex items-center justify-between shrink-0">
+            {/* 1. PERSONA HUD HEADER */}
+            <div className="p-2 sm:p-2.5 border-b-2 border-white/20 bg-zinc-950 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_rgba(34,211,238,0.9)]" />
+                <div className="bg-red-600 text-black px-2 py-0.5 font-display font-black italic text-xs uppercase tracking-wider -skew-x-12 shadow-[2px_2px_0px_#ffffff] flex items-center gap-1">
+                  <Target className="w-3 h-3 text-black" />
+                  <span>DOJO LAB</span>
+                </div>
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-display font-black italic uppercase text-xs sm:text-sm text-white tracking-wide">
-                      Practice Dojo Matrix
-                    </span>
-                    <span className="text-[8px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.2 rounded-full font-mono font-bold">
-                      DOJO
-                    </span>
-                  </div>
-                  <div className="text-[9px] text-zinc-400 flex items-center gap-1">
-                    <span>Target:</span>
-                    <span className="text-amber-400 font-bold truncate max-w-[150px]">
+                  <div className="text-[9px] text-zinc-400 font-mono flex items-center gap-1">
+                    <span>Routine:</span>
+                    <span className="text-amber-400 font-bold truncate max-w-[130px]">
                       {getActiveBehaviorTitle()}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
+                {onGameSpeedChange && (
+                  <button
+                    onClick={() => {
+                      const next = (gameSpeed ?? 1.0) === 1.0 ? 0.5 : (gameSpeed ?? 1.0) === 0.5 ? 0.25 : 1.0;
+                      onGameSpeedChange(next);
+                      soundManager.playRollTick();
+                    }}
+                    className={`px-2 py-0.5 flex items-center gap-1 border -skew-x-12 transition cursor-pointer font-mono font-bold text-[9.5px] ${
+                      (gameSpeed ?? 1.0) < 1.0
+                        ? 'bg-amber-400 text-black border-white shadow-[2px_2px_0px_#000000]'
+                        : 'bg-zinc-900 text-zinc-300 border-zinc-700 hover:border-zinc-500'
+                    }`}
+                    title="Simulation Speed (1.0x / 0.5x / 0.25x)"
+                  >
+                    <Gauge className={`w-3 h-3 ${(gameSpeed ?? 1.0) < 1.0 ? 'text-black' : 'text-amber-400'}`} />
+                    <span>{gameSpeed ?? 1.0}x</span>
+                  </button>
+                )}
                 <button
                   onClick={() => setIsTrainingHudOpen(false)}
-                  className="p-1.5 text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl transition cursor-pointer"
+                  className="p-1 text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 -skew-x-12 transition cursor-pointer"
                   title="Minimize Dojo HUD"
                 >
                   <Minimize2 className="w-3.5 h-3.5" />
@@ -247,13 +264,13 @@ export const TrainingDrawer: React.FC<TrainingDrawerProps> = ({
               </div>
             </div>
 
-            {/* 2. TAB NAVIGATION BAR */}
-            <div className="grid grid-cols-4 gap-1 p-1 bg-zinc-900/80 border-b border-zinc-800 shrink-0">
+            {/* 2. PERSONA TAB NAVIGATION BAR */}
+            <div className="grid grid-cols-4 gap-1 p-1 bg-zinc-900 border-b border-zinc-800 shrink-0">
               {[
-                { id: 'style', label: 'FIGHTER', icon: User },
-                { id: 'ai', label: 'AI BOT', icon: Bot },
-                { id: 'mods', label: 'MODS', icon: Sliders },
-                { id: 'stats', label: 'DATA', icon: Activity },
+                { id: 'style', label: '01 FORM', icon: User },
+                { id: 'ai', label: '02 BOT', icon: Bot },
+                { id: 'mods', label: '03 MODS', icon: Sliders },
+                { id: 'stats', label: '04 DATA', icon: Activity },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = trainingHudTab === tab.id;
@@ -264,10 +281,10 @@ export const TrainingDrawer: React.FC<TrainingDrawerProps> = ({
                       setTrainingHudTab(tab.id as any);
                       soundManager.playRollTick();
                     }}
-                    className={`py-1.5 px-1 rounded-xl font-mono text-[9px] font-bold uppercase transition flex items-center justify-center gap-1 cursor-pointer ${
+                    className={`py-1 px-1 font-display font-black italic text-[9px] uppercase tracking-wider transition flex items-center justify-center gap-1 -skew-x-12 cursor-pointer ${
                       isActive
-                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+                        ? 'bg-red-600 text-black shadow-[2px_2px_0px_#ffffff]'
+                        : 'bg-zinc-800 text-zinc-400 hover:text-white'
                     }`}
                   >
                     <Icon className="w-3 h-3 shrink-0" />
@@ -542,6 +559,49 @@ export const TrainingDrawer: React.FC<TrainingDrawerProps> = ({
                       </div>
                     </button>
                   ))}
+
+                  {/* Simulation Slowdown Controller */}
+                  {onGameSpeedChange && (
+                    <div className="p-2.5 rounded-xl border border-zinc-800 bg-zinc-900/60 space-y-2 mt-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Gauge className="w-3.5 h-3.5 text-amber-400" />
+                          <span className="font-bold text-xs uppercase text-white">Simulation Slowdown</span>
+                          {(gameSpeed ?? 1.0) < 1.0 && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                          )}
+                        </div>
+                        <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-950/60 border border-amber-500/40 px-1.5 py-0.5 rounded">
+                          {gameSpeed ?? 1.0}x SPEED
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-zinc-400 leading-snug">
+                        Slow down physics simulation to analyze frame data, attack kinematics, and parry windows.
+                      </p>
+                      <div className="grid grid-cols-3 gap-1.5 pt-1">
+                        {[
+                          { speed: 1.0, label: '1.0x (Normal)' },
+                          { speed: 0.5, label: '0.5x (Slow)' },
+                          { speed: 0.25, label: '0.25x (Matrix)' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.speed}
+                            onClick={() => {
+                              onGameSpeedChange(opt.speed);
+                              soundManager.playRollTick();
+                            }}
+                            className={`py-1.5 px-2 rounded-lg border text-center transition font-mono text-[9.5px] font-bold cursor-pointer ${
+                              (gameSpeed ?? 1.0) === opt.speed
+                                ? 'bg-amber-500/25 border-amber-400 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                                : 'bg-zinc-950/80 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -612,69 +672,88 @@ export const TrainingDrawer: React.FC<TrainingDrawerProps> = ({
               )}
             </div>
 
-            {/* 4. FOOTER CONTROLS */}
-            <div className="p-2 border-t border-zinc-800 bg-zinc-950 flex items-center justify-between gap-2 shrink-0">
+            {/* 4. PERSONA FOOTER CONTROLS */}
+            <div className="p-2 border-t-2 border-white/20 bg-zinc-950 flex items-center justify-between gap-2 shrink-0">
               <button
                 onClick={onResetTrainingSession}
-                className="flex-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 rounded-xl font-bold uppercase text-[9px] flex items-center justify-center gap-1 cursor-pointer"
+                className="flex-1 py-1 px-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-display font-black italic uppercase text-[10px] -skew-x-12 flex items-center justify-center gap-1 cursor-pointer shadow-[2px_2px_0px_#000000]"
               >
-                <RefreshCw className="w-3 h-3 text-cyan-400" />
-                <span>Full Heal</span>
+                <RefreshCw className="w-3 h-3 text-amber-400" />
+                <span>FULL HEAL</span>
               </button>
               <button
                 onClick={() => onExitArena()}
-                className="py-1.5 px-3 bg-red-600 hover:bg-red-500 text-white font-display font-black italic uppercase text-[9px] rounded-xl flex items-center justify-center gap-1 cursor-pointer shadow-md"
+                className="py-1 px-3 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase text-[10px] -skew-x-12 shadow-[2px_2px_0px_#ffffff] flex items-center justify-center gap-1 cursor-pointer transition active:scale-95"
               >
                 <LogOut className="w-3 h-3" />
-                <span>Exit Dojo</span>
+                <span>EXIT DOJO</span>
               </button>
             </div>
           </motion.div>
         ) : (
-          /* MINIMIZED FLOATING DOJO BAR (LANDSCAPE OPTIMIZED) */
+          /* MINIMIZED PERSONA COMIC DOJO BAR */
           <motion.div
             key="training-hud-closed"
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -10 }}
-            className="flex items-center gap-1.5 bg-zinc-950/90 border border-cyan-500/40 p-1.5 rounded-2xl shadow-2xl backdrop-blur-xl"
+            className="flex items-center gap-1.5 bg-zinc-950/95 border-2 border-white/80 p-1 -skew-x-12 shadow-[3px_3px_0px_#ef4444] backdrop-blur-xl"
           >
             <button
               onClick={() => setIsTrainingHudOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 rounded-xl font-mono text-[9px] font-bold uppercase transition cursor-pointer shadow-sm active:scale-95"
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-red-600 hover:bg-white text-black font-display font-black italic text-[10px] uppercase tracking-wider transition cursor-pointer shadow-[2px_2px_0px_#ffffff] active:scale-95"
             >
-              <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-              <span>DOJO MATRIX</span>
+              <Target className="w-3 h-3 text-black" />
+              <span>DOJO LAB</span>
               <Maximize2 className="w-3 h-3" />
             </button>
 
-            {/* Quick 1-Tap Toggles on Landscape */}
+            {/* Quick 1-Tap Toggles */}
             <button
               onClick={() => setGodMode((v) => !v)}
-              className={`px-2 py-1.5 rounded-xl font-mono text-[8px] font-bold uppercase border transition cursor-pointer ${
-                godMode ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50' : 'bg-zinc-900 text-zinc-500 border-zinc-800'
+              className={`px-2 py-1 font-mono text-[8.5px] font-black uppercase border transition cursor-pointer ${
+                godMode ? 'bg-emerald-500 text-black border-white shadow-[1px_1px_0px_#000000]' : 'bg-zinc-900 text-zinc-400 border-zinc-700'
               }`}
               title="Toggle God Mode"
             >
-              GOD {godMode ? 'ON' : 'OFF'}
+              GOD: {godMode ? 'ON' : 'OFF'}
             </button>
 
             <button
               onClick={() => setInfiniteStamina((v) => !v)}
-              className={`px-2 py-1.5 rounded-xl font-mono text-[8px] font-bold uppercase border transition cursor-pointer ${
-                infiniteStamina ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50' : 'bg-zinc-900 text-zinc-500 border-zinc-800'
+              className={`px-2 py-1 font-mono text-[8.5px] font-black uppercase border transition cursor-pointer ${
+                infiniteStamina ? 'bg-amber-400 text-black border-white shadow-[1px_1px_0px_#000000]' : 'bg-zinc-900 text-zinc-400 border-zinc-700'
               }`}
               title="Toggle Infinite Stamina"
             >
-              INF STAM
+              STAM: {infiniteStamina ? 'MAX' : 'NORM'}
             </button>
 
+            {onGameSpeedChange && (
+              <button
+                onClick={() => {
+                  const next = (gameSpeed ?? 1.0) === 1.0 ? 0.5 : (gameSpeed ?? 1.0) === 0.5 ? 0.25 : 1.0;
+                  onGameSpeedChange(next);
+                  soundManager.playRollTick();
+                }}
+                className={`px-2 py-1 font-mono text-[8.5px] font-black uppercase border transition cursor-pointer flex items-center gap-1 ${
+                  (gameSpeed ?? 1.0) < 1.0
+                    ? 'bg-amber-400 text-black border-white shadow-[1px_1px_0px_#000000]'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-700'
+                }`}
+                title="Toggle Simulation Speed"
+              >
+                <Gauge className="w-2.5 h-2.5" />
+                <span>{gameSpeed ?? 1.0}x</span>
+              </button>
+            )}
+
             <button
-              onClick={onResetTrainingSession}
-              className="p-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 rounded-xl transition cursor-pointer"
-              title="Reset & Heal"
+              onClick={() => onExitArena()}
+              className="p-1 bg-zinc-900 hover:bg-red-600 hover:text-black text-zinc-300 border border-zinc-700 transition cursor-pointer"
+              title="Exit to Menu"
             >
-              <RefreshCw className="w-3 h-3 text-cyan-400" />
+              <LogOut className="w-3 h-3" />
             </button>
           </motion.div>
         )}

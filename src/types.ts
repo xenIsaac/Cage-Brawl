@@ -11,6 +11,7 @@ export interface StatModifiers {
   defense: number;    // Damage absorption (lower is better, e.g., 0.8 means 20% reduction)
   knockback: number;  // Knockback force multiplier
   healthMax: number;  // Bonus max health
+  executionSpeed?: number; // Attack execution speed multiplier
 }
 
 export interface FightingStyle {
@@ -366,6 +367,9 @@ export interface Fighter {
   kickboxingSeq2Window?: number;     // Window in frames during which Seq 2 can be pressed (60 frames = 1.0s)
   kickboxingIsSeq2?: boolean;         // Active heavy attack is Sequence 2 (Teep)
   kickboxingLockoutTimer?: number;   // Whiff lockout duration timer (3.2s = 192 frames)
+  kickboxingS1Hit?: boolean;         // M2 Sequence 1 landed hit tracking
+  kickboxingS2Hit?: boolean;         // M2 Sequence 2 landed hit tracking
+  kickboxingCadenceTimer?: number;   // Cadence Opening buff timer (+15% Exec, +20% Atk Spd)
   pensadorCharges?: number;          // Keysi Pensador guard absorbed hit charges (up to 3)
   pensadorLungeWindow?: number;       // Keysi Pensador lunge window frames (up to 1.5s = 90 frames)
   keysiAttackLockout?: number;        // Lockout frames preventing guard raise after attacking in Keysi style
@@ -402,8 +406,20 @@ export interface Fighter {
   cqcAttackLockout?: number;          // Opponent M1/M2 disabled timer (120 frames / 2.0s)
   cqcBlockLockout?: number;           // Opponent block disabled timer during hits 1-4
   cqcM2HitFlashTime?: number;         // Visual flash timer for enemy body parts when hit by CQC M2
-  // Street Taekwondo specific fields
-  hasKickMomentum?: boolean;         // Street Taekwondo passive: Landing M2 boosts next M1 combo attack speed by +30%
+  // Street Taekwondo Official Rework fields
+  hasKickMomentum?: boolean;         // Legacy alias
+  tkdFeintWindowActive?: boolean;       // Initial high-slant feint chamber active during Brazilian Kick
+  tkdFeintTrapped?: boolean;            // Enemy attempted to parry during feint window -> true kick empowered!
+  tkdConfusionTimer?: number;           // 3.0s (180 frames) Confusion state on victim (duplicates, afterimages, camera sway, blur)
+  deflectiveCadenceTimer?: number;      // 8.0s (480 frames) +30% Posture Regeneration speed surge on manual parry
+  tkdSpinHoldTimer?: number;            // 0.3s (18 frames) hold on S3 Spinning Back Kick before vanishing
+  tkdBrazilianKickPhase?: 'feint' | 'strike'; // Brazilian Kick phase tracking
+  tkdLeadStaggerTimer?: number;         // 0.5s (30 frames) Lead Stagger Trap (+40% attack delay on victim)
+  tkdLeadStaggerActive?: boolean;        // True while Lead Stagger Trap is active until consumed by S3
+  tkdDoubleTapQueued?: boolean;         // S1 -> S2 seamless double tap queue
+  tkdChamberRetracting?: boolean;       // Quick chamber pull-back to 35% before instant S2 launch
+  tkdInChamber?: boolean;               // True while holding in 35% cocked chamber
+  tkdChamberHoldTimer?: number;         // 0.4s (24 frames) persistent chamber hold at 35% depth
   // Boxing: Shell fields
   shellS3Primed?: boolean;           // S3 has straightened/primed to prepare directly for S4
   shellS4ReturnTimer?: number;       // Smooth blend return animation timer from S4 to Posture/Normal Stance
@@ -445,6 +461,12 @@ export interface Fighter {
   tkdCounterBaitIFrames?: number;    // Counter-Bait: 0.8s (48 frames) I-Frames if opponent parries during M2 S1
   tkdIFrameTimer?: number;           // S3 Stance Switch Kick active I-Frames
   // Aikido specific fields
+  aikiSlamReactiveWindow?: number;    // 0.5s (30 frames) reaction window after parry to trigger Over-Head Counter Slam via M1
+  aikiPassiveSlamCd?: number;         // 15.0s (900 frames) independent cooldown for Reactive Slam passive
+  aikiM2ActiveWindow?: number;        // 0.70s (42 frames) active parry guard window on M2 input
+  aikiWhiffSlowTimer?: number;        // 1.0s (60 frames) -70% movement speed slowdown on M2 whiff
+  aikiConfusionTimer?: number;        // 2.0s (120 frames) Neuro-Disruption confusion on slammed target
+  aikiM2Guarding?: boolean;           // True when holding active parry guard window
   aikiS3FreeM2CdTimer?: number;       // 15.0s (900 frames) cooldown for Tenkan Aiki Flow (reduced by 2.0s / 120 frames per M1 hit)
   aikiFreeM2Active?: boolean;         // True if M2 Stance Boost was granted via S3 Tenkan Flow
   aikiIsFreeSlam?: boolean;           // True if slam was triggered via free mechanics (S3 Tenkan, clash, parry) so manual M2 CD is not activated
@@ -453,7 +475,7 @@ export interface Fighter {
   aikiM2SuperArmorHits?: number;      // 2-Hit Super Armor count during M2 stance
   aikiM2HitLanded?: boolean;          // True if M1 S4 slam landed during active M2 stance
   aikiCounterSlamWindow?: number;     // 0.2s (12 frames) reaction window after parry to trigger Over-Head Counter Slam via M1
-  aikiSlamDamage?: number;            // Custom damage dealt by this specific slam (10.0 for Kinetic Intercept & Parry Counter, 22.0 for M2 Stance S4 Slam)
+  aikiSlamDamage?: number;            // Custom damage dealt by this specific slam (Flat: 6.0 for Passive Parry Counter, 8.0 for M2 Counter Slam)
   aikiSlamStage?: 'clamp' | 'lift' | 'slam' | null; // Over-Head Grapple Slam animation stage
   aikiSlamTimer?: number;            // Active countdown frame counter for slam animation (1.5s / 90 ticks total)
   aikiSlamFrame?: number;            // Active elapsed execution frame

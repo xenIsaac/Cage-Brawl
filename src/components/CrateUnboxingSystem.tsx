@@ -24,6 +24,7 @@ import {
 import { soundManager } from './SoundManager';
 import { getHeightModifiers, formatHeight } from '../utils/heightModifiers';
 import { CrateContainerCanvas, CrateAnimPhase } from './crate/CrateContainerCanvas';
+import { useResponsiveLayout } from '../utils/useResponsiveLayout';
 
 interface CrateUnboxingSystemProps {
   stats: PlayerStats;
@@ -68,30 +69,8 @@ export default function CrateUnboxingSystem({
   const [showWishlistModal, setShowWishlistModal] = useState(false);
   const [instantUnbox, setInstantUnbox] = useState(false);
 
-  // Responsive Orientation Detection
-  const [isLandscape, setIsLandscape] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    return window.innerWidth > window.innerHeight;
-  });
-
-  const [isCompactLandscape, setIsCompactLandscape] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth > window.innerHeight && window.innerHeight < 600;
-  });
-
-  useEffect(() => {
-    const handleResize = () => {
-      const landscape = window.innerWidth > window.innerHeight;
-      setIsLandscape(landscape);
-      setIsCompactLandscape(landscape && window.innerHeight < 600);
-    };
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
-    };
-  }, []);
+  // Responsive Layout & Orientation Hook
+  const { isPortrait, isLandscape, isMobile, isCompactLandscape } = useResponsiveLayout();
 
   // 0.3s Cooldown on CONTINUE BRAWLING button upon obtaining style
   useEffect(() => {
@@ -307,16 +286,19 @@ export default function CrateUnboxingSystem({
       const result = executeCrateUnbox(selectedCrateId, selectedKeyTier, wishlistStyleId, rollableStyles);
       setLastRollResult(result);
       if (result.isWin && result.style) {
-        setShowRewardModal(true);
-        soundManager.playCrateWin();
-        if (result.style.id === wishlistStyleId) {
-          updateStats({
+        const curUnlocked = stats.unlockedStyleIds || [];
+        const nextUnlocked = curUnlocked.includes(result.style.id) ? curUnlocked : [...curUnlocked, result.style.id];
+        updateStats({
+          unlockedStyleIds: nextUnlocked,
+          ...(result.style.id === wishlistStyleId ? {
             wishlist: {
               styleId: null,
               wishlistCooldownUntil: Date.now() + WISHLIST_COOLDOWN_MS,
             },
-          });
-        }
+          } : {}),
+        });
+        setShowRewardModal(true);
+        soundManager.playCrateWin();
       } else {
         setShowEmptyBanner(true);
         soundManager.playCrateEmpty();
@@ -366,17 +348,19 @@ export default function CrateUnboxingSystem({
                   setAnimationPhase('revealed');
 
                   if (result.isWin && result.style) {
-                    setShowRewardModal(true);
-                    soundManager.playCrateWin();
-
-                    if (result.style.id === wishlistStyleId) {
-                      updateStats({
+                    const curUnlocked = stats.unlockedStyleIds || [];
+                    const nextUnlocked = curUnlocked.includes(result.style.id) ? curUnlocked : [...curUnlocked, result.style.id];
+                    updateStats({
+                      unlockedStyleIds: nextUnlocked,
+                      ...(result.style.id === wishlistStyleId ? {
                         wishlist: {
                           styleId: null,
                           wishlistCooldownUntil: Date.now() + WISHLIST_COOLDOWN_MS,
                         },
-                      });
-                    }
+                      } : {}),
+                    });
+                    setShowRewardModal(true);
+                    soundManager.playCrateWin();
                   } else {
                     setShowEmptyBanner(true);
                     soundManager.playCrateEmpty();
@@ -390,9 +374,14 @@ export default function CrateUnboxingSystem({
     }, 450);
   };
 
-  // Genetics Calibration Roll
+  // Genetics Calibration Roll ($500 per mutation roll)
   const handleRollHeight = () => {
     if (isRollingHeight) return;
+    if ((stats.cash || 0) < 500) {
+      soundManager.playParry?.();
+      return;
+    }
+    updateStats({ cash: Math.max(0, (stats.cash || 0) - 500) });
     setIsRollingHeight(true);
     setShowHeightConfirm(false);
 
@@ -446,90 +435,105 @@ export default function CrateUnboxingSystem({
     <div 
       id="full-screen-crate-sanctum-view"
       className={`fixed inset-0 z-50 bg-zinc-950 text-white flex flex-col select-none overflow-hidden transition-all duration-300 ${
-        isNavHidden ? 'pl-0' : 'pl-14 sm:pl-16'
+        isNavHidden ? 'pl-0' : (isPortrait || isMobile ? 'pl-0' : 'pl-0 lg:pl-16')
       }`}
     >
       {/* ============================================================== */}
       {/* 1. TOP HEADER & LIVE TELEMETRY                                 */}
       {/* ============================================================== */}
-      <header className={`border-b border-zinc-850 bg-gradient-to-r from-zinc-950 via-zinc-900/90 to-zinc-950 flex items-center justify-between gap-2.5 shrink-0 z-20 ${
-        isCompactLandscape ? 'px-3 py-1.5' : 'px-4 sm:px-6 py-2 sm:py-2.5'
+      {/* ============================================================== */}
+      {/* 1. TOP HEADER & PERSONA SUB-TAB SLIDES                         */}
+      {/* ============================================================== */}
+      <header className={`border-b-2 border-red-600 bg-zinc-950 flex flex-wrap items-center justify-between gap-2 shrink-0 z-20 ${
+        isCompactLandscape ? 'px-2 py-1' : 'px-3 sm:px-6 py-2'
       }`}>
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-amber-950/80 border border-amber-800/80 flex items-center justify-center text-amber-400 shrink-0 shadow-md">
-            <Box className="w-4 h-4" />
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* PERSONA LOGO BADGE */}
+          <div className="bg-red-600 text-black px-2.5 py-1 -skew-x-12 font-display font-black italic text-xs sm:text-sm tracking-wider shadow-[2px_2px_0px_#ffffff]">
+            CRATES // 03
           </div>
 
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xs sm:text-sm font-display font-black italic uppercase text-white tracking-wider">
-                CRATE SANCTUM
-              </h1>
-              <span className="text-[8px] sm:text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold uppercase">
-                {version || 'v1.7.6 Part 3'}
-              </span>
-            </div>
-            {!isCompactLandscape && (
-              <p className="text-[10px] text-zinc-400 font-mono hidden md:block">
-                Fighter Crates, Key Store & Biometric Genetics Lab
-              </p>
-            )}
+            <h1 className="text-sm sm:text-base font-display font-black italic uppercase text-white tracking-tighter -skew-x-12">
+              CRATE SANCTUM
+            </h1>
           </div>
         </div>
 
-        {/* Live Currency & Top Stasis Exit Button */}
+        {/* PERSONA SLIDE TABS (CRATES / KEYS / GENETICS) */}
+        <div className="flex items-center gap-1 sm:gap-2 -skew-x-12">
+          {[
+            { id: 'crates', label: '01 // CRATES' },
+            { id: 'shop', label: '02 // KEYS' },
+            { id: 'genetics', label: '03 // BIOMETRICS' }
+          ].map(tab => {
+            const isActive = activeSubTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  soundManager.playRollTick?.();
+                  setActiveSubTab(tab.id as any);
+                  onSubTabChange?.(tab.id as any);
+                }}
+                className={`px-2.5 sm:px-3.5 py-1 text-xs font-display font-black italic uppercase tracking-wider transition-all duration-150 cursor-pointer ${
+                  isActive 
+                    ? 'bg-white text-black shadow-[3px_3px_0px_#ef4444]' 
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* LIVE CURRENCY & PERSONA RETURN / EXIT BUTTON */}
         <div className="flex items-center gap-2">
-          {/* Active Style Indicator */}
-          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-zinc-900/90 border border-zinc-800 text-[11px] font-mono shadow-inner">
-            <span className="text-zinc-500 text-[9px] uppercase">Active Stance:</span>
-            <span className="font-bold text-amber-400 truncate max-w-[120px]">{activeStyleObj.name}</span>
-          </div>
-
           {/* Cash Balance */}
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs font-mono font-bold shadow-inner">
-            <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-emerald-400">${stats.cash.toLocaleString()}</span>
+          <div className="flex items-center gap-1 px-2.5 py-1 bg-zinc-900 border border-zinc-800 text-xs font-mono font-bold -skew-x-12">
+            <span className="text-emerald-400 font-bold">$</span>
+            <span className="text-emerald-400">{stats.cash.toLocaleString()}</span>
           </div>
 
-          {/* Key Quick Inventory Pills */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-zinc-900/90 border border-zinc-800 text-[10px] font-mono font-bold shadow-inner">
+          {/* Key Quick Inventory */}
+          <div className="hidden md:flex items-center gap-1.5 px-2 py-1 bg-zinc-900 border border-zinc-800 text-[10px] font-mono font-bold -skew-x-12">
             <span className="text-zinc-400">Fe:{keyInventory.iron}</span>
             <span className="text-amber-400">Au:{keyInventory.gold}</span>
             <span className="text-cyan-300">Dia:{keyInventory.diamond}</span>
             <span className="text-purple-300">Obs:{keyInventory.obsidian}</span>
           </div>
 
-          {/* Instant Unbox Fast-Forward Toggle (Visible in Crates Mode) */}
+          {/* Instant Toggle */}
           {activeSubTab === 'crates' && (
             <button
               onClick={() => {
                 setInstantUnbox(!instantUnbox);
                 soundManager.playRollTick?.();
               }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-mono font-bold transition border cursor-pointer ${
+              className={`flex items-center gap-1 px-2 py-1 text-[10px] font-mono font-bold -skew-x-12 transition border cursor-pointer ${
                 instantUnbox
-                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-sm'
-                  : 'bg-zinc-900/60 text-zinc-500 border-zinc-800 hover:text-zinc-300'
+                  ? 'bg-purple-600 text-white border-purple-400 shadow-[2px_2px_0px_#ffffff]'
+                  : 'bg-zinc-900 text-zinc-500 border-zinc-800 hover:text-zinc-300'
               }`}
-              title="Toggle Instant Unboxing Animation Skip"
+              title="Toggle Fast-Forward"
             >
-              <FastForward className="w-3 h-3 text-purple-400" />
-              <span className="hidden md:inline">Instant:</span>
-              <span>{instantUnbox ? 'ON' : 'OFF'}</span>
+              <FastForward className="w-3 h-3" />
+              <span>{instantUnbox ? 'FAST' : 'NORM'}</span>
             </button>
           )}
 
-          {/* Stasis Exit Button */}
+          {/* PROMINENT PERSONA EXIT BUTTON */}
           <button
             onClick={() => {
               soundManager.playRollTick?.();
               onBackToMenu();
             }}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-red-950/90 to-red-900/60 hover:from-red-900 hover:to-zinc-900 border border-red-500/50 hover:border-red-400 text-red-200 hover:text-white rounded-xl text-[11px] font-display font-black italic uppercase tracking-wider transition-all duration-200 shadow-md active:scale-95 group cursor-pointer"
-            title="Exit Crate Sanctum & Return to Main Menu"
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase tracking-wider text-xs sm:text-sm -skew-x-12 shadow-[3px_3px_0px_#ffffff] hover:shadow-[3px_3px_0px_#ef4444] transition-all duration-150 cursor-pointer active:scale-95 group"
+            title="Return to Main Menu"
           >
-            <LogOut className="w-3.5 h-3.5 text-red-400 rotate-180 transition-transform group-hover:scale-110" />
-            <span className="hidden sm:inline">EXIT</span>
+            <LogOut className="w-3.5 h-3.5 rotate-180 text-black group-hover:scale-110" />
+            <span>RETURN // MENU</span>
           </button>
         </div>
       </header>
@@ -537,18 +541,18 @@ export default function CrateUnboxingSystem({
       {/* ============================================================== */}
       {/* 2. MAIN WORKSPACE VIEWPORT                                     */}
       {/* ============================================================== */}
-      <main className={`flex-1 overflow-y-auto min-h-0 bg-gradient-to-b from-zinc-950 via-zinc-900/40 to-zinc-950 flex flex-col justify-between ${
-        isCompactLandscape ? 'p-1.5' : isLandscape ? 'p-2 sm:p-3' : 'p-3 sm:p-5'
+      <main className={`flex-1 min-h-0 bg-gradient-to-b from-zinc-950 via-zinc-900/40 to-zinc-950 flex flex-col justify-between ${
+        isCompactLandscape ? 'p-1.5 overflow-hidden' : isLandscape ? 'p-2 sm:p-3 overflow-hidden' : 'p-2 sm:p-3 overflow-hidden'
       }`}>
         
         {/* ============================================================== */}
         {/* TAB 1: FIGHTER CRATES                                          */}
         {/* ============================================================== */}
         {activeSubTab === 'crates' && (
-          <div className="w-full max-w-6xl mx-auto flex-1 flex flex-col justify-between gap-3">
+          <div className="w-full max-w-6xl mx-auto flex-1 flex flex-col justify-between gap-1.5 sm:gap-2.5 min-h-0">
             
             {/* TOP CRATE SELECTOR CARDS (ALL 5 CRATES ALWAYS FULLY VISIBLE) */}
-            <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5 shrink-0">
+            <div className="grid grid-cols-5 gap-1 sm:gap-2 shrink-0">
               {CRATE_LIST.map(crate => {
                 const isSelected = selectedCrateId === crate.id;
                 const isOrigin = crate.id === 'origin';
@@ -557,20 +561,25 @@ export default function CrateUnboxingSystem({
                 return (
                   <button
                     key={crate.id}
-                    disabled={isBusy}
                     onClick={() => {
                       setSelectedCrateId(crate.id);
+                      clearAnimTimers();
+                      setAnimationPhase('idle');
+                      setIsUnboxing(false);
+                      setShowEmptyBanner(false);
+                      setShowRewardModal(false);
+                      setLastRollResult(null);
                       soundManager.playRollTick?.();
                     }}
-                    className={`relative p-2 sm:p-3 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+                    className={`relative p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl border text-left transition-all duration-200 cursor-pointer flex flex-col justify-between ${
                       isSelected
-                        ? 'bg-amber-500/15 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.25)] scale-[1.02]'
+                        ? 'bg-amber-500/15 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.25)] scale-[1.01]'
                         : 'bg-zinc-900/80 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-850'
                     } ${isBusy ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`text-[8px] sm:text-[9px] font-mono font-black uppercase px-1.5 py-0.5 rounded ${
+                      <div className="flex items-center justify-between mb-0.5 sm:mb-1">
+                        <span className={`text-[7px] sm:text-[9px] font-mono font-black uppercase px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded ${
                           crate.id === 'striker' ? 'bg-red-950 text-red-400 border border-red-800/80' :
                           crate.id === 'grappler' ? 'bg-cyan-950 text-cyan-400 border border-cyan-800/80' :
                           crate.id === 'hybrid' ? 'bg-purple-950 text-purple-400 border border-purple-800/80' :
@@ -581,24 +590,24 @@ export default function CrateUnboxingSystem({
                         </span>
 
                         {isOrigin && (
-                          <span className="text-[7.5px] font-mono font-bold text-emerald-400 hidden sm:inline">
+                          <span className="text-[6.5px] sm:text-[7.5px] font-mono font-bold text-emerald-400 hidden sm:inline">
                             100% Drop
                           </span>
                         )}
                       </div>
 
-                      <h3 className="font-display font-black uppercase text-[10px] sm:text-xs truncate leading-tight text-white">
+                      <h3 className="font-display font-black uppercase text-[8.5px] sm:text-xs truncate leading-tight text-white">
                         {crate.name}
                       </h3>
-                      <p className="text-[8px] sm:text-[9px] text-zinc-400 font-mono truncate mt-0.5 hidden sm:block">
+                      <p className="text-[7.5px] sm:text-[9px] text-zinc-400 font-mono truncate mt-0.5 hidden sm:block">
                         {crate.tagline}
                       </p>
                     </div>
 
                     {/* Origin Cooldown Status Overlay */}
                     {isBlockedOrigin && (
-                      <div className="mt-1 pt-1 border-t border-red-500/40 text-[8px] font-mono font-bold text-red-400 flex items-center gap-1">
-                        <Clock className="w-2.5 h-2.5 animate-pulse shrink-0" />
+                      <div className="mt-0.5 sm:mt-1 pt-0.5 sm:pt-1 border-t border-red-500/40 text-[7px] sm:text-[8px] font-mono font-bold text-red-400 flex items-center gap-1">
+                        <Clock className="w-2 sm:w-2.5 h-2 sm:h-2.5 animate-pulse shrink-0" />
                         <span>{formatCooldown(originRemainingSec)}</span>
                       </div>
                     )}
@@ -609,20 +618,18 @@ export default function CrateUnboxingSystem({
 
             {/* CENTRAL WORKSPACE: UNBOXING STAGE + KEY SELECTOR + TELEMETRY */}
             <div className={`grid items-center flex-1 min-h-0 ${
-              isCompactLandscape ? 'gap-1.5' : 'gap-2.5 sm:gap-3'
-            } ${
-              isLandscape ? 'grid-cols-12' : 'grid-cols-1'
+              isCompactLandscape ? 'gap-1.5 grid-cols-12' : isLandscape ? 'gap-2.5 sm:gap-3 grid-cols-12' : 'gap-2 grid-cols-1 overflow-hidden'
             }`}>
               
               {/* LEFT / CENTER: 3D UNBOXING CONTAINER CANVAS */}
-              <div className={`relative flex flex-col items-center justify-center rounded-3xl bg-zinc-900/60 border border-zinc-800/80 shadow-2xl overflow-hidden h-full ${
-                isCompactLandscape ? 'p-1.5 col-span-7' : isLandscape ? 'p-2 sm:p-3 col-span-7' : 'p-2.5 sm:p-4 w-full'
+              <div className={`relative flex flex-col items-center justify-center rounded-2xl sm:rounded-3xl bg-zinc-900/60 border border-zinc-800/80 shadow-2xl overflow-hidden h-full ${
+                isCompactLandscape ? 'p-1.5 col-span-7' : isLandscape ? 'p-2 sm:p-3 col-span-7' : 'p-1.5 sm:p-2 w-full flex-1 min-h-0'
               }`}>
                 {/* Ambient Radial Aura Glow */}
                 <div className="absolute -inset-10 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
                 {/* Canvas Container */}
-                <div className="relative z-10 w-full flex items-center justify-center flex-1">
+                <div className="relative z-10 w-full flex items-center justify-center flex-1 min-h-0">
                   <CrateContainerCanvas
                     crateType={selectedCrateId}
                     animationPhase={animationPhase}
@@ -630,8 +637,8 @@ export default function CrateUnboxingSystem({
                     shakeStage={shakeStage}
                     isWin={lastRollResult?.isWin}
                     styleColor={selectedCrateId === 'striker' ? '#ef4444' : selectedCrateId === 'grappler' ? '#38bdf8' : '#fbbf24'}
-                    width={isCompactLandscape ? 180 : isLandscape ? 240 : 340}
-                    height={isCompactLandscape ? 95 : isLandscape ? 130 : 210}
+                    width={isCompactLandscape ? 170 : isLandscape ? 230 : 185}
+                    height={isCompactLandscape ? 85 : isLandscape ? 125 : 95}
                   />
                 </div>
 
@@ -664,19 +671,19 @@ export default function CrateUnboxingSystem({
               </div>
 
               {/* RIGHT: KEY TIER LUCK DECK & UNBOX TRIGGER */}
-              <div className={`space-y-2.5 sm:space-y-3 ${
-                isLandscape ? 'col-span-5' : 'w-full'
+              <div className={`space-y-1 sm:space-y-2 ${
+                isLandscape ? 'col-span-5' : 'w-full shrink-0'
               }`}>
                 {/* 4 KEY TIER SELECTOR */}
-                <div className="p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800 space-y-2">
-                  <div className="flex items-center justify-between text-[11px] font-mono">
-                    <span className="text-zinc-400 font-bold uppercase">Select Key Luck Tier</span>
+                <div className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-zinc-900/80 border border-zinc-800 space-y-1">
+                  <div className="flex items-center justify-between text-[8.5px] sm:text-[10px] font-mono">
+                    <span className="text-zinc-400 font-bold uppercase">Key Luck Tier</span>
                     <span className="text-amber-400 font-bold">
-                      {selectedKeyConfig.luckBadge} Luck Modifier
+                      {selectedKeyConfig.luckBadge}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className={`grid ${isPortrait ? 'grid-cols-4' : 'grid-cols-2'} gap-1 sm:gap-1.5`}>
                     {(Object.keys(KEY_TIERS) as KeyTier[]).map(tierKey => {
                       const tier = KEY_TIERS[tierKey];
                       const isSelected = selectedKeyTier === tierKey;
@@ -690,21 +697,21 @@ export default function CrateUnboxingSystem({
                             setSelectedKeyTier(tierKey);
                             soundManager.playRollTick?.();
                           }}
-                          className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                          className={`p-1.5 sm:p-2 rounded-lg sm:rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
                             isSelected
                               ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-sm'
                               : 'bg-zinc-950/70 border-zinc-850 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
                           }`}
                         >
                           <div>
-                            <div className="text-[10px] font-display font-black uppercase text-white">
+                            <div className="text-[9px] sm:text-[10px] font-display font-black uppercase text-white">
                               {tier.name}
                             </div>
-                            <div className="text-[8px] font-mono text-zinc-500">
+                            <div className="text-[7.5px] sm:text-[8px] font-mono text-zinc-500">
                               {tier.luckBadge} Odds
                             </div>
                           </div>
-                          <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                          <span className={`text-[8.5px] sm:text-[10px] font-mono font-bold px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded ${
                             count > 0 ? 'bg-zinc-850 text-amber-400' : 'bg-red-950 text-red-400 border border-red-800/60'
                           }`}>
                             x{count}
@@ -717,14 +724,14 @@ export default function CrateUnboxingSystem({
 
                 {/* TARGET WISHLIST DRAWER (NORMAL CRATE ONLY) */}
                 {selectedCrateId === 'normal' && (
-                  <div className="p-2.5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-zinc-900 to-zinc-900 border border-purple-500/40 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Crosshair className="w-4 h-4 text-purple-400" />
+                  <div className="p-1.5 sm:p-2 rounded-xl bg-gradient-to-r from-purple-950/40 via-zinc-900 to-zinc-900 border border-purple-500/40 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Crosshair className="w-3.5 h-3.5 text-purple-400" />
                       <div>
-                        <div className="text-[10px] font-display font-black uppercase text-purple-300">
+                        <div className="text-[9px] sm:text-[10px] font-display font-black uppercase text-purple-300">
                           Target Wishlist (+20% Boost)
                         </div>
-                        <div className="text-[8.5px] font-mono text-zinc-400 truncate max-w-[170px]">
+                        <div className="text-[7.5px] sm:text-[8.5px] font-mono text-zinc-400 truncate max-w-[140px] sm:max-w-[170px]">
                           {wishlistedStyleObj ? `Locked: ${wishlistedStyleObj.name}` : 'No target style set'}
                         </div>
                       </div>
@@ -733,7 +740,7 @@ export default function CrateUnboxingSystem({
                     <button
                       disabled={isWishlistOnCooldown}
                       onClick={() => setShowWishlistModal(true)}
-                      className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-[10px] font-mono font-bold uppercase transition cursor-pointer"
+                      className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-[9px] sm:text-[10px] font-mono font-bold uppercase transition cursor-pointer"
                     >
                       {wishlistedStyleObj ? 'Change' : 'Set Target'}
                     </button>
@@ -741,14 +748,14 @@ export default function CrateUnboxingSystem({
                 )}
 
                 {/* LIVE WIN PROBABILITY TELEMETRY BAR */}
-                <div className="p-2.5 rounded-2xl bg-zinc-900/90 border border-zinc-800 space-y-1.5 shadow-inner">
-                  <div className="flex items-center justify-between text-[10px] font-mono">
+                <div className="p-1.5 sm:p-2 rounded-xl bg-zinc-900/90 border border-zinc-800 space-y-1 shadow-inner">
+                  <div className="flex items-center justify-between text-[8.5px] sm:text-[10px] font-mono">
                     <span className="text-zinc-400 uppercase font-bold">Calculated Style Odds</span>
                     <span className="text-emerald-400 font-black">
                       {(effectiveWinRate * 100).toFixed(1)}% Win Rate
                     </span>
                   </div>
-                  <div className="w-full bg-zinc-950 h-2 rounded-full overflow-hidden border border-zinc-800 p-0.5">
+                  <div className="w-full bg-zinc-950 h-1.5 sm:h-2 rounded-full overflow-hidden border border-zinc-800 p-0.5">
                     <div 
                       className="h-full bg-gradient-to-r from-emerald-500 to-amber-400 rounded-full transition-all duration-500"
                       style={{ width: `${Math.min(100, Math.max(5, effectiveWinRate * 100))}%` }}
@@ -760,13 +767,13 @@ export default function CrateUnboxingSystem({
                 <button
                   disabled={isBusy || selectedKeyCount <= 0 || (selectedCrateId === 'origin' && isOriginOnCooldown)}
                   onClick={handleUnboxCrate}
-                  className={`w-full py-3 sm:py-3.5 rounded-2xl font-display font-black italic uppercase tracking-wider text-xs sm:text-sm transition-all duration-200 shadow-xl flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                  className={`w-full py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl font-display font-black italic uppercase tracking-wider text-[11px] sm:text-sm transition-all duration-200 shadow-xl flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
                     selectedKeyCount <= 0
                       ? 'bg-zinc-800 border border-zinc-700 text-zinc-500 cursor-not-allowed'
                       : 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black border border-amber-300 shadow-[0_0_25px_rgba(245,158,11,0.4)]'
                   }`}
                 >
-                  <Key className="w-4 h-4 text-black" />
+                  <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
                   <span>
                     {selectedKeyCount <= 0
                       ? `NO ${selectedKeyTier.toUpperCase()} KEYS AVAILABLE`
@@ -783,7 +790,7 @@ export default function CrateUnboxingSystem({
         {/* TAB 2: KEY STORE                                               */}
         {/* ============================================================== */}
         {activeSubTab === 'shop' && (
-          <div className="w-full max-w-5xl mx-auto space-y-4 pb-6">
+          <div className="w-full max-w-5xl mx-auto flex-1 min-h-0 overflow-y-auto custom-scrollbar p-1 sm:p-2 space-y-3">
             {/* STORE BANNER */}
             <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/40 via-zinc-900 to-zinc-950 border border-amber-500/40 flex items-center justify-between">
               <div>
@@ -934,7 +941,7 @@ export default function CrateUnboxingSystem({
         {/* TAB 3: GENETICS LAB                                            */}
         {/* ============================================================== */}
         {activeSubTab === 'genetics' && (
-          <div className="w-full max-w-5xl mx-auto space-y-4 pb-6">
+          <div className="w-full max-w-5xl mx-auto flex-1 min-h-0 overflow-y-auto custom-scrollbar p-1 sm:p-2 space-y-3">
             {/* LAB BANNER */}
             <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-zinc-900 to-zinc-950 border border-emerald-500/40 flex items-center justify-between">
               <div>
@@ -976,11 +983,11 @@ export default function CrateUnboxingSystem({
                 {/* CALIBRATE BUTTON */}
                 <div className="space-y-2">
                   <button
-                    disabled={isRollingHeight}
+                    disabled={isRollingHeight || (stats.cash || 0) < 500}
                     onClick={handleRollHeight}
                     className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 disabled:opacity-50 text-white rounded-xl font-display font-black italic uppercase tracking-wider text-xs shadow-lg transition cursor-pointer active:scale-95"
                   >
-                    {isRollingHeight ? 'RESEQUENCING DNA...' : 'CALIBRATE STATURE (FREE ROLL)'}
+                    {isRollingHeight ? 'RESEQUENCING DNA...' : 'CALIBRATE STATURE ($500)'}
                   </button>
 
                   {showHeightConfirm && (
@@ -1124,9 +1131,8 @@ export default function CrateUnboxingSystem({
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-2">
+              <div className="flex items-center justify-center gap-3 pt-2">
                 <button
-                  disabled={!canDismissReward}
                   onClick={() => {
                     if (lastRollResult?.style) {
                       updateStats({ selectedStyleId: lastRollResult.style.id });
@@ -1134,20 +1140,19 @@ export default function CrateUnboxingSystem({
                     setShowRewardModal(false);
                     handleCloseAndReplaceCrate();
                   }}
-                  className="py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white rounded-xl font-display font-black italic uppercase tracking-wider text-xs transition cursor-pointer"
+                  className="px-6 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-display font-black italic uppercase tracking-wider text-xs transition cursor-pointer shadow-lg active:scale-95"
                 >
                   EQUIP STYLE
                 </button>
 
                 <button
-                  disabled={!canDismissReward}
                   onClick={() => {
                     setShowRewardModal(false);
                     handleCloseAndReplaceCrate();
                   }}
-                  className="py-3 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-300 hover:text-white rounded-xl font-display font-black italic uppercase tracking-wider text-xs transition cursor-pointer"
+                  className="px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-xl font-mono font-bold uppercase tracking-wider text-xs transition cursor-pointer active:scale-95 border border-zinc-750"
                 >
-                  CONTINUE BRAWLING
+                  DISMISS
                 </button>
               </div>
             </motion.div>

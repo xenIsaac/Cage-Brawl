@@ -84,24 +84,24 @@ export const TournamentLadderModal: React.FC<TournamentLadderModalProps> = ({
     return (
       <div 
         key={match.id}
-        className={`relative rounded-2xl border transition-all duration-300 overflow-hidden ${
+        className={`relative -skew-x-2 border-2 transition-all duration-300 overflow-hidden ${
           isPlayerMatch
-            ? 'bg-gradient-to-b from-zinc-950 via-emerald-950/20 to-zinc-950 border-emerald-500/70 shadow-lg shadow-emerald-950/40 ring-1 ring-emerald-500/30'
+            ? 'bg-black border-emerald-400 shadow-[4px_4px_0px_#10b981] ring-1 ring-emerald-400'
             : match.isCompleted
-            ? 'bg-zinc-950/80 border-zinc-800/80 shadow-sm'
+            ? 'bg-black border-zinc-800 shadow-[3px_3px_0px_#000000]'
             : match.isSimulating
-            ? 'bg-zinc-950 border-cyan-500/40 shadow-md shadow-cyan-950/20'
-            : 'bg-zinc-950/60 border-zinc-800/60'
+            ? 'bg-black border-cyan-400 shadow-[4px_4px_0px_#06b6d4]'
+            : 'bg-zinc-950 border-zinc-850 shadow-[2px_2px_0px_#000000]'
         }`}
       >
         {/* Card Header Bar */}
-        <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-900/90 border-b border-zinc-800/80">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-950 border-b-2 border-zinc-800">
           <div className="flex items-center gap-1.5">
             <span className="text-[9px] font-mono font-black text-amber-400 uppercase tracking-wider">
-              {matchLabel}
+              // {matchLabel}
             </span>
             {isPlayerMatch && (
-              <span className="text-[8px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.2 rounded-full flex items-center gap-0.5">
+              <span className="text-[8px] font-mono font-black bg-black text-emerald-300 border border-emerald-400 px-2 py-0.2 -skew-x-12 flex items-center gap-0.5 shadow-[1px_1px_0px_#10b981]">
                 <Star className="w-2.5 h-2.5 text-emerald-400" /> YOU
               </span>
             )}
@@ -109,21 +109,21 @@ export const TournamentLadderModal: React.FC<TournamentLadderModalProps> = ({
 
           <div>
             {match.isCompleted ? (
-              <span className="text-[8px] font-mono font-bold text-emerald-400 flex items-center gap-1">
+              <span className="text-[8px] font-mono font-black text-emerald-400 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                 FINAL ({match.simFighter1Score ?? (isF1Winner ? 2 : 1)} - {match.simFighter2Score ?? (isF2Winner ? 2 : 1)})
               </span>
             ) : match.isSimulating ? (
-              <span className="text-[8px] font-mono font-bold text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-1.5 py-0.2 rounded-full flex items-center gap-1">
+              <span className="text-[8px] font-mono font-black text-cyan-300 bg-black border border-cyan-400 px-2 py-0.2 -skew-x-12 flex items-center gap-1 shadow-[1px_1px_0px_#06b6d4]">
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
                 R{match.simCurrentRound || 1} LIVE
               </span>
             ) : isPlayerMatch && rivalsReady ? (
-              <span className="text-[8px] font-mono font-bold text-amber-300 bg-amber-950/80 border border-amber-800/80 px-1.5 py-0.2 rounded-full animate-pulse">
+              <span className="text-[8px] font-mono font-black text-amber-300 bg-black border border-amber-400 px-2 py-0.2 -skew-x-12 animate-pulse shadow-[1px_1px_0px_#f59e0b]">
                 NEXT UP
               </span>
             ) : (
-              <span className="text-[8px] font-mono text-zinc-500 uppercase">
+              <span className="text-[8px] font-mono font-bold text-zinc-500 uppercase">
                 SCHEDULED
               </span>
             )}
@@ -300,20 +300,20 @@ export const TournamentLadderModal: React.FC<TournamentLadderModalProps> = ({
             {lastAftermatchData && (
               <button
                 onClick={() => setShowAftermatchModal(true)}
-                className="px-3 py-1.5 bg-gradient-to-r from-blue-900/60 to-cyan-950/80 hover:brightness-120 border border-cyan-500/50 rounded-xl text-cyan-300 font-mono text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md"
+                className="px-3 py-1.5 bg-cyan-400 hover:bg-white text-black border-2 border-black -skew-x-12 font-display font-black italic uppercase text-xs transition flex items-center gap-1.5 cursor-pointer shadow-[3px_3px_0px_#ffffff] active:scale-95"
                 title="View detailed statistics from your previous match"
               >
-                <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
+                <BarChart3 className="w-3.5 h-3.5 text-black" />
                 <span>AFTERMATCH STATS</span>
               </button>
             )}
 
-            {/* Exit Tournament Button */}
+            {/* Exit Tournament Button (Persona 5 Styling) */}
             <button
               onClick={onCloseTournament}
-              className="px-3 py-1.5 bg-zinc-900 hover:bg-red-950/60 border border-zinc-800 hover:border-red-600/80 rounded-xl text-zinc-400 hover:text-red-300 cursor-pointer font-mono text-xs font-bold transition flex items-center gap-1"
+              className="px-3 sm:px-4 py-1.5 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase tracking-wider text-xs -skew-x-12 shadow-[3px_3px_0px_#ffffff] hover:shadow-[3px_3px_0px_#ef4444] transition-all cursor-pointer border-2 border-black active:scale-95 flex items-center gap-1"
             >
-              <span>Exit</span>
+              <span>RETURN // MENU</span>
               <X className="w-3.5 h-3.5" />
             </button>
           </div>

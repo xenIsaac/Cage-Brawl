@@ -24,7 +24,7 @@ export default function HudTestBox({
   updateSettings,
   onBackToMenu,
   currentUser,
-  version = 'v1.7.6 Part 3'
+  version = 'v1.7.6 Part 4'
 }: HudTestBoxProps) {
   // Active orientation
   const [orientation, setOrientation] = useState<'landscape' | 'portrait'>('landscape');

@@ -16,6 +16,7 @@ export interface StyleSequenceDS {
   s2: number;
   s3: number;
   s4: number;
+  m2?: number;
 }
 
 /**
@@ -55,9 +56,10 @@ export const STYLE_RETRACTION_DS: Record<string, StyleSequenceDS> = {
   },
   aikido: {
     s1: 0.20,
-    s2: 0.20,
-    s3: 0.10, // Instant Tenkan cross-trap flow
-    s4: 0.90, // Heavy grounded palm follow-through
+    s2: 0.20, // 0.3s startup parry window
+    s3: 0.20, // Left thrust (no spin-out)
+    s4: 0.70, // Glide palm recovery
+    m2: 0.40,
   },
   // Default values for other martial arts
   keysi: {
@@ -103,10 +105,10 @@ export const STYLE_RETRACTION_DS: Record<string, StyleSequenceDS> = {
     s4: 0.35,
   },
   street_taekwondo: {
-    s1: 0.35,
-    s2: 0.35,
-    s3: 0.30,
-    s4: 0.38,
+    s1: 0.20,
+    s2: 0.20,
+    s3: 0.10,
+    s4: 0.32,
   },
 };
 
@@ -176,8 +178,8 @@ export function calculateDSRetractionDelta(
   const normStyle = normalizeStyleIdForDS(styleId);
 
   // Active Retraction Exemptions Checklist
-  if (isExempt || (normStyle === 'flow_boxing' && stage === 2) || (normStyle === 'aikido' && stage === 2)) {
-    // Flow Boxing M1 S3 (Hook Feint) & Aikido M1 S3 (Tenkan Cross): Fast transition without lock
+  if (isExempt || (normStyle === 'flow_boxing' && stage === 2)) {
+    // Flow Boxing M1 S3 (Hook Feint): Fast transition without lock
     return Math.max(0.35, currentProgress * 0.50);
   }
 

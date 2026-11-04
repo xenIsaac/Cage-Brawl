@@ -7,6 +7,7 @@ import {
 import { GameSettings } from '../../types';
 import { soundManager } from '../SoundManager';
 import { isMobileDevice as detectIsMobile, isPcDevice as detectIsPc } from '../../utils/deviceDetection';
+import { useResponsiveLayout } from '../../utils/useResponsiveLayout';
 import { SettingsCategoryTab } from '../navigation/SettingsNavRail';
 
 interface SettingsViewProps {
@@ -58,29 +59,7 @@ export function SettingsView({
   const setSearchQuery = setParentSearchQuery ?? setLocalSearch;
 
   // Responsive device & orientation detection for Dynamic Scaling
-  const [isLandscape, setIsLandscape] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    return window.innerWidth > window.innerHeight;
-  });
-
-  const [isCompactLandscape, setIsCompactLandscape] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth > window.innerHeight && window.innerHeight < 600;
-  });
-
-  useEffect(() => {
-    const handleResize = () => {
-      const landscape = window.innerWidth > window.innerHeight;
-      setIsLandscape(landscape);
-      setIsCompactLandscape(landscape && window.innerHeight < 600);
-    };
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
-    };
-  }, []);
+  const { isPortrait, isLandscape, isMobile, isCompactLandscape } = useResponsiveLayout();
 
   const handleUpdate = (updates: Partial<GameSettings>) => {
     updateSettings(updates);
@@ -481,25 +460,25 @@ export function SettingsView({
     <div 
       id="full-screen-settings-view"
       className={`fixed inset-0 z-[120] bg-zinc-950 text-white flex flex-col pointer-events-auto select-none overflow-hidden transition-all duration-300 ${
-        isNavHidden ? 'pl-0' : 'pl-14 sm:pl-16'
+        isNavHidden || isPortrait || isMobile ? 'pl-0' : 'pl-14 sm:pl-16'
       }`}
     >
       {/* ============================================================== */}
-      {/* 1. TOP HEADER BAR WITH ICONIC STASIS EXIT BUTTON               */}
+      {/* 1. TOP HEADER & PERSONA RETURN CONTROLS                        */}
       {/* ============================================================== */}
-      <div className={`border-b border-zinc-850 bg-gradient-to-r from-zinc-950 via-zinc-900/90 to-zinc-950 flex items-center justify-between gap-3 shrink-0 ${
+      <div className={`border-b-2 border-red-600 bg-black flex items-center justify-between gap-3 shrink-0 ${
         isCompactLandscape ? 'px-3 py-1.5' : 'px-4 sm:px-6 py-2.5 sm:py-3'
       }`}>
         <div className="flex items-center gap-2.5 sm:gap-3">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-red-950/80 border border-red-800/80 flex items-center justify-center text-red-400 shrink-0 shadow-md">
-            <Sliders className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="w-8 h-8 sm:w-9 sm:h-9 -skew-x-12 bg-red-600 text-black border-2 border-white flex items-center justify-center shrink-0 shadow-[2px_2px_0px_#000000] font-black">
+            <Sliders className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xs sm:text-sm md:text-base font-display font-black italic uppercase tracking-wider text-white">
-                GAME & SYSTEM SETTINGS
+                // GAME & SYSTEM SETTINGS
               </h1>
-              <span className="text-[8px] sm:text-[9px] font-mono font-bold bg-red-500/20 text-red-400 border border-red-500/40 px-1.5 py-0.5 rounded uppercase">
+              <span className="text-[8px] sm:text-[9px] font-mono font-black bg-black text-red-500 border-2 border-red-500 px-2 py-0.5 -skew-x-12 uppercase shadow-[1px_1px_0px_#ef4444]">
                 V1.7.6 MATRIX
               </span>
             </div>
@@ -516,33 +495,45 @@ export function SettingsView({
           {/* Quick Sound Test */}
           <button
             onClick={playAudioTest}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[10px] font-mono font-bold uppercase transition cursor-pointer active:scale-95 ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 -skew-x-12 border-2 text-[10px] font-display font-black italic uppercase transition cursor-pointer active:scale-95 ${
               audioTesting
-                ? 'bg-amber-500/30 text-amber-200 border-amber-400 shadow-md shadow-amber-500/20'
-                : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border-zinc-800'
+                ? 'bg-amber-400 text-black border-white shadow-[2px_2px_0px_#000000]'
+                : 'bg-zinc-900 hover:bg-white text-zinc-300 hover:text-black border-zinc-700 shadow-[2px_2px_0px_#000000]'
             }`}
             title="Preview Impact & Parry Audio"
           >
-            <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+            <Volume2 className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Test Audio</span>
           </button>
 
-          {/* STASIS EXIT BUTTON (Iconic Stasis styling) */}
+          {/* PROMINENT PERSONA RETURN / EXIT BUTTON */}
           <button
             onClick={() => {
               soundManager.playRollTick?.();
               onClose();
             }}
-            className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-red-950/90 via-red-900/60 to-zinc-900 hover:from-red-900 hover:to-zinc-850 border border-red-500/50 hover:border-red-400 text-red-200 hover:text-white rounded-xl text-xs font-display font-black italic uppercase tracking-wider transition-all duration-200 shadow-md active:scale-95 group cursor-pointer"
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase tracking-wider text-xs sm:text-sm -skew-x-12 shadow-[3px_3px_0px_#ffffff] hover:shadow-[3px_3px_0px_#ef4444] transition-all duration-150 cursor-pointer active:scale-95 group shrink-0 border-2 border-black"
             title="Exit Settings & Return to Main Menu"
           >
-            <LogOut className="w-4 h-4 text-red-400 rotate-180 transition-transform group-hover:scale-110" />
-            <div className="flex flex-col text-left leading-none">
-              <span className="text-[11px] font-black tracking-wide text-red-300 group-hover:text-white">EXIT / RETURN</span>
-              <span className="text-[8px] font-mono text-red-400/80">Main Menu</span>
-            </div>
+            <LogOut className="w-3.5 h-3.5 text-black rotate-180 group-hover:scale-110" />
+            <span>RETURN // MENU</span>
           </button>
         </div>
+      </div>
+
+      {/* OUTDATED UI NOTICE: PENDING COLLAGE REFACTOR */}
+      <div className="bg-yellow-400 text-black px-4 py-1.5 flex items-center justify-between border-b-2 border-black font-display font-black text-[10px] sm:text-xs uppercase tracking-wider shrink-0 z-20 shadow-[0_2px_10px_rgba(234,179,8,0.25)]">
+        <div className="flex items-center gap-2">
+          <span className="bg-black text-yellow-400 px-1.5 py-0.5 font-mono text-[9px] font-black -skew-x-12">
+            NOTICE
+          </span>
+          <span className="tracking-wide">
+            Profile tab and Settings views remain in their legacy state pending collage refactor.
+          </span>
+        </div>
+        <span className="hidden sm:inline font-mono text-[9px] text-zinc-900 font-bold">
+          // LEGACY ARCHIVE //
+        </span>
       </div>
 
       {/* ============================================================== */}
@@ -675,7 +666,7 @@ export function SettingsView({
               return (
                 <div 
                   key={def.id}
-                  className={`p-3 sm:p-3.5 rounded-2xl bg-zinc-900/85 hover:bg-zinc-900 border border-zinc-800/90 hover:border-zinc-700/80 transition-all flex flex-col justify-between shadow-sm relative group ${
+                  className={`p-3 sm:p-3.5 -skew-x-2 bg-zinc-950 hover:bg-black border-2 border-zinc-800 hover:border-red-600 transition-all flex flex-col justify-between shadow-[3px_3px_0px_#000000] relative group ${
                     isCompactLandscape ? 'min-h-[95px] space-y-1.5' : 'min-h-[120px] space-y-2.5'
                   }`}
                 >
@@ -683,14 +674,14 @@ export function SettingsView({
                   <div>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-center text-red-400 shrink-0 shadow-inner">
-                          <Icon className="w-3.5 h-3.5" />
+                        <div className="w-6 h-6 -skew-x-6 bg-red-600 text-black border border-white flex items-center justify-center shrink-0 font-black shadow-[1px_1px_0px_#000000]">
+                          <Icon className="w-3.5 h-3.5 text-black" />
                         </div>
-                        <h4 className="text-xs font-display font-black uppercase text-white tracking-wide">
+                        <h4 className="text-xs font-display font-black italic uppercase text-white tracking-wide">
                           {def.title}
                         </h4>
                       </div>
-                      <span className="text-[8px] font-mono font-bold text-zinc-500 uppercase bg-zinc-950/80 px-1.5 py-0.5 rounded border border-zinc-800/80 shrink-0">
+                      <span className="text-[8px] font-mono font-black text-zinc-300 uppercase bg-black px-2 py-0.5 -skew-x-12 border border-zinc-700 shrink-0">
                         {def.category}
                       </span>
                     </div>

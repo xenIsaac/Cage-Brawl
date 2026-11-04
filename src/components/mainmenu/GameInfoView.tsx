@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { soundManager } from '../SoundManager';
 import { GameInfoTab } from '../navigation/GameInfoNavRail';
+import { useResponsiveLayout } from '../../utils/useResponsiveLayout';
 
 interface GameInfoViewProps {
   version: string;
@@ -22,29 +23,7 @@ export function GameInfoView({
   activeTab = 'latest',
   setActiveTab,
 }: GameInfoViewProps) {
-  const [isLandscape, setIsLandscape] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    return window.innerWidth > window.innerHeight;
-  });
-
-  const [isCompactLandscape, setIsCompactLandscape] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth > window.innerHeight && window.innerHeight < 600;
-  });
-
-  useEffect(() => {
-    const handleResize = () => {
-      const landscape = window.innerWidth > window.innerHeight;
-      setIsLandscape(landscape);
-      setIsCompactLandscape(landscape && window.innerHeight < 600);
-    };
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
-    };
-  }, []);
+  const { isPortrait, isLandscape, isMobile, isCompactLandscape } = useResponsiveLayout();
 
   // Keyboard navigation & ESC handler
   useEffect(() => {
@@ -63,7 +42,7 @@ export function GameInfoView({
     <div 
       id="full-screen-game-info-view"
       className={`fixed inset-0 z-[120] bg-zinc-950 text-white flex flex-col pointer-events-auto select-none overflow-hidden transition-all duration-300 ${
-        isNavHidden ? 'pl-0' : 'pl-14 sm:pl-16'
+        isNavHidden || isPortrait || isMobile ? 'pl-0' : 'pl-14 sm:pl-16'
       }`}
     >
       {/* ============================================================== */}
@@ -82,7 +61,7 @@ export function GameInfoView({
                 GAME INTEL & SYSTEM MATRIX
               </h1>
               <span className="text-[8px] sm:text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded uppercase">
-                {version || 'v1.7.6 Part 3'}
+                {version || 'v1.7.6 Part 4'}
               </span>
             </div>
             {!isCompactLandscape && (
@@ -118,7 +97,7 @@ export function GameInfoView({
       }`}>
         <div className="max-w-6xl mx-auto space-y-4">
           
-          {/* LATEST UPDATE TAB (v1.7.6 Part 3) */}
+          {/* LATEST UPDATE TAB (v1.7.6 Part 4) */}
           {activeTab === 'latest' ? (
             <div className="space-y-4">
               {/* HERO BANNER */}
@@ -129,10 +108,10 @@ export function GameInfoView({
                 <div className="relative z-10 space-y-2 max-w-3xl">
                   <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-mono font-bold uppercase">
                     <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" />
-                    <span>v1.7.6 PART 3: COMBAT MATRIX & RULES FINALIZED</span>
+                    <span>v1.7.6 PART 4: FAIR-PLAY & HUMANIZED COMBAT MATRIX</span>
                   </div>
                   <h2 className="text-base sm:text-xl font-display font-black italic uppercase tracking-wider text-white">
-                    CHAIN PARRYING, BIOMETRIC ONBOARDING & QUEST ENGINE MATRIX
+                    HUMANIZED AI PERCEPTION, FAIR-PLAY PARRY & RECOVERY POLISH
                   </h2>
                   <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed font-sans">
                     Universal game rules finalized: continuous zero-cooldown chain parrying, 100% equal random style enrollment, strict quest progress isolation, and The Unbroken Gauntlet endurance engine.
@@ -269,7 +248,7 @@ export function GameInfoView({
                     </h3>
                   </div>
                   <span className="text-[9px] font-mono text-amber-400 uppercase font-bold">
-                    Official 1.7.6 Part 3 Specifications
+                    Official 1.7.6 Finale Specifications
                   </span>
                 </div>
 
@@ -308,7 +287,7 @@ export function GameInfoView({
                 Archived Release Notes
               </h3>
               <p className="text-xs text-zinc-500 max-w-md mx-auto font-mono">
-                Repository archive slot is empty. All current mechanics, physics, and architecture updates are unified in Latest Update (Part 3).
+                Legacy version archive slot. All current mechanics, physics, and architecture updates are unified in the Finale.
               </p>
               <div className="flex justify-center pt-2">
                 <button
@@ -318,7 +297,7 @@ export function GameInfoView({
                   }}
                   className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-mono font-bold uppercase transition cursor-pointer shadow"
                 >
-                  View Latest Update (Part 3)
+                  View Latest Update (v1.7.6 Finale)
                 </button>
               </div>
             </div>
@@ -334,7 +313,7 @@ export function GameInfoView({
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
           <span className="text-zinc-300 font-bold uppercase">
-            {version || 'V1.7.6 PART 3 MATRIX'}
+            {version || 'V1.7.6 FINALE MATRIX'}
           </span>
         </div>
         <div className="text-zinc-500 text-[9px]">

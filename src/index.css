@@ -9,11 +9,13 @@
 
 html, body, #root {
   width: 100%;
+  max-width: 100vw;
   height: 100%;
   height: 100dvh;
   margin: 0;
   padding: 0;
   overflow: hidden;
+  overflow-x: hidden !important;
   overscroll-behavior: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -168,5 +170,20 @@ html, body, #root {
 .pt-safe {
   padding-top: env(safe-area-inset-top, 0.5rem);
 }
+
+/* Subtle continuous kinetic vibration / rumble for Main Menu Title */
+@keyframes titleRumble {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-1.5px, 1px) rotate(-0.5deg); }
+  40% { transform: translate(1px, -1px) rotate(0.5deg); }
+  60% { transform: translate(-1px, -1px) rotate(0deg); }
+  80% { transform: translate(1.5px, 1px) rotate(0.5deg); }
+}
+
+.animate-title-shake {
+  animation: titleRumble 0.35s infinite ease-in-out;
+  display: inline-block;
+}
+
 
 

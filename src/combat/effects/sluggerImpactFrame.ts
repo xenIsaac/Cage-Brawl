@@ -108,9 +108,9 @@ export function triggerSluggerHitImpact(
   state.isActive = true;
   state.variant = 'hit';
   state.currentFrame = 0;
-  state.totalDuration = 120; // 2.0s
-  state.holdFrames = 95;
-  state.pullbackFrames = 25;
+  state.totalDuration = 108; // 1.8s
+  state.holdFrames = 84;
+  state.pullbackFrames = 24;
   state.attacker = attacker;
   state.defender = defender;
   state.hitX = hitX;
@@ -134,26 +134,9 @@ export function triggerSluggerHitImpact(
     heavyFist.isPunching = true;
   }
 
-  // Generate black shockwaves radiating outward
-  state.shockwaves = [
-    { x: hitX, y: hitY, radius: 10, maxRadius: 180, speed: 1.8, lineWidth: 8, alpha: 1.0 },
-    { x: hitX, y: hitY, radius: 25, maxRadius: 260, speed: 2.2, lineWidth: 5, alpha: 0.9 },
-    { x: hitX, y: hitY, radius: 45, maxRadius: 360, speed: 2.8, lineWidth: 3, alpha: 0.8 }
-  ];
-
-  // Generate radial black speedlines
+  // Shockwaves and directional speedlines removed per VFX tuning specification
+  state.shockwaves = [];
   state.speedlines = [];
-  const lineCount = 36;
-  for (let i = 0; i < lineCount; i++) {
-    const lineAngle = (i / lineCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.15;
-    state.speedlines.push({
-      angle: lineAngle,
-      dist: Math.random() * 30 + 15,
-      length: Math.random() * 90 + 60,
-      width: Math.random() * 3.5 + 1.5,
-      alpha: Math.random() * 0.4 + 0.6
-    });
-  }
 
   // Generate particles exiting out the OPPOSITE side in slow motion
   state.particles = [];
@@ -219,26 +202,9 @@ export function triggerSluggerBlockImpact(
     defenderY: defender.y
   };
 
-  // Block impact shockwaves (compressed high-frequency shield impact rings)
-  state.shockwaves = [
-    { x: hitX, y: hitY, radius: 12, maxRadius: 140, speed: 2.5, lineWidth: 6, alpha: 1.0 },
-    { x: hitX, y: hitY, radius: 30, maxRadius: 210, speed: 3.2, lineWidth: 4, alpha: 0.85 }
-  ];
-
-  // Radial shield deflection rays
+  // Shockwaves and directional speedlines removed per VFX tuning specification
+  state.shockwaves = [];
   state.speedlines = [];
-  const lineCount = 24;
-  for (let i = 0; i < lineCount; i++) {
-    // Deflection rays biased perpendicular to strike angle
-    const sideAngle = angle + (i % 2 === 0 ? Math.PI / 2 : -Math.PI / 2) + (Math.random() - 0.5) * 0.8;
-    state.speedlines.push({
-      angle: sideAngle,
-      dist: Math.random() * 20 + 10,
-      length: Math.random() * 70 + 40,
-      width: Math.random() * 3.0 + 1.2,
-      alpha: Math.random() * 0.5 + 0.5
-    });
-  }
 
   // BLOCK VARIANT TRIANGULAR SHARDS:
   // Shoots triangular shards to the sides that then curve and flow to the opposite side like airflow

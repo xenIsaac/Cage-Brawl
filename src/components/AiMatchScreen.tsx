@@ -13,6 +13,7 @@ import { soundManager } from './SoundManager';
 import { getRankInfo, calculateWinEloGain, calculateLossEloLoss } from '../utils/elo';
 import { formatHeight } from '../utils/heightModifiers';
 import { isMobileDevice } from '../utils/deviceDetection';
+import { useResponsiveLayout } from '../utils/useResponsiveLayout';
 import { TournamentLadderModal } from './arena/TournamentLadderModal';
 import { RulebookModal } from './singleplayer/RulebookModal';
 
@@ -72,10 +73,7 @@ export default function AiMatchScreen({
   selectedCasualDifficulty: externalSelectedCasualDifficulty,
   setSelectedCasualDifficulty: externalSetSelectedCasualDifficulty,
 }: AiMatchScreenProps) {
-  const checkMobile = () => isMobileDevice();
-
-  const [isPortrait, setIsPortrait] = useState<boolean>(window.innerHeight > window.innerWidth);
-  const [isMobileView, setIsMobileView] = useState<boolean>(checkMobile());
+  const { isPortrait, isLandscape, isMobile, isCompactLandscape } = useResponsiveLayout();
 
   // Navigation state fallbacks
   const [internalModeSide, setInternalModeSide] = useState<SingleplayerSide>('competitive');
@@ -94,30 +92,14 @@ export default function AiMatchScreen({
 
   const [showRulebookModal, setShowRulebookModal] = useState<boolean>(false);
 
-  // Dynamic Adaptive Viewport Padding - protects mobile & landscape from squishing
-  const isMobile = isMobileView || checkMobile();
-  const isNarrowScreen = typeof window !== 'undefined' && (window.innerWidth < 1024 || (!isPortrait && window.innerHeight < 600));
+  // Dynamic Adaptive Viewport Padding - gives mobile full width while rail overlays smoothly
+  const isNarrowScreen = typeof window !== 'undefined' && (window.innerWidth < 1024 || isCompactLandscape);
 
-  const dynamicPaddingLeft = isNavHidden
-    ? '0.75rem'
-    : (isMobile || isNarrowScreen)
-      ? '4.25rem' // Fixed slim padding on mobile/landscape - rail floats as overlay without squishing!
-      : isNavExpanded
-        ? '16.5rem' // 264px when rail expands on desktop PC
-        : '4.75rem'; // 76px when rail collapsed
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobileView(checkMobile());
-      setIsPortrait(window.innerHeight > window.innerWidth);
-    };
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
-    };
-  }, []);
+  const dynamicPaddingLeft = isNavHidden || isMobile || isNarrowScreen
+    ? '0.75rem' // Clean slim padding on mobile/narrow - rail floats as overlay without squishing
+    : isNavExpanded
+      ? '16.5rem' // 264px when rail expands on desktop PC
+      : '4.75rem'; // 76px when rail collapsed on desktop PC
 
   // --- TOURNAMENT STATE & ENGINE ---
   const [showTournamentModal, setShowTournamentModal] = useState<boolean>(() => {
@@ -694,131 +676,135 @@ export default function AiMatchScreen({
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* ============================================================== */}
-      {/* FLOATING UNFOLD ARROW TAB FOR SINGLEPLAYER UI (WHEN NAV IS HIDDEN) */}
+      {/* 2. TOP GLOBAL PERSONA HEADER & EXIT BUTTON                     */}
       {/* ============================================================== */}
-      {isNavHidden && setIsNavHidden && (
-        <button
-          onClick={() => {
-            soundManager.playRollTick();
-            setIsNavHidden(false);
-          }}
-          className="fixed left-0 top-1/2 -translate-y-1/2 z-[150] py-4 px-2.5 bg-gradient-to-r from-red-950 via-zinc-900 to-zinc-950 hover:from-red-900 hover:to-zinc-900 border-y border-r-2 border-red-500 hover:border-red-400 rounded-r-2xl shadow-[0_0_30px_rgba(239,68,68,0.7)] flex flex-col items-center gap-1.5 cursor-pointer group active:scale-95 transition-all duration-200"
-          title="Unfold Navigation Rail"
-          aria-label="Unfold Navigation Rail"
-        >
-          <ChevronRight className="w-5 h-5 text-red-400 group-hover:text-white group-hover:translate-x-1 transition-transform animate-pulse" />
-          <span className="text-[8px] font-mono font-black uppercase text-red-300 group-hover:text-white [writing-mode:vertical-lr] tracking-widest">
-            UNFOLD
-          </span>
-        </button>
-      )}
-
-      {/* ============================================================== */}
-      {/* 2. TOP GLOBAL HEADER */}
-      {/* ============================================================== */}
-      <div className="relative z-10 flex items-center justify-between gap-2 border-b border-zinc-850 pb-1.5 sm:pb-2 shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          {/* Header Unfold Button (Visible when Nav is Hidden) */}
-          {isNavHidden && setIsNavHidden && (
-            <button
-              onClick={() => {
-                soundManager.playRollTick();
-                setIsNavHidden(false);
-              }}
-              className="px-2 py-1 rounded-xl bg-red-600/20 border border-red-500/60 text-red-300 hover:text-white hover:bg-red-600/40 transition cursor-pointer flex items-center gap-1 shadow-[0_0_12px_rgba(239,68,68,0.3)] animate-pulse shrink-0 active:scale-95"
-              title="Unfold Navigation Rail"
-            >
-              <ChevronRight className="w-3.5 h-3.5 text-red-400" />
-              <span className="text-[9px] font-mono font-black uppercase pr-0.5">UNFOLD</span>
-            </button>
-          )}
-
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border flex items-center justify-center shadow-sm shrink-0 ${
-            modeSide === 'competitive'
-              ? 'bg-red-500/20 text-red-400 border-red-500/40'
-              : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
-          }`}>
-            {modeSide === 'competitive' ? <Trophy className="w-3.5 h-3.5 text-amber-400" /> : <Bot className="w-3.5 h-3.5 text-cyan-400" />}
+      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 border-b-2 border-red-600 pb-2 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {/* PERSONA BADGE */}
+          <div className="bg-red-600 text-black px-2.5 py-1 -skew-x-12 font-display font-black italic text-xs sm:text-sm tracking-wider shadow-[2px_2px_0px_#ffffff] shrink-0">
+            SOLO // 01
           </div>
+
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-sm sm:text-base font-display font-black italic uppercase text-white tracking-tight truncate">
-                Singleplayer • {modeSide === 'competitive' ? 'Competitive' : 'Casuals'}
-              </h1>
-              <span className={`text-[7.5px] sm:text-[8px] font-mono font-bold uppercase px-1.5 py-0.2 rounded-md border shrink-0 ${
-                modeSide === 'competitive'
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                  : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-              }`}>
-                {modeSide === 'competitive' 
-                  ? (compSubTab === 'ranked_ai' ? 'Ranked 1v1 Elo' : compSubTab === 'tournament' ? 'Tournament Bracket' : 'Boss Raids')
-                  : (casualSubTab === 'casual_1v1' ? 'Casual 1v1 Sparring' : casualSubTab === 'ai_vs_ai' ? 'AI vs AI Sim' : 'Upcoming Arenas')}
-              </span>
-            </div>
-            <p className="text-[9px] font-mono text-zinc-400 truncate hidden xs:block">
-              {modeSide === 'competitive'
-                ? 'Competitive Stance Combat • Dedicated Offline Elo Rating & Tournament Pursuits'
-                : 'Zero-Risk Custom Sparring • Multi-Tier Difficulty AI & Neural Simulation'}
-            </p>
+            <h1 className="text-sm sm:text-base font-display font-black italic uppercase text-white tracking-tighter -skew-x-12 truncate">
+              SINGLEPLAYER • {modeSide === 'competitive' ? 'COMPETITIVE' : 'CASUAL'}
+            </h1>
           </div>
+
+          {/* MODE TOGGLE SLIDE */}
+          <button
+            onClick={handleToggleModeSide}
+            className={`px-2.5 py-1 text-xs font-display font-black italic uppercase tracking-wider -skew-x-12 transition-all cursor-pointer ${
+              modeSide === 'competitive'
+                ? 'bg-amber-400 text-black shadow-[2px_2px_0px_#ffffff]'
+                : 'bg-cyan-400 text-black shadow-[2px_2px_0px_#ffffff]'
+            }`}
+          >
+            SWITCH TO {modeSide === 'competitive' ? 'CASUAL' : 'COMPETITIVE'}
+          </button>
         </div>
 
-        {/* Currency & Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Hide / Unfold Rail Toggle */}
-          {setIsNavHidden && (
-            <button
-              onClick={() => {
-                soundManager.playRollTick();
-                setIsNavHidden(!isNavHidden);
-              }}
-              className={`px-2 py-1 rounded-xl border text-[10px] font-mono font-bold flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-sm ${
-                isNavHidden
-                  ? 'bg-red-600/20 border-red-500/60 text-red-300 hover:bg-red-600/30 shadow-[0_0_12px_rgba(239,68,68,0.3)] animate-pulse'
-                  : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-              }`}
-              title={isNavHidden ? 'Unfold Navigation Rail' : 'Hide Navigation Rail'}
-            >
-              <ChevronRight className={`w-3 h-3 transition-transform ${isNavHidden ? '' : 'rotate-180 text-zinc-500'}`} />
-              <span className="uppercase text-[9px]">{isNavHidden ? 'Unfold' : 'Hide'}</span>
-            </button>
+        {/* PERSONA SUB-MODE SLIDE DECK */}
+        <div className="flex items-center gap-1 sm:gap-1.5 -skew-x-12">
+          {modeSide === 'competitive' ? (
+            <>
+              {[
+                { id: 'ranked_ai', label: '01 // RANKED LADDER' },
+                { id: 'tournament', label: '02 // 8-MAN TOURNEY' },
+                { id: 'boss_raids', label: '03 // BOSS RAIDS' },
+              ].map(tab => {
+                const isActive = compSubTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      soundManager.playRollTick();
+                      setCompSubTab(tab.id as any);
+                    }}
+                    className={`px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-display font-black italic uppercase tracking-wider transition-all duration-150 cursor-pointer ${
+                      isActive
+                        ? 'bg-white text-black shadow-[3px_3px_0px_#ef4444]'
+                        : 'bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              {[
+                { id: 'casual_1v1', label: '01 // 1V1 SPARRING' },
+                { id: 'ai_vs_ai', label: '02 // AI VS AI SIM' },
+                { id: 'upcoming', label: '03 // ARENAS' },
+              ].map(tab => {
+                const isActive = casualSubTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      soundManager.playRollTick();
+                      setCasualSubTab(tab.id as any);
+                    }}
+                    className={`px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-display font-black italic uppercase tracking-wider transition-all duration-150 cursor-pointer ${
+                      isActive
+                        ? 'bg-cyan-400 text-black shadow-[3px_3px_0px_#ffffff]'
+                        : 'bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </>
           )}
+        </div>
 
-          {/* Rulebook Button */}
+        {/* CURRENCY & PERSONA RETURN / EXIT BUTTON */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Rulebook */}
           <button
             onClick={() => { soundManager.playRollTick(); setShowRulebookModal(true); }}
-            className="px-2.5 py-1 bg-gradient-to-r from-amber-600/20 via-zinc-900 to-amber-600/10 hover:from-amber-600/30 hover:to-amber-500/20 text-amber-300 hover:text-amber-200 border border-amber-500/40 hover:border-amber-400 rounded-xl transition text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer shadow-md shadow-amber-950/20 active:scale-95"
-            title="Single Player Rulebook - Complete Game & Engine Rules"
+            className="px-2.5 py-1 bg-zinc-900 hover:bg-white text-amber-400 hover:text-black border border-amber-500/40 text-xs font-display font-black italic uppercase -skew-x-12 transition cursor-pointer shadow-[2px_2px_0px_#000000]"
+            title="Single Player Rulebook"
           >
-            <BookOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="font-display font-black italic uppercase tracking-wider text-[10px]">Rules</span>
+            RULES
           </button>
-
-          {/* Cash */}
-          <div className="bg-zinc-900/90 border border-amber-500/30 px-2 py-1 rounded-xl flex items-center gap-1 shadow-sm">
-            <span className="text-amber-400 font-mono font-bold text-[11px]">$</span>
-            <span className="font-mono font-bold text-[11px] text-white">{stats.cash.toLocaleString()}</span>
-          </div>
 
           {/* Quests Button */}
           {onOpenQuests && (
             <button
               onClick={() => { soundManager.playRollTick(); onOpenQuests(); }}
-              className="px-2 py-1 bg-zinc-900 hover:bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-500/60 text-cyan-300 rounded-xl transition text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer shadow-sm active:scale-95"
-              title="Singleplayer Combat Quests"
+              className="px-2.5 py-1 bg-zinc-900 hover:bg-cyan-400 text-cyan-300 hover:text-black border border-cyan-500/40 text-xs font-display font-black italic uppercase -skew-x-12 transition cursor-pointer shadow-[2px_2px_0px_#000000]"
+              title="Quests"
             >
-              <Target className="w-3 h-3 text-cyan-400" />
-              <span className="hidden md:inline uppercase text-[9px]">Quests</span>
+              QUESTS
             </button>
           )}
+
+          {/* Cash */}
+          <div className="bg-zinc-900 border border-zinc-800 px-2.5 py-1 text-xs font-mono font-bold text-emerald-400 -skew-x-12">
+            ${stats.cash.toLocaleString()}
+          </div>
+
+          {/* PROMINENT PERSONA RETURN / EXIT BUTTON */}
+          <button
+            onClick={() => {
+              soundManager.playRollTick();
+              onBackToMenu();
+            }}
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase tracking-wider text-xs sm:text-sm -skew-x-12 shadow-[3px_3px_0px_#ffffff] hover:shadow-[3px_3px_0px_#ef4444] transition-all duration-150 cursor-pointer active:scale-95 group shrink-0"
+            title="Return to Main Menu"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-black group-hover:scale-110" />
+            <span>RETURN // MENU</span>
+          </button>
         </div>
       </div>
 
-      {/* ============================================================== */}
-      {/* 3. DEDICATED FULL-WIDTH MAIN VIEW CANVAS (DRIVEN BY LEFT RAIL) */}
-      {/* ============================================================== */}
-      <div className="relative z-10 flex-1 my-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex-1 min-w-0 min-h-0 overflow-y-auto landscape:overflow-hidden custom-scrollbar pr-1 flex flex-col">
+      <div className="relative z-10 flex-1 my-0.5 sm:my-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar">
+        <div className="flex-1 min-w-0 min-h-0 pr-0.5 flex flex-col justify-between">
           <AnimatePresence mode="wait">
             
             {/* ------------------------------------------------------------ */}
@@ -831,84 +817,85 @@ export default function AiMatchScreen({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -15 }}
                 transition={{ duration: 0.22 }}
-                className="h-full flex flex-col justify-between"
+                className="flex flex-col justify-between"
               >
-                {/* Hero Ranked Banner with Dynamic Landscape 2-Column Split */}
-                <div className="bg-gradient-to-br from-zinc-900/95 via-zinc-950 to-zinc-900/95 border-2 border-red-500/50 rounded-2xl p-3 sm:p-4 md:p-5 shadow-2xl relative overflow-hidden flex-1 flex flex-col justify-between">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
+                {/* Hero Ranked Banner with Compact Landscape Split & Persona 5 Aesthetics */}
+                <div className="bg-black border-2 border-red-600 p-2.5 sm:p-3 shadow-[4px_4px_0px_#ef4444] relative overflow-hidden flex flex-col justify-between -skew-x-1 my-auto">
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-red-600/15 blur-2xl pointer-events-none" />
+                  <div className="absolute -bottom-10 -left-10 w-36 h-36 bg-amber-500/10 blur-xl pointer-events-none" />
 
                   {/* Header Strip */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2 sm:pb-3 shrink-0">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 border-b-2 border-red-600/60 pb-2 shrink-0">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400">
-                        <Swords className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 bg-red-600 text-black border-2 border-white -skew-x-12 flex items-center justify-center font-black shadow-[2px_2px_0px_#000000]">
+                        <Swords className="w-3.5 h-3.5 text-black" />
                       </div>
                       <div>
-                        <span className="text-[8.5px] font-mono text-red-400 uppercase font-bold tracking-widest block leading-none">
-                          COMPETITIVE LADDER
+                        <span className="text-[8px] font-mono text-red-500 uppercase font-black tracking-widest block leading-none">
+                          // COMPETITIVE LADDER
                         </span>
-                        <h2 className="text-base sm:text-xl md:text-2xl font-display font-black italic uppercase text-white tracking-tight leading-tight mt-0.5">
+                        <h2 className="text-sm sm:text-base font-display font-black italic uppercase text-white tracking-tight leading-tight mt-0.5">
                           Ranked AI 1v1 Ladder
                         </h2>
                       </div>
                     </div>
 
-                    <span className="text-[8.5px] font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 rounded-full uppercase">
-                      Dedicated AI ELO
+                    <span className="text-[8px] font-mono font-black text-emerald-400 bg-black border border-emerald-400 px-2 py-0.5 -skew-x-12 uppercase shadow-[2px_2px_0px_#10b981]">
+                      DEDICATED AI ELO
                     </span>
                   </div>
 
                   {/* Dynamic Adaptive Content: 2-Column in Landscape, Stacked in Portrait */}
-                  <div className="grid grid-cols-1 landscape:grid-cols-2 gap-2.5 sm:gap-3 my-auto py-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 my-2">
                     {/* LEFT COLUMN: Summary & Player Rank */}
-                    <div className="space-y-2 flex flex-col justify-between">
-                      <p className="text-[11px] sm:text-xs text-zinc-400 leading-relaxed">
-                        Climb offline rank divisions. Higher AI ELO automatically matches you with smarter opponents featuring reactive parries, whiff punishes, and anti-parry feints.
+                    <div className="space-y-1.5 flex flex-col justify-between">
+                      <p className="text-[10px] sm:text-[11px] text-zinc-300 font-mono leading-relaxed bg-zinc-950/90 border border-zinc-800 p-2 -skew-x-1">
+                        Climb offline rank divisions. Higher AI ELO matches smarter bots with reactive parries, whiff punishes & anti-parry feints.
                       </p>
 
-                      <div className="bg-zinc-950/80 border border-zinc-800 p-2.5 sm:p-3 rounded-xl flex items-center justify-between">
+                      <div className="bg-zinc-950 border border-zinc-700 p-2 -skew-x-2 shadow-[3px_3px_0px_#000000] flex items-center justify-between">
                         <div>
-                          <span className="text-[8px] font-mono text-zinc-500 uppercase block">Your AI Rank</span>
+                          <span className="text-[8px] font-mono text-zinc-400 uppercase font-bold tracking-wider block">// YOUR AI RANK</span>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-base sm:text-lg">{rankInfo.icon}</span>
-                            <span className="text-xs sm:text-sm font-display font-black italic uppercase" style={{ color: rankInfo.color }}>
+                            <span className="text-sm sm:text-base">{rankInfo.icon}</span>
+                            <span className="text-xs font-display font-black italic uppercase" style={{ color: rankInfo.color }}>
                               {rankInfo.tierName}
                             </span>
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className="text-[11px] sm:text-xs font-mono font-black text-amber-400 block">{currentAiElo} ELO</span>
-                          <span className="text-[7.5px] font-mono text-zinc-500 uppercase">Division Rating</span>
+                          <span className="text-xs sm:text-sm font-mono font-black text-amber-400 block">{currentAiElo} ELO</span>
+                          <span className="text-[7.5px] font-mono text-zinc-400 uppercase tracking-wider">Division Rating</span>
                         </div>
                       </div>
 
                       {/* Format Specs */}
-                      <div className="flex items-center gap-1.5 text-[8.5px] sm:text-[9px] font-mono text-zinc-400">
-                        <span className="bg-zinc-900/90 px-2 py-0.5 rounded-lg border border-zinc-800">🥊 Best of 5 (First to 3 KOs)</span>
-                        <span className="bg-zinc-900/90 px-2 py-0.5 rounded-lg border border-zinc-800">⏱️ 3 Mins / Round</span>
+                      <div className="flex items-center gap-1 text-[8px] font-mono">
+                        <span className="bg-black px-2 py-0.5 -skew-x-6 border border-zinc-700 text-zinc-200 font-bold shadow-[2px_2px_0px_#000000]">🥊 Best of 5 (3 KOs)</span>
+                        <span className="bg-black px-2 py-0.5 -skew-x-6 border border-zinc-700 text-zinc-200 font-bold shadow-[2px_2px_0px_#000000]">⏱️ 3 Mins / Round</span>
                       </div>
                     </div>
 
                     {/* RIGHT COLUMN: Opponent Tier, Stakes & Direct Action Button */}
-                    <div className="space-y-2 flex flex-col justify-between">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-zinc-950/80 border border-zinc-800 p-2.5 rounded-xl">
-                          <span className="text-[8px] font-mono text-zinc-500 uppercase block">Matched Tier</span>
-                          <span className="text-xs sm:text-sm font-display font-black italic uppercase block mt-0.5" style={{ color: rankedOpponentConfig.color }}>
+                    <div className="space-y-1.5 flex flex-col justify-between">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div className="bg-zinc-950 border border-zinc-800 p-2 -skew-x-2 shadow-[2px_2px_0px_#000000]">
+                          <span className="text-[8px] font-mono text-zinc-400 uppercase font-bold tracking-wider block">// MATCHED TIER</span>
+                          <span className="text-xs font-display font-black italic uppercase block mt-0.5 truncate" style={{ color: rankedOpponentConfig.color }}>
                             {rankedOpponentConfig.label}
                           </span>
-                          <span className="text-[8px] font-mono text-zinc-400 line-clamp-1 mt-0.5">
+                          <span className="text-[7.5px] font-mono text-zinc-400 line-clamp-1 mt-0.5">
                             {rankedOpponentConfig.desc}
                           </span>
                         </div>
 
-                        <div className="bg-zinc-950/80 border border-zinc-800 p-2.5 rounded-xl">
-                          <span className="text-[8px] font-mono text-zinc-500 uppercase block">Stakes & Purse</span>
+                        <div className="bg-zinc-950 border border-zinc-800 p-2 -skew-x-2 shadow-[2px_2px_0px_#000000]">
+                          <span className="text-[8px] font-mono text-zinc-400 uppercase font-bold tracking-wider block">// STAKES & PURSE</span>
                           <div className="flex items-center justify-between mt-0.5">
-                            <span className="text-xs sm:text-sm font-mono font-bold text-emerald-400">+${rankedOpponentConfig.cashReward}</span>
-                            <span className="text-xs sm:text-sm font-mono font-bold text-amber-400">+{winPreview} ELO</span>
+                            <span className="text-xs font-mono font-black text-emerald-400">+${rankedOpponentConfig.cashReward}</span>
+                            <span className="text-xs font-mono font-black text-amber-400">+{winPreview} ELO</span>
                           </div>
-                          <span className="text-[8px] font-mono text-red-400 block mt-0.5">
+                          <span className="text-[7.5px] font-mono text-red-400 font-bold block mt-0.5">
                             Defeat: -{lossPreview.eloLoss} ELO
                           </span>
                         </div>
@@ -916,11 +903,15 @@ export default function AiMatchScreen({
 
                       {/* Primary Enter Match Action Button */}
                       <button
-                        onClick={handleStartRankedAiMatch}
-                        className="w-full py-2.5 sm:py-3.5 bg-gradient-to-r from-red-600 via-red-500 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-xl font-display font-black italic uppercase text-xs sm:text-sm tracking-wider transition transform active:scale-98 shadow-xl shadow-red-900/30 flex items-center justify-center gap-2 cursor-pointer mt-1"
+                        onClick={() => {
+                          soundManager.playKO?.();
+                          handleStartRankedAiMatch();
+                        }}
+                        className="w-full py-2.5 sm:py-3 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase text-xs sm:text-sm tracking-widest -skew-x-12 shadow-[4px_4px_0px_#ffffff] hover:shadow-[4px_4px_0px_#ef4444] transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer border-2 border-black mt-1 group shrink-0"
                       >
-                        <Swords className="w-4 h-4 text-white animate-pulse" />
-                        Enter Ranked 1v1 Match
+                        <Swords className="w-4 h-4 text-black group-hover:rotate-12 transition-transform" />
+                        <span>ENTER RANKED 1V1 MATCH</span>
+                        <span>▶▶</span>
                       </button>
                     </div>
                   </div>
@@ -937,16 +928,16 @@ export default function AiMatchScreen({
                 transition={{ duration: 0.22 }}
                 className="h-full flex flex-col justify-between"
               >
-                {/* Tournament 1 Octagon Knockout with Landscape 2-Column Split */}
-                <div className="bg-gradient-to-br from-zinc-900/95 via-zinc-950 to-zinc-900/95 border-2 border-amber-500/50 rounded-2xl p-3 sm:p-4 md:p-5 shadow-2xl relative overflow-hidden flex-1 flex flex-col justify-between">
-                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2 sm:pb-3 flex-wrap gap-2 shrink-0">
+                {/* Tournament 1 Octagon Knockout with Persona 5 Styling */}
+                <div className="bg-black border-2 border-amber-500 p-2.5 sm:p-4 shadow-[6px_6px_0px_#f59e0b] relative overflow-hidden flex-1 flex flex-col justify-between -skew-x-1">
+                  <div className="flex items-center justify-between border-b-2 border-amber-500/60 pb-2 sm:pb-3 flex-wrap gap-2 shrink-0">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
-                        <Trophy className="w-4 h-4" />
+                      <div className="w-8 h-8 sm:w-9 sm:h-9 bg-amber-500 text-black border-2 border-white -skew-x-12 flex items-center justify-center font-black shadow-[3px_3px_0px_#000000]">
+                        <Trophy className="w-4 h-4 text-black" />
                       </div>
                       <div>
-                        <span className="text-[8.5px] font-mono text-amber-400 uppercase font-bold tracking-widest block leading-none">
-                          OCTAGON TOURNAMENT LADDER
+                        <span className="text-[9px] font-mono text-amber-500 uppercase font-black tracking-widest block leading-none">
+                          // OCTAGON TOURNAMENT LADDER
                         </span>
                         <h3 className="text-base sm:text-lg md:text-xl font-display font-black italic uppercase text-white mt-0.5">
                           Tournament 1: Octagon Knockout
@@ -954,7 +945,7 @@ export default function AiMatchScreen({
                       </div>
                     </div>
 
-                    <span className="text-[8px] font-mono font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-full uppercase">
+                    <span className="text-[9px] font-mono font-black bg-black text-emerald-400 border-2 border-emerald-400 px-3 py-1 -skew-x-12 uppercase shadow-[2px_2px_0px_#10b981]">
                       9 Competitors (8 AI + 1 Player)
                     </span>
                   </div>
@@ -963,23 +954,23 @@ export default function AiMatchScreen({
                   <div className="grid grid-cols-1 landscape:grid-cols-2 gap-2.5 sm:gap-3 my-auto py-1">
                     {/* Left Column: Description & Prizes */}
                     <div className="space-y-2 flex flex-col justify-between">
-                      <p className="text-[11px] sm:text-xs text-zinc-400 leading-relaxed">
+                      <p className="text-[11px] sm:text-xs text-zinc-300 font-mono leading-relaxed bg-zinc-950/90 border border-zinc-800 p-2.5 -skew-x-1">
                         Single-elimination championship bracket. Other AI matches simulate in real-time. Win all 3 rounds to take the full $1,000 Cash purse and 5 Roll Tickets!
                       </p>
 
                       {/* Rewards Row */}
                       <div className="grid grid-cols-3 gap-1.5 text-center">
-                        <div className="bg-zinc-950/80 p-2 rounded-xl border border-zinc-800">
-                          <span className="text-[7.5px] font-mono text-zinc-500 uppercase block">Top 8 (Round 1)</span>
-                          <span className="text-xs font-mono font-bold text-amber-400">+$500 Cash</span>
+                        <div className="bg-zinc-950 p-2 -skew-x-3 border-2 border-zinc-800 shadow-[2px_2px_0px_#000000]">
+                          <span className="text-[7.5px] font-mono text-zinc-400 uppercase block font-bold">Top 8 (Round 1)</span>
+                          <span className="text-xs font-mono font-black text-amber-400">+$500 Cash</span>
                         </div>
-                        <div className="bg-zinc-950/80 p-2 rounded-xl border border-zinc-800">
-                          <span className="text-[7.5px] font-mono text-zinc-500 uppercase block">Top 4 (Round 2)</span>
-                          <span className="text-xs font-mono font-bold text-amber-400">+$750 Cash</span>
+                        <div className="bg-zinc-950 p-2 -skew-x-3 border-2 border-zinc-800 shadow-[2px_2px_0px_#000000]">
+                          <span className="text-[7.5px] font-mono text-zinc-400 uppercase block font-bold">Top 4 (Round 2)</span>
+                          <span className="text-xs font-mono font-black text-amber-400">+$750 Cash</span>
                         </div>
-                        <div className="bg-zinc-950/80 p-2 rounded-xl border border-amber-500/40">
-                          <span className="text-[7.5px] font-mono text-emerald-400 uppercase font-bold">1st (Champion)</span>
-                          <span className="text-xs font-mono font-bold text-emerald-400">+$1k + 5 Tickets</span>
+                        <div className="bg-zinc-950 p-2 -skew-x-3 border-2 border-amber-400 shadow-[3px_3px_0px_#f59e0b]">
+                          <span className="text-[7.5px] font-mono text-emerald-400 uppercase font-black">1st (Champion)</span>
+                          <span className="text-xs font-mono font-black text-emerald-400">+$1k + 5 Tickets</span>
                         </div>
                       </div>
                     </div>
@@ -987,7 +978,7 @@ export default function AiMatchScreen({
                     {/* Right Column: Error/Status & Enter Button & Tournament 2 Teaser */}
                     <div className="space-y-2 flex flex-col justify-between">
                       {entryFeeErrorMsg && (
-                        <div className="text-[9px] font-mono text-red-400 bg-red-950/80 border border-red-800 p-2 rounded-xl flex items-center gap-1.5">
+                        <div className="text-[9px] font-mono text-red-300 bg-red-950 border-2 border-red-600 p-2 -skew-x-3 shadow-[2px_2px_0px_#000000] flex items-center gap-1.5 font-bold">
                           <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
                           <span>{entryFeeErrorMsg}</span>
                         </div>
@@ -995,28 +986,30 @@ export default function AiMatchScreen({
 
                       <button
                         onClick={handleEnterTournamentClick}
-                        className="w-full py-2.5 sm:py-3 bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 hover:brightness-110 text-white rounded-xl font-display font-black italic uppercase text-xs sm:text-sm tracking-wider transition cursor-pointer flex items-center justify-center gap-2 shadow-xl shadow-amber-950/40"
+                        className="w-full py-3 sm:py-3.5 bg-amber-500 hover:bg-white text-black font-display font-black italic uppercase text-xs sm:text-sm md:text-base tracking-widest -skew-x-12 shadow-[5px_5px_0px_#ffffff] hover:shadow-[5px_5px_0px_#f59e0b] transition-all transform active:scale-95 border-2 border-black flex items-center justify-center gap-2 cursor-pointer group"
                       >
-                        <Trophy className="w-4 h-4 text-white" />
-                        {tournamentBracket.status === 'in_progress' && tournamentBracket.entryFeePaid
-                          ? 'Resume Active Tournament Bracket'
-                          : 'Enter Tournament 1 ($750 Cash)'}
+                        <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-black group-hover:rotate-12 transition-transform" />
+                        <span>
+                          {tournamentBracket.status === 'in_progress' && tournamentBracket.entryFeePaid
+                            ? 'RESUME ACTIVE BRACKET'
+                            : 'ENTER TOURNAMENT 1 ($750 CASH)'}
+                        </span>
                       </button>
 
                       {/* Tournament 2 Teaser */}
-                      <div className="bg-zinc-900/60 border border-zinc-850 p-2 sm:p-2.5 rounded-xl flex items-center justify-between gap-2 text-xs text-zinc-400">
+                      <div className="bg-zinc-950 border-2 border-zinc-800 p-2 sm:p-2.5 -skew-x-3 shadow-[2px_2px_0px_#000000] flex items-center justify-between gap-2 text-xs text-zinc-400">
                         <div className="flex items-center gap-2 min-w-0">
-                          <Award className="w-4 h-4 text-zinc-500 shrink-0" />
+                          <Award className="w-4 h-4 text-amber-500 shrink-0" />
                           <div className="min-w-0">
-                            <span className="text-[10px] sm:text-xs font-display font-black italic uppercase text-zinc-300 block truncate">
+                            <span className="text-[10px] sm:text-xs font-display font-black italic uppercase text-zinc-200 block truncate">
                               Tournament 2: Grand Championship
                             </span>
-                            <span className="text-[8px] font-mono text-zinc-500 truncate block">
+                            <span className="text-[8px] font-mono text-zinc-400 truncate block">
                               Multi-bracket grand championship • Exclusive titles
                             </span>
                           </div>
                         </div>
-                        <span className="text-[7.5px] font-mono font-bold bg-zinc-950 text-zinc-500 border border-zinc-800 px-1.5 py-0.5 rounded uppercase shrink-0">
+                        <span className="text-[8px] font-mono font-black bg-black text-zinc-400 border border-zinc-700 px-2 py-0.5 -skew-x-12 uppercase shrink-0">
                           Coming Soon
                         </span>
                       </div>
@@ -1035,38 +1028,38 @@ export default function AiMatchScreen({
                 transition={{ duration: 0.22 }}
                 className="h-full flex flex-col justify-between"
               >
-                <div className="bg-gradient-to-br from-zinc-900/95 via-rose-950/20 to-zinc-900/95 border-2 border-rose-500/40 rounded-2xl p-3 sm:p-4 md:p-5 shadow-2xl relative overflow-hidden flex-1 flex flex-col justify-between">
-                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2 sm:pb-3 shrink-0">
+                <div className="bg-black border-2 border-rose-600 p-2.5 sm:p-4 shadow-[6px_6px_0px_#e11d48] relative overflow-hidden flex-1 flex flex-col justify-between -skew-x-1">
+                  <div className="flex items-center justify-between border-b-2 border-rose-600/60 pb-2 sm:pb-3 shrink-0">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
-                        <Skull className="w-4 h-4" />
+                      <div className="w-8 h-8 sm:w-9 sm:h-9 bg-rose-600 text-black border-2 border-white -skew-x-12 flex items-center justify-center font-black shadow-[3px_3px_0px_#000000]">
+                        <Skull className="w-4 h-4 text-black" />
                       </div>
                       <div>
-                        <span className="text-[8.5px] font-mono text-rose-400 uppercase font-bold tracking-widest block leading-none">
-                          MYTHICAL BOSS CHAMBER
+                        <span className="text-[9px] font-mono text-rose-500 uppercase font-black tracking-widest block leading-none">
+                          // MYTHICAL BOSS CHAMBER
                         </span>
                         <h3 className="text-base sm:text-lg md:text-xl font-display font-black italic uppercase text-white mt-0.5">
                           VS AI Boss Raids
                         </h3>
                       </div>
                     </div>
-                    <span className="text-[8px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full uppercase">
+                    <span className="text-[9px] font-mono font-black bg-black text-rose-400 border-2 border-rose-500 px-3 py-1 -skew-x-12 uppercase shadow-[2px_2px_0px_#e11d48]">
                       <Lock className="w-2.5 h-2.5 inline mr-1" /> Upcoming Mode
                     </span>
                   </div>
 
-                  <p className="text-[11px] sm:text-xs text-zinc-400 my-1 leading-relaxed">
+                  <p className="text-[11px] sm:text-xs text-zinc-300 font-mono my-1 leading-relaxed bg-zinc-950/90 border border-zinc-800 p-2.5 -skew-x-1">
                     Challenge colossal AI Titans imbued with custom kinetic auras, massive posture armor thresholds, and multi-phase strike choreography.
                   </p>
 
                   <div className="grid grid-cols-1 landscape:grid-cols-2 gap-2.5 sm:gap-3 my-auto py-1">
-                    <div className="bg-zinc-950/80 border border-zinc-800 p-2.5 sm:p-3 rounded-xl space-y-1">
-                      <span className="text-[8.5px] font-mono font-bold text-rose-400 uppercase block">Boss 1: The Asura Monk</span>
-                      <p className="text-[9.5px] sm:text-[10px] text-zinc-400 leading-normal">Master of Kyokushin armor & unrelenting full-contact strikes with 300 HP and unbreakable posture.</p>
+                    <div className="bg-zinc-950 border-2 border-rose-900/80 p-2.5 sm:p-3 -skew-x-3 shadow-[3px_3px_0px_#000000] space-y-1">
+                      <span className="text-[9px] font-mono font-black text-rose-400 uppercase block">// BOSS 1: THE ASURA MONK</span>
+                      <p className="text-[9.5px] sm:text-[10px] text-zinc-300 font-mono leading-normal">Master of Kyokushin armor & unrelenting full-contact strikes with 300 HP and unbreakable posture.</p>
                     </div>
-                    <div className="bg-zinc-950/80 border border-zinc-800 p-2.5 sm:p-3 rounded-xl space-y-1">
-                      <span className="text-[8.5px] font-mono font-bold text-purple-400 uppercase block">Boss 2: Phantom of Keysi</span>
-                      <p className="text-[9.5px] sm:text-[10px] text-zinc-400 leading-normal">Close-quarters shadow combatant featuring zero-startup pensador lunges and auto-parry feints.</p>
+                    <div className="bg-zinc-950 border-2 border-purple-900/80 p-2.5 sm:p-3 -skew-x-3 shadow-[3px_3px_0px_#000000] space-y-1">
+                      <span className="text-[9px] font-mono font-black text-purple-400 uppercase block">// BOSS 2: PHANTOM OF KEYSI</span>
+                      <p className="text-[9.5px] sm:text-[10px] text-zinc-300 font-mono leading-normal">Close-quarters shadow combatant featuring zero-startup pensador lunges and auto-parry feints.</p>
                     </div>
                   </div>
                 </div>
@@ -1083,39 +1076,39 @@ export default function AiMatchScreen({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -15 }}
                 transition={{ duration: 0.22 }}
-                className="h-full flex flex-col justify-between"
+                className="flex flex-col justify-between"
               >
-                <div className="bg-gradient-to-br from-zinc-900/95 via-zinc-950 to-zinc-900/95 border-2 border-cyan-500/40 rounded-2xl p-3 sm:p-4 md:p-5 shadow-2xl relative overflow-hidden flex-1 flex flex-col justify-between">
-                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2 sm:pb-3 flex-wrap gap-2 shrink-0">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
-                        <Swords className="w-4 h-4" />
+                <div className="bg-black border-2 border-cyan-500 p-2.5 sm:p-3 shadow-[4px_4px_0px_#06b6d4] relative overflow-hidden flex flex-col justify-between -skew-x-1 my-auto">
+                  <div className="flex items-center justify-between border-b-2 border-cyan-500/60 pb-2 flex-wrap gap-1.5 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 bg-cyan-400 text-black border-2 border-white -skew-x-12 flex items-center justify-center font-black shadow-[2px_2px_0px_#000000]">
+                        <Swords className="w-3.5 h-3.5 text-black" />
                       </div>
                       <div>
-                        <span className="text-[8.5px] font-mono text-cyan-400 uppercase font-bold tracking-widest block leading-none">
-                          RISK-FREE SPARRING
+                        <span className="text-[8px] font-mono text-cyan-400 uppercase font-black tracking-widest block leading-none">
+                          // RISK-FREE SPARRING
                         </span>
-                        <h2 className="text-base sm:text-lg md:text-xl font-display font-black italic uppercase text-white tracking-tight mt-0.5">
+                        <h2 className="text-sm sm:text-base font-display font-black italic uppercase text-white tracking-tight mt-0.5">
                           Custom Casual Sparring
                         </h2>
                       </div>
                     </div>
-                    <span className="text-[8px] font-mono text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-full uppercase">
-                      No ELO At Stake
+                    <span className="text-[8px] font-mono font-black text-cyan-300 bg-black border border-cyan-500 px-2 py-0.5 -skew-x-12 uppercase shadow-[2px_2px_0px_#06b6d4]">
+                      NO ELO AT STAKE
                     </span>
                   </div>
 
                   {/* Dynamic 2-Column Landscape Split */}
-                  <div className="grid grid-cols-1 landscape:grid-cols-2 gap-2.5 sm:gap-3 my-auto py-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 my-2">
                     {/* Left Column: Description & Difficulty Selection */}
-                    <div className="space-y-2 flex flex-col justify-between">
-                      <p className="text-[11px] sm:text-xs text-zinc-400 leading-relaxed">
-                        Refine counter mechanics against your chosen AI difficulty tier in a full Best of 5 match. Opponent styles are randomized across martial arts.
+                    <div className="space-y-1.5 flex flex-col justify-between">
+                      <p className="text-[10px] sm:text-[11px] text-zinc-300 font-mono leading-relaxed bg-zinc-950/90 border border-zinc-800 p-2 -skew-x-1">
+                        Refine counter mechanics against your chosen AI difficulty tier in a full Best of 5 match. Opponent styles are randomized.
                       </p>
 
                       <div className="space-y-1">
-                        <span className="text-[8px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
-                          Select Opponent AI Difficulty:
+                        <span className="text-[8px] font-mono font-black text-cyan-400 uppercase tracking-wider block">
+                          // SELECT OPPONENT AI DIFFICULTY:
                         </span>
 
                         <div className="grid grid-cols-5 gap-1">
@@ -1129,21 +1122,25 @@ export default function AiMatchScreen({
                             <button
                               key={diff.id}
                               onClick={() => { soundManager.playRollTick(); setSelectedCasualDifficulty(diff.id as AiDifficulty); }}
-                              className={`p-1.5 sm:p-2 rounded-xl text-left border transition cursor-pointer flex flex-col justify-between ${
+                              className={`p-1 sm:p-1.5 -skew-x-6 text-left border transition cursor-pointer flex flex-col justify-between ${
                                 selectedCasualDifficulty === diff.id
-                                  ? 'bg-zinc-850 border-cyan-500 ring-1 ring-cyan-500 shadow-md'
-                                  : 'bg-zinc-950/70 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'
+                                  ? 'bg-cyan-400 text-black border-white shadow-[2px_2px_0px_#000000]'
+                                  : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-white'
                               }`}
                             >
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] sm:text-xs font-display font-black italic uppercase truncate" style={{ color: diff.color }}>
+                                <span className={`text-[9px] sm:text-[10px] font-display font-black italic uppercase truncate ${
+                                  selectedCasualDifficulty === diff.id ? 'text-black' : ''
+                                }`} style={{ color: selectedCasualDifficulty === diff.id ? '#000000' : diff.color }}>
                                   {diff.label}
                                 </span>
                                 {selectedCasualDifficulty === diff.id && (
-                                  <CheckCircle2 className="w-2.5 h-2.5 text-cyan-400 shrink-0" />
+                                  <CheckCircle2 className="w-2.5 h-2.5 text-black shrink-0" />
                                 )}
                               </div>
-                              <span className="text-[7.5px] font-mono text-zinc-500 mt-0.5 truncate block">
+                              <span className={`text-[7px] font-mono mt-0.5 truncate block ${
+                                selectedCasualDifficulty === diff.id ? 'text-zinc-900 font-bold' : 'text-zinc-500'
+                              }`}>
                                 {diff.desc}
                               </span>
                             </button>
@@ -1153,24 +1150,28 @@ export default function AiMatchScreen({
                     </div>
 
                     {/* Right Column: Rewards & Start Match Button */}
-                    <div className="space-y-2 flex flex-col justify-between">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-zinc-950/80 border border-zinc-800 p-2 sm:p-2.5 rounded-xl">
-                          <span className="text-[8px] font-mono text-zinc-500 uppercase block">Victory Reward</span>
-                          <span className="text-xs font-mono font-bold text-emerald-400 mt-0.5 block">+$120 Cash • +1 Roll</span>
+                    <div className="space-y-1.5 flex flex-col justify-between">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div className="bg-zinc-950 border border-zinc-800 p-2 -skew-x-2 shadow-[2px_2px_0px_#000000]">
+                          <span className="text-[8px] font-mono text-zinc-400 uppercase font-bold tracking-wider block">// VICTORY REWARD</span>
+                          <span className="text-xs font-mono font-black text-emerald-400 mt-0.5 block">+$120 Cash • +1 Roll</span>
                         </div>
-                        <div className="bg-zinc-950/80 border border-zinc-800 p-2 sm:p-2.5 rounded-xl">
-                          <span className="text-[8px] font-mono text-zinc-500 uppercase block">Style Roster</span>
-                          <span className="text-xs font-mono text-zinc-300 mt-0.5 block">Randomized (10 Styles)</span>
+                        <div className="bg-zinc-950 border border-zinc-800 p-2 -skew-x-2 shadow-[2px_2px_0px_#000000]">
+                          <span className="text-[8px] font-mono text-zinc-400 uppercase font-bold tracking-wider block">// STYLE ROSTER</span>
+                          <span className="text-xs font-mono font-bold text-zinc-200 mt-0.5 block">Randomized (10 Styles)</span>
                         </div>
                       </div>
 
                       <button
-                        onClick={handleStartCasualAiMatch}
-                        className="w-full py-2.5 sm:py-3.5 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white rounded-xl font-display font-black italic uppercase text-xs sm:text-sm tracking-wider transition transform active:scale-98 shadow-xl shadow-cyan-900/30 flex items-center justify-center gap-2 cursor-pointer mt-1"
+                        onClick={() => {
+                          soundManager.playKO?.();
+                          handleStartCasualAiMatch();
+                        }}
+                        className="w-full py-2.5 sm:py-3 bg-cyan-400 hover:bg-white text-black font-display font-black italic uppercase text-xs sm:text-sm tracking-widest -skew-x-12 shadow-[4px_4px_0px_#ffffff] hover:shadow-[4px_4px_0px_#06b6d4] transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer border-2 border-black mt-1 group shrink-0"
                       >
-                        <Swords className="w-4 h-4 text-white" />
-                        Start Casual Sparring Match
+                        <Swords className="w-4 h-4 text-black group-hover:rotate-12 transition-transform" />
+                        <span>START CASUAL SPARRING MATCH</span>
+                        <span>▶▶</span>
                       </button>
                     </div>
                   </div>
@@ -1187,51 +1188,51 @@ export default function AiMatchScreen({
                 transition={{ duration: 0.22 }}
                 className="h-full flex flex-col justify-between"
               >
-                <div className="bg-gradient-to-br from-zinc-900/95 via-purple-950/20 to-zinc-900/95 border-2 border-purple-500/40 rounded-2xl p-3 sm:p-4 md:p-5 shadow-2xl relative overflow-hidden flex-1 flex flex-col justify-between">
-                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2 sm:pb-3 flex-wrap gap-2 shrink-0">
+                <div className="bg-black border-2 border-purple-500 p-2.5 sm:p-4 shadow-[6px_6px_0px_#a855f7] relative overflow-hidden flex-1 flex flex-col justify-between -skew-x-1">
+                  <div className="flex items-center justify-between border-b-2 border-purple-500/60 pb-2 sm:pb-3 flex-wrap gap-2 shrink-0">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
-                        <Eye className="w-4 h-4" />
+                      <div className="w-8 h-8 sm:w-9 sm:h-9 bg-purple-500 text-black border-2 border-white -skew-x-12 flex items-center justify-center font-black shadow-[3px_3px_0px_#000000]">
+                        <Eye className="w-4 h-4 text-black" />
                       </div>
                       <div>
-                        <span className="text-[8.5px] font-mono text-purple-400 uppercase font-bold tracking-widest block leading-none">
-                          SPECTATOR ARENA
+                        <span className="text-[9px] font-mono text-purple-400 uppercase font-black tracking-widest block leading-none">
+                          // SPECTATOR ARENA
                         </span>
                         <h2 className="text-base sm:text-lg md:text-xl font-display font-black italic uppercase text-white tracking-tight mt-0.5">
                           AI vs AI Simulation Chamber
                         </h2>
                       </div>
                     </div>
-                    <span className="text-[8px] font-mono text-purple-300 bg-purple-950/80 border border-purple-800/60 px-2 py-0.5 rounded-full uppercase">
-                      Spectator Mode
+                    <span className="text-[9px] font-mono font-black text-purple-300 bg-black border-2 border-purple-500 px-3 py-1 -skew-x-12 uppercase shadow-[2px_2px_0px_#a855f7]">
+                      SPECTATOR MODE
                     </span>
                   </div>
 
                   {/* DUAL BOT CONFIGURATION: 2 COLUMNS */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 my-auto py-1">
                     {/* BOT ALPHA */}
-                    <div className="bg-zinc-950/80 border border-blue-500/40 p-2 sm:p-2.5 rounded-xl space-y-1.5">
-                      <div className="flex items-center justify-between text-[9px] font-mono font-bold text-blue-400 uppercase">
-                        <span>Fighter Alpha (Blue)</span>
-                        <span className="text-zinc-400">{spectatorBot1Diff.toUpperCase()}</span>
+                    <div className="bg-zinc-950 border-2 border-blue-500/80 p-2.5 -skew-x-3 shadow-[3px_3px_0px_#000000] space-y-1.5">
+                      <div className="flex items-center justify-between text-[9px] font-mono font-black text-blue-400 uppercase">
+                        <span>FIGHTER ALPHA (BLUE)</span>
+                        <span className="text-zinc-300">{spectatorBot1Diff.toUpperCase()}</span>
                       </div>
                       <div className="flex gap-1 overflow-x-auto pb-0.5 custom-scrollbar">
                         {(['rookie', 'silver', 'gold', 'diamond', 'amethyst'] as AiDifficulty[]).map(d => (
                           <button
                             key={`b1_${d}`}
                             onClick={() => { soundManager.playRollTick(); setSpectatorBot1Diff(d); }}
-                            className={`px-1.5 py-0.5 rounded text-[7.5px] font-mono uppercase font-bold transition cursor-pointer ${
-                              spectatorBot1Diff === d ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'
+                            className={`px-1.5 py-0.5 -skew-x-6 text-[7.5px] font-mono uppercase font-black transition cursor-pointer border ${
+                              spectatorBot1Diff === d ? 'bg-blue-500 text-black border-white' : 'bg-black text-zinc-400 border-zinc-800 hover:text-white'
                             }`}
                           >
-                            {d[0].toUpperCase() + d.slice(1)}
+                            {d.toUpperCase()}
                           </button>
                         ))}
                       </div>
                       <select
                         value={spectatorBot1Style}
                         onChange={(e) => setSpectatorBot1Style(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 text-[11px] rounded-lg p-1 font-mono focus:outline-none"
+                        className="w-full bg-black border-2 border-zinc-700 text-zinc-200 text-[11px] p-1 font-mono focus:outline-none -skew-x-2"
                       >
                         {FIGHTING_STYLES.filter(s => s.reworkStatus !== 'undergoing_rework' && s.reworkStatus !== 'undergoing_development').map(s => (
                           <option key={`b1_s_${s.id}`} value={s.id}>{s.name}</option>
@@ -1251,28 +1252,28 @@ export default function AiMatchScreen({
                     </div>
 
                     {/* BOT BETA */}
-                    <div className="bg-zinc-950/80 border border-red-500/40 p-2 sm:p-2.5 rounded-xl space-y-1.5">
-                      <div className="flex items-center justify-between text-[9px] font-mono font-bold text-red-400 uppercase">
-                        <span>Fighter Beta (Red)</span>
-                        <span className="text-zinc-400">{spectatorBot2Diff.toUpperCase()}</span>
+                    <div className="bg-zinc-950 border-2 border-red-500/80 p-2.5 -skew-x-3 shadow-[3px_3px_0px_#000000] space-y-1.5">
+                      <div className="flex items-center justify-between text-[9px] font-mono font-black text-red-400 uppercase">
+                        <span>FIGHTER BETA (RED)</span>
+                        <span className="text-zinc-300">{spectatorBot2Diff.toUpperCase()}</span>
                       </div>
                       <div className="flex gap-1 overflow-x-auto pb-0.5 custom-scrollbar">
                         {(['rookie', 'silver', 'gold', 'diamond', 'amethyst'] as AiDifficulty[]).map(d => (
                           <button
                             key={`b2_${d}`}
                             onClick={() => { soundManager.playRollTick(); setSpectatorBot2Diff(d); }}
-                            className={`px-1.5 py-0.5 rounded text-[7.5px] font-mono uppercase font-bold transition cursor-pointer ${
-                              spectatorBot2Diff === d ? 'bg-red-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'
+                            className={`px-1.5 py-0.5 -skew-x-6 text-[7.5px] font-mono uppercase font-black transition cursor-pointer border ${
+                              spectatorBot2Diff === d ? 'bg-red-500 text-black border-white' : 'bg-black text-zinc-400 border-zinc-800 hover:text-white'
                             }`}
                           >
-                            {d[0].toUpperCase() + d.slice(1)}
+                            {d.toUpperCase()}
                           </button>
                         ))}
                       </div>
                       <select
                         value={spectatorBot2Style}
                         onChange={(e) => setSpectatorBot2Style(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 text-[11px] rounded-lg p-1 font-mono focus:outline-none"
+                        className="w-full bg-black border-2 border-zinc-700 text-zinc-200 text-[11px] p-1 font-mono focus:outline-none -skew-x-2"
                       >
                         {FIGHTING_STYLES.filter(s => s.reworkStatus !== 'undergoing_rework' && s.reworkStatus !== 'undergoing_development').map(s => (
                           <option key={`b2_s_${s.id}`} value={s.id}>{s.name}</option>
@@ -1294,10 +1295,10 @@ export default function AiMatchScreen({
 
                   <button
                     onClick={handleStartSpectatorMatch}
-                    className="w-full py-2.5 sm:py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-display font-black italic uppercase text-xs sm:text-sm tracking-wider transition cursor-pointer flex items-center justify-center gap-2 shadow-xl shadow-purple-950/40 mt-1"
+                    className="w-full py-3 sm:py-3.5 bg-purple-500 hover:bg-white text-black font-display font-black italic uppercase text-xs sm:text-sm md:text-base tracking-widest -skew-x-12 shadow-[5px_5px_0px_#ffffff] hover:shadow-[5px_5px_0px_#a855f7] transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer border-2 border-black mt-1 group"
                   >
-                    <Eye className="w-4 h-4 text-white" />
-                    Launch AI vs AI Simulation
+                    <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-black group-hover:scale-110 transition-transform" />
+                    <span>LAUNCH AI VS AI SIMULATION</span>
                   </button>
                 </div>
               </motion.div>
@@ -1313,15 +1314,15 @@ export default function AiMatchScreen({
                 className="h-full flex flex-col justify-between"
               >
                 {/* Header */}
-                <div className="flex items-center justify-between border-b border-zinc-800 pb-2 shrink-0">
+                <div className="flex items-center justify-between border-b-2 border-zinc-800 pb-2 shrink-0">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-emerald-400" />
                     <h3 className="text-sm sm:text-base font-display font-black italic uppercase text-white">
-                      Upcoming Casual Combat Modes
+                      // UPCOMING CASUAL COMBAT MODES
                     </h3>
                   </div>
-                  <span className="text-[8px] font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 rounded-full uppercase">
-                    Roadmap
+                  <span className="text-[9px] font-mono font-black text-emerald-400 bg-black border-2 border-emerald-400 px-3 py-0.5 -skew-x-12 uppercase shadow-[2px_2px_0px_#10b981]">
+                    ROADMAP
                   </span>
                 </div>
 
@@ -1329,77 +1330,77 @@ export default function AiMatchScreen({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 my-auto py-1">
                   
                   {/* CARD 1: HOT POTATO */}
-                  <div className="bg-gradient-to-br from-zinc-900/90 via-orange-950/20 to-zinc-950 border border-orange-500/40 rounded-2xl p-3 flex flex-col justify-between space-y-2 shadow-md">
+                  <div className="bg-black border-2 border-orange-500 -skew-x-3 p-3 flex flex-col justify-between space-y-2 shadow-[4px_4px_0px_#f97316]">
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <div className="w-7 h-7 rounded-xl bg-orange-500/20 border border-orange-500/40 flex items-center justify-center text-orange-400">
-                          <FlameKindling className="w-3.5 h-3.5" />
+                        <div className="w-7 h-7 bg-orange-500 text-black border border-white -skew-x-12 flex items-center justify-center font-black">
+                          <FlameKindling className="w-3.5 h-3.5 text-black" />
                         </div>
-                        <span className="text-[7.5px] font-mono font-bold bg-orange-950 text-orange-400 border border-orange-800 px-1.5 py-0.2 rounded uppercase">
-                          Hot Potato
+                        <span className="text-[8px] font-mono font-black bg-orange-500 text-black px-1.5 py-0.5 -skew-x-12 uppercase">
+                          HOT POTATO
                         </span>
                       </div>
                       <h4 className="text-xs sm:text-sm font-display font-black italic uppercase text-white">
                         Hot Potato Tag
                       </h4>
-                      <p className="text-[9px] sm:text-[10px] text-zinc-400 leading-relaxed">
+                      <p className="text-[9px] sm:text-[10px] text-zinc-300 font-mono leading-relaxed">
                         A volatile kinetic orb passes between fighters on successful strike clashes and parries. When the timer hits 0, whoever holds the orb suffers an instant Posture Break explosion!
                       </p>
                     </div>
 
-                    <div className="pt-1.5 border-t border-zinc-800/80 flex items-center justify-between text-[7.5px] font-mono text-zinc-500">
+                    <div className="pt-1.5 border-t border-zinc-800 flex items-center justify-between text-[8px] font-mono text-zinc-400">
                       <span>Status: In Development</span>
-                      <span className="text-orange-400 font-bold">Planned v1.8</span>
+                      <span className="text-orange-400 font-black">Planned v1.8</span>
                     </div>
                   </div>
 
                   {/* CARD 2: 2V2 TAG TEAM */}
-                  <div className="bg-gradient-to-br from-zinc-900/90 via-cyan-950/20 to-zinc-950 border border-cyan-500/40 rounded-2xl p-3 flex flex-col justify-between space-y-2 shadow-md">
+                  <div className="bg-black border-2 border-cyan-500 -skew-x-3 p-3 flex flex-col justify-between space-y-2 shadow-[4px_4px_0px_#06b6d4]">
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <div className="w-7 h-7 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
-                          <Users className="w-3.5 h-3.5" />
+                        <div className="w-7 h-7 bg-cyan-400 text-black border border-white -skew-x-12 flex items-center justify-center font-black">
+                          <Users className="w-3.5 h-3.5 text-black" />
                         </div>
-                        <span className="text-[7.5px] font-mono font-bold bg-cyan-950 text-cyan-400 border border-cyan-800 px-1.5 py-0.2 rounded uppercase">
-                          Duo Tag
+                        <span className="text-[8px] font-mono font-black bg-cyan-400 text-black px-1.5 py-0.5 -skew-x-12 uppercase">
+                          DUO TAG
                         </span>
                       </div>
                       <h4 className="text-xs sm:text-sm font-display font-black italic uppercase text-white">
                         2v2 AI Tag Team
                       </h4>
-                      <p className="text-[9px] sm:text-[10px] text-zinc-400 leading-relaxed">
+                      <p className="text-[9px] sm:text-[10px] text-zinc-300 font-mono leading-relaxed">
                         Pair up with an allied AI fighter to brawl against a rival duo. Perform corner tags, assist knockdowns, and synchronize devastating double-team counter-punishes.
                       </p>
                     </div>
 
-                    <div className="pt-1.5 border-t border-zinc-800/80 flex items-center justify-between text-[7.5px] font-mono text-zinc-500">
+                    <div className="pt-1.5 border-t border-zinc-800 flex items-center justify-between text-[8px] font-mono text-zinc-400">
                       <span>Status: Prototyping</span>
-                      <span className="text-cyan-400 font-bold">Planned v1.8</span>
+                      <span className="text-cyan-400 font-black">Planned v1.8</span>
                     </div>
                   </div>
 
                   {/* CARD 3: ENDURANCE & TALLY */}
-                  <div className="bg-gradient-to-br from-zinc-900/90 via-emerald-950/20 to-zinc-950 border border-emerald-500/40 rounded-2xl p-3 flex flex-col justify-between space-y-2 shadow-md">
+                  <div className="bg-black border-2 border-emerald-500 -skew-x-3 p-3 flex flex-col justify-between space-y-2 shadow-[4px_4px_0px_#10b981]">
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <div className="w-7 h-7 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-                          <Activity className="w-3.5 h-3.5" />
+                        <div className="w-7 h-7 bg-emerald-400 text-black border border-white -skew-x-12 flex items-center justify-center font-black">
+                          <Activity className="w-3.5 h-3.5 text-black" />
                         </div>
-                        <span className="text-[7.5px] font-mono font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 px-1.5 py-0.2 rounded uppercase">
-                          Endurance
+                        <span className="text-[8px] font-mono font-black bg-emerald-400 text-black px-1.5 py-0.5 -skew-x-12 uppercase">
+                          ENDURANCE
                         </span>
                       </div>
                       <h4 className="text-xs sm:text-sm font-display font-black italic uppercase text-white">
                         Endurance & Tally
                       </h4>
-                      <p className="text-[9px] sm:text-[10px] text-zinc-400 leading-relaxed">
+                      <p className="text-[9px] sm:text-[10px] text-zinc-300 font-mono leading-relaxed">
                         Endless survival gauntlet. Fight escalating waves of AI opponents with persistent HP and posture attrition. Record your high-score tally on local leaderboard milestones!
                       </p>
                     </div>
 
-                    <div className="pt-1.5 border-t border-zinc-800/80 flex items-center justify-between text-[7.5px] font-mono text-zinc-500">
+                    <div className="pt-1.5 border-t border-zinc-800 flex items-center justify-between text-[8px] font-mono text-zinc-400">
                       <span>Status: Wave Scaling</span>
-                      <span className="text-emerald-400 font-bold">Planned v1.8</span>
+                      <span className="text-emerald-400 font-black">Planned v1.8</span>
                     </div>
                   </div>
 
@@ -1425,7 +1426,7 @@ export default function AiMatchScreen({
             tournamentNotification={tournamentNotification}
             stats={stats}
             isPortrait={isPortrait}
-            isMobileView={isMobileView}
+            isMobileView={isMobile}
             lastAftermatchData={lastAftermatchData}
             showAftermatchModal={showAftermatchModal}
             setShowAftermatchModal={setShowAftermatchModal}
@@ -1434,7 +1435,7 @@ export default function AiMatchScreen({
       </AnimatePresence>
 
       {/* ============================================================== */}
-      {/* 5. TOURNAMENT FORFEIT WARNING MODAL */}
+      {/* 5. TOURNAMENT FORFEIT WARNING MODAL (PERSONA 5 STYLING) */}
       {/* ============================================================== */}
       <AnimatePresence>
         {showForfeitModal && (
@@ -1448,33 +1449,33 @@ export default function AiMatchScreen({
               initial={{ scale: 0.95, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
-              className="w-full max-w-md bg-zinc-950 border-2 border-red-600/80 rounded-3xl p-5 shadow-2xl space-y-4 text-center"
+              className="w-full max-w-md bg-black border-4 border-red-600 p-5 -skew-x-2 shadow-[8px_8px_0px_#ef4444] space-y-4 text-center"
             >
-              <div className="w-12 h-12 rounded-2xl bg-red-950/80 border border-red-700/80 flex items-center justify-center text-red-400 mx-auto">
-                <AlertTriangle className="w-7 h-7 text-red-400" />
+              <div className="w-12 h-12 bg-red-600 text-black border-2 border-white -skew-x-12 flex items-center justify-center font-black mx-auto shadow-[4px_4px_0px_#000000]">
+                <AlertTriangle className="w-7 h-7 text-black" />
               </div>
 
               <div>
-                <h3 className="text-lg font-display font-black italic uppercase text-white tracking-wide">
-                  ABANDON TOURNAMENT ENTRY?
+                <h3 className="text-xl font-display font-black italic uppercase text-white tracking-wider">
+                  // ABANDON TOURNAMENT ENTRY?
                 </h3>
-                <p className="text-xs font-mono text-zinc-300 mt-2 leading-relaxed bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
+                <p className="text-xs font-mono text-zinc-300 mt-2 leading-relaxed bg-zinc-950 border-2 border-zinc-800 p-3 -skew-x-3 shadow-[3px_3px_0px_#000000]">
                   Exiting will forfeit your tournament entry ($750 Cash lost) and reset all bracket progress.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-2">
+              <div className="grid grid-cols-2 gap-3 pt-2">
                 <button
                   onClick={handleConfirmForfeit}
-                  className="py-2.5 bg-red-600 hover:bg-red-500 text-white font-display font-black italic uppercase text-xs rounded-xl cursor-pointer shadow-lg transition"
+                  className="py-3 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase text-xs tracking-wider -skew-x-12 border-2 border-black shadow-[4px_4px_0px_#ffffff] hover:shadow-[4px_4px_0px_#ef4444] cursor-pointer transition active:scale-95"
                 >
-                  Confirm Forfeit & Exit
+                  Confirm Forfeit
                 </button>
                 <button
                   onClick={() => setShowForfeitModal(false)}
-                  className="py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-display font-black italic uppercase text-xs rounded-xl cursor-pointer transition"
+                  className="py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-display font-black italic uppercase text-xs tracking-wider -skew-x-12 border-2 border-zinc-600 shadow-[4px_4px_0px_#000000] cursor-pointer transition active:scale-95"
                 >
-                  Stay in Tournament
+                  Stay in Bracket
                 </button>
               </div>
             </motion.div>

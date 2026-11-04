@@ -12,7 +12,7 @@ import AiMatchScreen from './components/AiMatchScreen';
 import SingleplayerQuestsScreen from './components/SingleplayerQuestsScreen';
 import CareerMilestonesScreen from './components/CareerMilestonesScreen';
 import Incoming1v1InviteModal from './components/Incoming1v1InviteModal';
-import LeftNavRail, { ModalType, CodexSortMode } from './components/LeftNavRail';
+import type { ModalType, CodexSortMode } from './components/LeftNavRail';
 import { 
   CodexView, 
   AccountCenterView, 
@@ -35,9 +35,10 @@ import {
 } from './data/hudDefaults';
 import { getRollableStyles, FIGHTING_STYLES } from './data/styles';
 import { isMobileDevice as detectIsMobile } from './utils/deviceDetection';
+import { useResponsiveLayout } from './utils/useResponsiveLayout';
 
 // Dynamic version number
-const GAME_VERSION = 'v1.7.6 Part 3';
+const GAME_VERSION = 'v1.7.6 Finale';
 
 const DEFAULT_SETTINGS: GameSettings = {
   soundEnabled: true,
@@ -322,14 +323,10 @@ export default function App() {
   const [activeMatchData, setActiveMatchData] = useState<MatchData | null>(null);
   const [rollInitialTab, setRollInitialTab] = useState<'vs_ai' | 'gacha'>('gacha');
   const [rollSubTab, setRollSubTab] = useState<'crates' | 'shop' | 'wishlist' | 'genetics' | 'vault' | 'spin' | 'showcase' | 'history'>('crates');
-  const [isPortrait, setIsPortrait] = useState(false);
-  const [bypassPortrait, setBypassPortrait] = useState(false);
-  const [portraitCountdown, setPortraitCountdown] = useState(10);
+  const [hasInitialLoaded, setHasInitialLoaded] = useState(false);
+  const { isPortrait, isLandscape, isMobile: isMobileDevice } = useResponsiveLayout();
   const [isFullscreen, setIsFullscreen] = useState<boolean>(() => {
     return !!document.fullscreenElement;
-  });
-  const [isMobileDevice, setIsMobileDevice] = useState<boolean>(() => {
-    return detectIsMobile();
   });
 
   useEffect(() => {
@@ -412,43 +409,6 @@ export default function App() {
       return () => unsubscribe();
     }
   }, [currentUser, stats]);
-
-  // Orientation & Device Type monitoring
-  useEffect(() => {
-    const handleOrientationCheck = () => {
-      const isMobile = detectIsMobile();
-      setIsMobileDevice(isMobile);
-      const isTallRatio = window.innerHeight > window.innerWidth;
-      // Portrait prompt/mode is only for genuine mobile phone/tablet users
-      setIsPortrait(isTallRatio && isMobile);
-    };
-
-    handleOrientationCheck();
-    window.addEventListener('resize', handleOrientationCheck);
-    window.addEventListener('orientationchange', handleOrientationCheck);
-    return () => {
-      window.removeEventListener('resize', handleOrientationCheck);
-      window.removeEventListener('orientationchange', handleOrientationCheck);
-    };
-  }, []);
-
-  // 10-second auto-bypass timer
-  useEffect(() => {
-    if (isPortrait && !bypassPortrait) {
-      setPortraitCountdown(10);
-      const interval = setInterval(() => {
-        setPortraitCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            setBypassPortrait(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [isPortrait, bypassPortrait]);
 
   // Persistent Stats Saving across sessions
   useEffect(() => {
@@ -558,6 +518,7 @@ export default function App() {
   const handleLogout = () => {
     wsService.disconnect();
     setCurrentUser(null);
+    setHasInitialLoaded(false);
     localStorage.removeItem('mma_current_user');
     soundManager.playRollTick();
   };
@@ -604,22 +565,6 @@ export default function App() {
     soundManager.playRollTick();
   };
 
-  const handleFullscreenAndBypass = () => {
-    try {
-      const element = document.documentElement;
-      if (element.requestFullscreen) {
-        element.requestFullscreen();
-      } else if ((element as any).webkitRequestFullscreen) {
-        (element as any).webkitRequestFullscreen();
-      } else if ((element as any).msRequestFullscreen) {
-        (element as any).msRequestFullscreen();
-      }
-    } catch (e) {
-      console.warn('Fullscreen error:', e);
-    }
-    setBypassPortrait(true);
-    soundManager.playKO();
-  };
 
   return (
     <div className="w-full h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans select-none relative touch-none overscroll-none">
@@ -651,70 +596,7 @@ export default function App() {
             />
           )}
 
-          {/* GLOBAL LEFT NAVIGATION RAIL (ONLY RENDERED OUTSIDE ACTIVE ARENA GAMEPLAY) */}
-          {screen !== 'ARENA' && (
-            <LeftNavRail
-              currentScreen={screen}
-              activeModal={activeModal}
-              rollSubTab={rollSubTab}
-              achievementsSubTab={achievementsSubTab}
-              setAchievementsSubTab={setAchievementsSubTab}
-              onNavigateScreen={(targetScreen, subTab) => {
-                setActiveModal(null);
-                handleNavigate(targetScreen, subTab);
-              }}
-              onOpenModal={(modal) => {
-                if (modal === 'quests') {
-                  setAchievementsSubTab('achievements');
-                } else if (modal === 'settings') {
-                  setSettingsCategory('all');
-                  setSettingsSearchQuery('');
-                } else if (modal === 'info') {
-                  setGameInfoTab('latest');
-                }
-                setActiveModal(modal);
-              }}
-              onCloseModal={() => setActiveModal(null)}
-              version={GAME_VERSION}
-              isFullyHidden={isNavHidden}
-              setIsFullyHidden={setIsNavHidden}
-              isInCombat={false}
-              stats={stats}
-              email={currentUser?.email}
-              onNavExpandChange={setIsNavExpanded}
-              codexSortMode={codexSortMode}
-              setCodexSortMode={setCodexSortMode}
-              codexSelectedCategory={codexSelectedCategory}
-              setCodexSelectedCategory={setCodexSelectedCategory}
-              codexSelectedStyleId={codexSelectedStyleId}
-              setCodexSelectedStyleId={setCodexSelectedStyleId}
-              singleplayerModeSide={singleplayerModeSide}
-              setSingleplayerModeSide={setSingleplayerModeSide}
-              singleplayerCompSubTab={singleplayerCompSubTab}
-              setSingleplayerCompSubTab={setSingleplayerCompSubTab}
-              singleplayerCasualSubTab={singleplayerCasualSubTab}
-              setSingleplayerCasualSubTab={setSingleplayerCasualSubTab}
-              singleplayerDifficulty={singleplayerDifficulty}
-              setSingleplayerDifficulty={setSingleplayerDifficulty}
-              onOpenGameRules={() => setCodexSelectedCategory('universal_rules')}
-              onOpenSingleplayerQuests={() => handleNavigate('SINGLEPLAYER_QUESTS')}
-              singleplayerQuestMobileTab={singleplayerQuestMobileTab}
-              setSingleplayerQuestMobileTab={setSingleplayerQuestMobileTab}
-              onSingleplayerQuestClaimAll={() => setSingleplayerQuestClaimAllTrigger(prev => prev + 1)}
-              singleplayerQuestClaimableCount={singleplayerQuestClaimableCount}
-              onReturnToSingleplayerHub={() => handleNavigate('AI_MATCH')}
-              settingsActiveCategory={settingsCategory}
-              setSettingsActiveCategory={setSettingsCategory}
-              settingsSearchQuery={settingsSearchQuery}
-              setSettingsSearchQuery={setSettingsSearchQuery}
-              gameInfoActiveTab={gameInfoTab}
-              setGameInfoActiveTab={setGameInfoTab}
-              fighterProfileActiveTab={fighterProfileTab}
-              setFighterProfileActiveTab={setFighterProfileTab}
-              crateSanctumSubTab={rollSubTab as any}
-              setCrateSanctumSubTab={(tab) => setRollSubTab(tab as any)}
-            />
-          )}
+          {/* NAVIGATION RAIL PERMANENTLY REMOVED - DIRECT FORWARD NAVIGATION ACROSS ALL SCREENS */}
 
           {/* ACTIVE MODAL OVERLAYS */}
           {activeModal === 'codex' && (
@@ -800,7 +682,7 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -15 }}
                 transition={{ duration: 0.25 }}
-                className="w-full flex-1 flex flex-col"
+                className="w-full max-w-full flex-1 flex flex-col overflow-hidden overflow-x-hidden"
               >
                 <Menu 
                   stats={stats} 
@@ -808,12 +690,19 @@ export default function App() {
                   settings={settings}
                   updateSettings={updateSettings}
                   onNavigate={handleNavigate}
+                  onStartMatch={(data) => {
+                    setActiveMatchData(data || null);
+                    setScreen('ARENA');
+                  }}
                   version={GAME_VERSION}
                   currentUser={currentUser}
                   onLogout={handleLogout}
                   onUpdateUserSession={handleUpdateUserSession}
                   isNavHidden={isNavHidden}
                   isNavExpanded={isNavExpanded}
+                  onOpenTrueNavigation={() => setIsNavHidden(false)}
+                  hasInitialLoaded={hasInitialLoaded}
+                  onInitialLoadComplete={() => setHasInitialLoaded(true)}
                 />
               </motion.div>
             )}

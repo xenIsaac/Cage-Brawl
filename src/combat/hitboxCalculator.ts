@@ -44,6 +44,29 @@ export function getStrikeHitboxInfo(
   // Chamber Linger is purely a visual follow-through pose hold. Hitboxes do not linger.
   if (fist.isLingerActive) {
     isActiveHitWindow = false;
+  } else if (fighter.styleId === 'street_taekwondo') {
+    if (isM1Light) {
+      if (stage === 0) {
+        // S1: Active during extension and early recovery
+        isActiveHitWindow = (fist.isPunching && progress >= 0.15) || (!fist.isPunching && progress >= 0.30);
+      } else if (stage === 1) {
+        // S2: Active during extension and early recovery
+        isActiveHitWindow = (fist.isPunching && progress >= 0.15) || (!fist.isPunching && progress >= 0.30);
+      } else if (stage === 2) {
+        // S3: Active throughout spinning extension and peak follow-through
+        isActiveHitWindow = (fist.isPunching && progress >= 0.15) || (!fist.isPunching && progress >= 0.05);
+      } else {
+        // S4: Active during extension and recovery
+        isActiveHitWindow = (fist.isPunching && progress >= 0.15) || (!fist.isPunching && progress >= 0.20);
+      }
+    } else {
+      // M2 Brazilian Kick: Left arm inactive; Right leg releases chop
+      if (isLeft) {
+        isActiveHitWindow = false;
+      } else {
+        isActiveHitWindow = (fist.isPunching && progress >= 0.15) || (!fist.isPunching && progress >= 0.30);
+      }
+    }
   } else if (isM1Light) {
     if (stage === 0 || stage === 1) {
       // S1 & S2 (Jabs / Quick Lights): Snappy forward extension window.
@@ -52,11 +75,19 @@ export function getStrikeHitboxInfo(
       const isWithinTime = punchTime >= 0.04 && punchTime <= 0.35;
       isActiveHitWindow = (isExtending || isPeakRecovery) && isWithinTime;
     } else if (stage === 2) {
-      // S3: Intermediate strike / Hook / Elbow / Calf Kick.
-      const isExtending = fist.isPunching && progress >= 0.15;
-      const isPeakRecovery = !fist.isPunching && progress >= 0.30;
-      const isWithinTime = punchTime >= 0.05 && punchTime <= 0.58;
-      isActiveHitWindow = (isExtending || isPeakRecovery) && isWithinTime;
+      if (fighter.styleId === 'aikido') {
+        // Charged Left Thrust: Chamber load (progress < 0.50), Piston Release active window (progress >= 0.50)
+        const isPistonExtending = fist.isPunching && progress >= 0.50;
+        const isPeakRecovery = !fist.isPunching && progress >= 0.40;
+        const isWithinTime = punchTime >= 0.08 && punchTime <= 0.45;
+        isActiveHitWindow = (isPistonExtending || isPeakRecovery) && isWithinTime;
+      } else {
+        // S3: Intermediate strike / Hook / Elbow / Calf Kick.
+        const isExtending = fist.isPunching && progress >= 0.15;
+        const isPeakRecovery = !fist.isPunching && progress >= 0.30;
+        const isWithinTime = punchTime >= 0.05 && punchTime <= 0.58;
+        isActiveHitWindow = (isExtending || isPeakRecovery) && isWithinTime;
+      }
     } else {
       // S4: Combo Finisher / Power Kick / Overhand / Palm Drive.
       const isExtending = fist.isPunching && progress >= 0.15;
@@ -66,9 +97,8 @@ export function getStrikeHitboxInfo(
     }
   } else {
     // M2 Heavy Strikes
-    if (fighter.styleId === 'kyokushin' && isLeft) {
-      // 🛠️ 1. Hitbox Bug Fix: Left Arm Isolation
-      // The Left Arm / Left Glove has its hitbox completely disabled throughout the entire M2 animation.
+    if ((fighter.styleId === 'kyokushin' || fighter.styleId === 'street_taekwondo') && isLeft) {
+      // Left arm has its hitbox completely disabled throughout M2 heavy kick animation
       isActiveHitWindow = false;
     } else if (fighter.styleId === 'capoeira') {
       isActiveHitWindow = (fist.isPunching && progress >= 0.25) || (!fist.isPunching && progress >= 0.50);
@@ -80,10 +110,19 @@ export function getStrikeHitboxInfo(
     }
   }
 
-  // Universal Kyokushin M2 Left Arm Hitbox Isolation guarantee (even during windup or stage confusion)
-  if (fighter.styleId === 'kyokushin' && isLeft) {
+  // Universal Kyokushin & Street Taekwondo M2 Left Arm Hitbox Isolation guarantee
+  if ((fighter.styleId === 'kyokushin' || fighter.styleId === 'street_taekwondo') && isLeft) {
     const isM2Active = isHeavy || ((fighter.heavyWindup || 0) > 0) || (fighter.fists && fighter.fists.some(f => f.punchType === 'right' && f.isHeavy));
     if (isM2Active) {
+      isActiveHitWindow = false;
+    }
+  }
+
+  // Street Taekwondo M1 limb isolation (S1/S2 are Right leg kicks; S3/S4 are Left leg kicks)
+  if (fighter.styleId === 'street_taekwondo' && !isHeavy) {
+    if ((stage === 0 || stage === 1) && isLeft) {
+      isActiveHitWindow = false;
+    } else if ((stage === 2 || stage === 3) && !isLeft) {
       isActiveHitWindow = false;
     }
   }
@@ -114,7 +153,7 @@ export function getStrikeHitboxInfo(
     }
   } else {
     // Heavy strikes
-    if (fighter.styleId === 'capoeira' || fighter.styleId === 'kyokushin' || fighter.styleId === 'slugger') {
+    if (fighter.styleId === 'capoeira' || fighter.styleId === 'kyokushin' || fighter.styleId === 'slugger' || fighter.styleId === 'street_taekwondo') {
       hitRadius = baseRadius * 0.62;
       hitBuffer = Math.max(18.0, baseRadius * 0.42);
       sampleFractions = [0.20, 0.40, 0.60, 0.80, 1.0, 1.18];
@@ -136,7 +175,11 @@ export function getStrikeHitboxInfo(
   if (!isHeavy) {
     if (stage === 0) {
       // S1 Lead Strikes
-      if (style === 'shotokan' && isLeft) {
+      if (style === 'street_taekwondo' && !isLeft) {
+        // S1 Right Slanted Snap Kick (Leg reach matched to Kyokushin leg size)
+        strikeX = baseRadius * (0.65 + ease * 1.20);
+        strikeY = baseRadius * 0.28 * (1 - ease * 0.35);
+      } else if (style === 'shotokan' && isLeft) {
         // Empi-Uchi Elbow
         strikeX = baseRadius * (0.95 + ease * 0.85);
         strikeY = -baseRadius * 0.20;
@@ -147,7 +190,11 @@ export function getStrikeHitboxInfo(
       }
     } else if (stage === 1) {
       // S2 Follow-up Strikes
-      if (style === 'kyokushin' && !isLeft) {
+      if (style === 'street_taekwondo' && !isLeft) {
+        // S2 Repeat Right Slanted Snap Kick (Leg reach matched to Kyokushin leg size)
+        strikeX = baseRadius * (0.65 + ease * 1.20);
+        strikeY = baseRadius * 0.28 * (1 - ease * 0.35);
+      } else if (style === 'kyokushin' && !isLeft) {
         // Gedan Geri (Calf Kick)
         strikeX = baseRadius * (0.65 + ease * 1.95);
         strikeY = baseRadius * 0.32 * (1 - ease * 0.45);
@@ -158,7 +205,11 @@ export function getStrikeHitboxInfo(
       }
     } else if (stage === 2) {
       // S3 Attacks: Fix all kicks, horizontal slicing elbows, sweeps & hooks
-      if (style === 'shotokan') {
+      if (style === 'street_taekwondo') {
+        // S3: Spinning Back Kick (Left Leg) - Matched to Kyokushin leg size
+        strikeX = baseRadius * (0.65 + ease * 1.20);
+        strikeY = -baseRadius * 0.35;
+      } else if (style === 'shotokan') {
         // Ren-Zuki 2 punch
         strikeX = baseRadius * (1.15 + ease * 0.90);
         strikeY = -baseRadius * 0.18;
@@ -166,10 +217,7 @@ export function getStrikeHitboxInfo(
         // Sok Tat (Horizontal Slicing Elbow)
         strikeX = baseRadius * (1.00 + ease * 0.75);
         strikeY = baseRadius * (0.35 - ease * 0.65);
-      } else if (style === 'street_taekwondo') {
-        // Stance Switch Jump Kick
-        strikeX = baseRadius * (1.30 + ease * 1.25);
-        strikeY = -baseRadius * 0.40;
+
       } else if (style === 'kickboxing') {
         // Calf Kick (Low Leg Sweep)
         strikeX = baseRadius * (1.35 + ease * 0.95);
@@ -191,9 +239,9 @@ export function getStrikeHitboxInfo(
         strikeX = baseRadius * (1.20 + ease * 1.05);
         strikeY = baseRadius * 0.10;
       } else if (style === 'aikido') {
-        // Tenkan Arm Sweep
-        strikeX = baseRadius * (1.05 + ease * 0.75);
-        strikeY = baseRadius * 0.25 - ease * baseRadius * 0.40;
+        // Left Straight Thrust
+        strikeX = baseRadius * (1.10 + ease * 1.05);
+        strikeY = -baseRadius * 0.18;
       } else if (style === 'boxing_shell') {
         // Left Upper-Jab / Hook
         strikeX = baseRadius * (1.15 + ease * 0.85);
@@ -205,7 +253,11 @@ export function getStrikeHitboxInfo(
       }
     } else if (stage === 3) {
       // S4 Attacks: Fix all finishers (kicks, downward palm drives, looping hooks, cleans)
-      if (style === 'shotokan') {
+      if (style === 'street_taekwondo') {
+        // S4: Side Whip Finisher (Left Leg - Matched to Kyokushin leg size)
+        strikeX = baseRadius * (0.65 + ease * 1.20);
+        strikeY = -baseRadius * 0.20;
+      } else if (style === 'shotokan') {
         // Left Mae-Geri Kick (Front Kick extending to ~2.75 * R)
         strikeX = baseRadius * (1.25 + ease * 1.60);
         strikeY = -baseRadius * 0.40;
@@ -218,10 +270,7 @@ export function getStrikeHitboxInfo(
         const dist = baseRadius * 1.75;
         strikeX = Math.cos(currentSweepAngle) * dist + baseRadius * 0.35;
         strikeY = Math.sin(currentSweepAngle) * dist;
-      } else if (style === 'street_taekwondo') {
-        // Right Side Kick / 360 Tornado Kick
-        strikeX = baseRadius * (1.40 + ease * 1.35);
-        strikeY = baseRadius * 0.20;
+
       } else if (style === 'kickboxing') {
         // Right Straight Finisher
         strikeX = baseRadius * (1.30 + ease * 1.15);
@@ -261,6 +310,13 @@ export function getStrikeHitboxInfo(
         strikeX = baseRadius * (1.05 + hookEase * 0.90);
         strikeY = -baseRadius * 0.20 + hookEase * baseRadius * 0.35;
       }
+    }
+  } else {
+    // M2 Heavy Strike calculations
+    if (style === 'street_taekwondo' && !isLeft) {
+      // M2 Brazilian Kick: Matched to Kyokushin leg reach
+      strikeX = baseRadius * (0.60 + ease * 1.25);
+      strikeY = baseRadius * (0.75 - ease * 0.95);
     }
   }
 

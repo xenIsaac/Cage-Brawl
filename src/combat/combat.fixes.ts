@@ -159,7 +159,15 @@ export function applyGlobalM2RetractionOverride(fighter: Fighter): void {
 
   // Cancel any lingering DS or combo reset timers that would gate M2
   (fighter as any).shellRetractionHoldTimer = 0;
+  (fighter as any).tkdInChamber = false;
+  (fighter as any).tkdChamberRetracting = false;
   fighter.lightCooldown = 0;
+  if (fighter.styleId === 'street_taekwondo') {
+    fighter.strikeCooldown = 0;
+    fighter.postS4HeavyLockout = 0;
+    fighter.isPostureLocked = false;
+    fighter.postureCd = 0;
+  }
 }
 
 /**
@@ -174,3 +182,18 @@ export function canM2OverrideM1Retraction(fighter: Fighter): boolean {
   if (fighter.styleId === 'capoeira' && (fighter as any).capoeiraExhausted) return false;
   return true;
 }
+
+/**
+ * 🥋 Aikido S2 ➔ S3 Stance Gating Check
+ * Unlike other styles that allow instant combo acceleration, Aikido is physically
+ * locked from firing S3 until S2 has 100% completed its retraction back to stance.
+ * Returns true if S2 (left arm) is fully retracted to 0% extension in neutral stance.
+ */
+export function isS2FullyRetractedToStance(fighter: Fighter): boolean {
+  if (fighter.styleId !== 'aikido') return true;
+  const leftFist = fighter.fists?.find(f => f.punchType === 'left');
+  if (!leftFist) return true;
+  // S2 arm must reach 0% extension (isPunching === false AND punchProgress === 0)
+  return !leftFist.isPunching && leftFist.punchProgress === 0;
+}
+

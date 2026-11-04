@@ -13,6 +13,7 @@ import { getRankInfo, calculateWinEloGain, calculateLossEloLoss } from '../utils
 import OnlinePlayerListModal from './OnlinePlayerListModal';
 import { wsService } from '../services/websocket';
 import QuestsAchievementsPanel from './QuestsAchievementsPanel';
+import { useResponsiveLayout } from '../utils/useResponsiveLayout';
 
 interface MatchmakingScreenProps {
   stats: PlayerStats;
@@ -178,6 +179,7 @@ export default function MatchmakingScreen({
     initialMatchData ? 'matched_fighters' : 'idle'
   );
 
+  const { isPortrait, isLandscape, isMobile, isCompactLandscape } = useResponsiveLayout();
   // Sub-tabs: competitive (Ranked 1v1), non_competitive (Unranked 1v1 / 2v2), party (Party Squads), elo_ladder
   const [activeSubTab, setActiveSubTab] = useState<'competitive' | 'non_competitive' | 'party' | 'elo_ladder'>('competitive');
   const [nonCompMode, setNonCompMode] = useState<'1v1_classic' | '1v1_endurance' | '1v1_explosive' | '2v2'>('1v1_classic');
@@ -774,33 +776,32 @@ export default function MatchmakingScreen({
   };
 
   return (
-    <div id="matchmaking-screen" className={`w-full h-screen max-h-[100dvh] bg-zinc-950 text-white flex flex-col justify-between p-2.5 sm:p-5 landscape:p-2 landscape:py-1 ${isNavHidden ? 'pl-2.5 sm:pl-5' : 'pl-14 sm:pl-20'} font-sans relative overflow-hidden select-none`}>
+    <div id="matchmaking-screen" className={`w-full h-full h-[100dvh] max-h-[100dvh] bg-zinc-950 text-white flex flex-col justify-between p-2 sm:p-4 landscape:p-1.5 landscape:py-1 ${isNavHidden || isPortrait || isMobile ? 'pl-2 sm:pl-4' : 'pl-14 sm:pl-20'} font-sans relative overflow-hidden select-none`}>
       
       {/* BACKGROUND DECORATIVE GRID */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#18181b_1px,transparent_1px),linear-gradient(to_bottom,#18181b_1px,transparent_1px)] bg-[size:32px_32px] opacity-20 pointer-events-none" />
 
       {/* TOP HEADER */}
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 sm:gap-3 border-b border-zinc-900 pb-2 sm:pb-3 shrink-0">
+      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 sm:gap-3 border-b-2 border-red-600 pb-2 sm:pb-3 shrink-0">
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* PERSONA BADGE */}
+          <div className="bg-red-600 text-black px-2.5 py-1 -skew-x-12 font-display font-black italic text-xs sm:text-sm tracking-wider shadow-[2px_2px_0px_#ffffff] shrink-0">
+            PVP // 02
+          </div>
+
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-2xl font-display font-black italic uppercase tracking-wider text-white flex items-center gap-1.5 sm:gap-2">
+              <h1 className="text-base sm:text-2xl font-display font-black italic uppercase tracking-tighter text-white flex items-center gap-1.5 sm:gap-2 -skew-x-12">
                 <Swords className="w-4 h-4 sm:w-6 sm:h-6 text-red-500" />
-                Online Match
+                RANKED 1V1 MATCHMAKING
               </h1>
-              <span className="text-[7px] sm:text-[9px] font-mono font-bold uppercase bg-red-950/80 text-red-400 border border-red-800/60 px-1.5 sm:px-2 py-0.5 rounded-full">
-                Live PvP
-              </span>
             </div>
-            <p className="text-[8px] sm:text-[11px] font-mono text-zinc-400 hidden xs:block">
-              Global PvP Arena & Ranked Competitive League
-            </p>
           </div>
         </div>
 
-        {/* RANK BADGE, ELO & CASH */}
+        {/* RANK BADGE, ELO & CASH & PROMINENT EXIT BUTTON */}
         <div className="flex items-center gap-1.5 sm:gap-3">
-          <div className="bg-zinc-900/90 border border-zinc-800 px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl flex items-center gap-1.5 sm:gap-2 shadow-sm">
+          <div className="bg-zinc-900 border border-zinc-800 px-2 py-1 sm:px-3 sm:py-1.5 -skew-x-12 flex items-center gap-1.5 sm:gap-2 shadow-[2px_2px_0px_#000000]">
             <span className="text-xs sm:text-base">{playerRank.icon}</span>
             <div className="text-right">
               <span className="text-[7px] sm:text-[8px] font-mono text-zinc-400 uppercase block leading-none">PvP Division</span>
@@ -814,25 +815,28 @@ export default function MatchmakingScreen({
             </div>
           </div>
 
-          <button
-            onClick={() => { onBackToMenu(); soundManager.playRollTick(); }}
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 rounded-xl transition text-xs font-mono font-bold uppercase cursor-pointer shadow-sm"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Menu</span>
-          </button>
-
-          <div className="bg-zinc-900/90 border border-amber-500/30 px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl flex items-center gap-1 sm:gap-1.5 shadow-sm">
-            <span className="text-amber-400 font-mono font-bold text-xs sm:text-sm">$</span>
-            <span className="font-mono font-bold text-xs sm:text-sm text-white">{stats.cash.toLocaleString()}</span>
+          {/* Cash */}
+          <div className="bg-zinc-900 border border-zinc-800 px-2.5 py-1 sm:px-3 sm:py-1.5 text-xs font-mono font-bold text-emerald-400 -skew-x-12">
+            ${stats.cash.toLocaleString()}
           </div>
 
+          {/* Online Players Button */}
           <button
             onClick={() => { setShowPlayerList(true); soundManager.playRollTick(); }}
-            className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-3 sm:py-2 bg-zinc-900 hover:bg-zinc-800 text-emerald-400 border border-emerald-500/30 rounded-xl transition text-[8px] sm:text-[10px] font-mono font-bold uppercase cursor-pointer shadow-sm"
+            className="flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-zinc-900 hover:bg-emerald-500 text-emerald-400 hover:text-black border border-emerald-500/40 text-[10px] font-display font-black italic uppercase -skew-x-12 transition cursor-pointer shadow-[2px_2px_0px_#000000]"
           >
-            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
+            <Users className="w-3.5 h-3.5" />
             <span className="hidden md:inline">ONLINE ({onlineCount})</span>
+          </button>
+
+          {/* PROMINENT PERSONA RETURN / EXIT BUTTON */}
+          <button
+            onClick={() => { onBackToMenu(); soundManager.playRollTick(); }}
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase tracking-wider text-xs sm:text-sm -skew-x-12 shadow-[3px_3px_0px_#ffffff] hover:shadow-[3px_3px_0px_#ef4444] transition-all duration-150 cursor-pointer active:scale-95 group shrink-0"
+            title="Return to Main Menu"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-black group-hover:scale-110" />
+            <span>RETURN // MENU</span>
           </button>
         </div>
       </div>

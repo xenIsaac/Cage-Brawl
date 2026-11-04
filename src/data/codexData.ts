@@ -30,7 +30,7 @@ export interface PassiveAnalogy {
 
 export interface StyleCodexIntel {
   id: string;
-  archetype: 'Pocket Brawler' | 'Guard Breaker' | 'Heavy Juggernaut' | 'Precision Zoner' | 'Counter-Technician' | 'Acrobatic Dancer' | 'Distance Striker' | 'Evasive Kicker' | 'Rooted Tank' | 'Pocket Trapper' | 'Tactical Assassin' | 'Iron Counter-Puncher' | 'Evasive Out-Boxer' | 'High-Volume In-Fighter' | 'Aggressive In-Fighter' | 'CQC Clinch Trapper' | 'Undergoing Rework';
+  archetype: 'Pocket Brawler' | 'Guard Breaker' | 'Heavy Juggernaut' | 'Precision Zoner' | 'Counter-Technician' | 'Acrobatic Dancer' | 'Distance Striker' | 'Evasive Kicker' | 'Rooted Tank' | 'Pocket Trapper' | 'Tactical Assassin' | 'Iron Counter-Puncher' | 'Evasive Out-Boxer' | 'High-Volume In-Fighter' | 'Aggressive In-Fighter' | 'CQC Clinch Trapper' | 'Aggressive Feint Striker' | 'Undergoing Rework';
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
   combatPhilosophy: string;
   keyStrengths: string[];
@@ -476,116 +476,101 @@ export const CODEX_INTEL: Record<string, StyleCodexIntel> = {
     id: 'kickboxing',
     archetype: 'Distance Striker',
     difficulty: 'Intermediate',
-    combatPhilosophy: 'Dynamic rhythm and guard destruction: cadence opening jabs, +20% finisher knockback, and a two-stage Hook-to-Teep armor shredder.',
+    combatPhilosophy: 'Relentless offensive pressure and dynamic heavy cooldown loops: Damage 1.05x, Execution 0.95x, Attack Speed 1.10x with Cadence Opening acceleration and Chain Reaction cooldown refunds.',
     keyStrengths: [
-      'Cadence Opening S1 & S2 jabs bypass native 0.90x speed penalty (+10% speed)',
-      'Heavy Momentum grants +20% increased physical knockback distance on S4 finisher',
-      'Chain Reaction reduces next M2 Seq 1 windup down to 0.25s after landing full combo',
+      'Base Stats: Damage: 1.05x | Attack Execution: 0.95x | Attack Speed: 1.10x',
+      'Cadence Opening: Landing both M2 strikes grants +15% Attack Execution and +20% Attack Speed',
+      'Chain Reaction: Every landed hit reduces M2 cooldown by 0.2s',
+      'Dynamic M2 Cooldowns: S1 Hit/S2 Whiff (4s) | S2 Hit/S1 Whiff (5s) | Both Hit (6s) | Both Whiff (8s)',
       'Two-stage M2 mixup (Hook -> Teep) strips 20% then 80% armor with 1.8s concussion'
     ],
     vulnerabilities: [
-      'Slower baseline footwork speed (0.90x)',
-      '3.2s M2 whiff cooldown penalty with 0.6s–0.8s recovery window exposure'
+      'Deliberate 0.95x base attack execution outside of Cadence Opening',
+      '8.0s cooldown lockout penalty if both M2 strikes whiff'
     ],
     moves: [
-      { code: 'S1', name: 'Lead Left Jab', type: 'Light', damage: 5.5, damageLabel: '5.5 HP', startupFrames: 13, startupSpeed: '1.10x (0.21s Cadence)', recoverySeconds: 0.08, hitstunSeconds: 0.45, iFrames: 'None', superArmor: false, guardChip: 'Standard (1.1 HP)', description: 'Fast probe jab boosted 10% faster by Cadence Opening.', tacticalRole: 'Cadence opener' },
-      { code: 'S2', name: 'Rear Right Jab', type: 'Light', damage: 5.5, damageLabel: '5.5 HP', startupFrames: 13, startupSpeed: '1.10x (0.21s Cadence)', recoverySeconds: 0.08, hitstunSeconds: 0.45, iFrames: 'None', superArmor: false, guardChip: 'Standard (1.1 HP)', description: 'Rapid follow-up jab keeping target pinned.', tacticalRole: 'Paced pressure' },
-      { code: 'S3', name: 'Calf Kick', type: 'Light', damage: 6.5, damageLabel: '6.5 HP', startupFrames: 16, startupSpeed: '0.90x (0.27s)', recoverySeconds: 0.12, hitstunSeconds: 0.45, iFrames: 'None', superArmor: false, guardChip: 'Moderate (1.3 HP)', description: 'Low chopping kick that degrades opponent posture.', tacticalRole: 'Low posture drain' },
-      { code: 'S4', name: 'Straight Punch', type: 'Finisher', damage: 9.0, damageLabel: '9.0 HP', startupFrames: 17, startupSpeed: '0.90x (0.28s)', recoverySeconds: 0.20, hitstunSeconds: 1.00, iFrames: 'None', superArmor: false, guardChip: 'Heavy (2.5 HP + 20% Push)', description: 'Heavy straight punch with +20% knockback via Heavy Momentum.', tacticalRole: 'Chain Reaction activator' },
-      { code: 'M2', name: 'Dazing Hook to Teep', type: 'Heavy', damage: 14.0, damageLabel: '8.0 + 14.0 HP', startupFrames: 15, startupSpeed: '4.5s CD (0.25s Chain)', recoverySeconds: 0.60, hitstunSeconds: 1.80, iFrames: 'None', superArmor: false, guardChip: 'Armor Shred (20% -> 80%)', description: 'Two-stage heavy: Seq 1 Short Hook (20% Armor) -> Seq 2 Teep Kick (80% Armor, 1.8s Concussion).', tacticalRole: 'Total armor stripping & concussion' }
+      { code: 'S1', name: 'Lead Left Jab', type: 'Light', damage: 5.5, damageLabel: '5.5 HP', startupFrames: 13, startupSpeed: '1.10x Atk Spd (0.95x Exec)', recoverySeconds: 0.08, hitstunSeconds: 0.45, iFrames: 'None', superArmor: false, guardChip: 'Standard (1.1 HP)', description: 'Snappy lead jab; landing hits reduces M2 cooldown by 0.2s via Chain Reaction.', tacticalRole: 'Cadence opener' },
+      { code: 'S2', name: 'Rear Right Jab', type: 'Light', damage: 5.5, damageLabel: '5.5 HP', startupFrames: 13, startupSpeed: '1.10x Atk Spd (0.95x Exec)', recoverySeconds: 0.08, hitstunSeconds: 0.45, iFrames: 'None', superArmor: false, guardChip: 'Standard (1.1 HP)', description: 'Rapid follow-up jab keeping target pinned; reduces M2 CD by 0.2s on hit.', tacticalRole: 'Paced pressure' },
+      { code: 'S3', name: 'Calf Kick', type: 'Light', damage: 6.5, damageLabel: '6.5 HP', startupFrames: 16, startupSpeed: '1.10x Atk Spd (0.95x Exec)', recoverySeconds: 0.12, hitstunSeconds: 0.45, iFrames: 'None', superArmor: false, guardChip: 'Moderate (1.3 HP)', description: 'Low chopping kick; reduces M2 CD by 0.2s on hit.', tacticalRole: 'Low posture drain' },
+      { code: 'S4', name: 'Straight Punch', type: 'Finisher', damage: 9.0, damageLabel: '9.0 HP', startupFrames: 17, startupSpeed: '1.10x Atk Spd (0.95x Exec)', recoverySeconds: 0.20, hitstunSeconds: 1.00, iFrames: 'None', superArmor: false, guardChip: 'Heavy (2.5 HP)', description: 'Heavy straight punch finisher; reduces M2 CD by 0.2s on hit.', tacticalRole: 'Chain finisher' },
+      { code: 'M2', name: 'Dazing Hook to Teep', type: 'Heavy', damage: 14.0, damageLabel: '8.0 + 14.0 HP', startupFrames: 15, startupSpeed: 'Dynamic CD (4s/5s/6s/8s)', recoverySeconds: 0.60, hitstunSeconds: 1.80, iFrames: 'None', superArmor: false, guardChip: 'Armor Shred (20% -> 80%)', description: 'Two-stage heavy: Seq 1 Short Hook (20% Armor) -> Seq 2 Teep Kick (80% Armor, 1.8s Concussion). Landing both unlocks Cadence Opening (+15% Exec, +20% Atk Spd).', tacticalRole: 'Total armor stripping & cadence trigger' }
     ],
     passives: [
       {
         name: 'Cadence Opening',
-        trigger: 'Executing S1 or S2 Jabs',
-        type: 'Startup Acceleration',
-        mechanicalBreakdown: 'S1 & S2 jabs execute 10% faster, completely bypassing the native 0.90x style speed penalty.',
-        combatAnalogy: 'Flickering lightning-fast double jabs to freeze the opponent before unloading heavy low kicks.',
-        tacticalAdvantage: 'Guarantees fast combo initiation despite having a heavy kickboxing stance.',
-        counterplayNote: 'Parry the second jab in the cadence to break their rhythm.'
+        trigger: 'Landing Both M2 Strikes',
+        type: 'Stat Amplification',
+        mechanicalBreakdown: 'Landing both M2 strikes (S1 Hook + S2 Teep) grants +15% Attack Execution and +20% Attack Speed for 5.0 seconds.',
+        combatAnalogy: 'Finding an opening with a flush hook-and-kick combo, accelerating your rhythm into blinding punch-kick combinations.',
+        tacticalAdvantage: 'Massively accelerates subsequent combo loops and offensive momentum.',
+        counterplayNote: 'Parry or dodge either strike to deny the Cadence Opening buff.'
       },
       {
         name: 'Chain Reaction',
-        trigger: 'Landing Full S1-S4 Combo',
-        type: 'Windup Compression',
-        mechanicalBreakdown: 'Landing the complete S1-S4 combo sequence reduces your next M2 Seq 1 windup from 0.44s down to 0.25s.',
-        combatAnalogy: 'Using the momentum of the finishing straight punch to whip an instant short hook into an explosive front push kick.',
-        tacticalAdvantage: 'Enables near-unreactable heavy mixups right after landing a full light string.',
-        counterplayNote: 'Interrupt Kickboxing before they reach S4 to prevent Chain Reaction activation.'
+        trigger: 'Landing Any Strike',
+        type: 'Cooldown Reduction',
+        mechanicalBreakdown: 'Every landed hit reduces M2 cooldown by 0.2s (12 frames).',
+        combatAnalogy: 'Using continuous volume striking to immediately reload your heavy armor-shredding kick arsenal.',
+        tacticalAdvantage: 'High-volume striking rapidly resets your devastating M2 mixup.',
+        counterplayNote: 'Keep your guard up or zone outside kick range to prevent cooldown reductions.'
       }
     ],
-    proTactics: 'Probe with fast S1 & S2 jabs, finish the combo with S4 to activate Chain Reaction, then immediately unleash the 0.25s Short Hook into 80% armor-stripping Teep Front Kick!',
+    proTactics: 'Land both M2 strikes to trigger Cadence Opening (+15% Exec, +20% Speed), then overwhelm your opponent with high-speed M1 strikes to trigger Chain Reaction and reset M2 in record time!',
     matchups: [
-      { vs: 'Muay Thai', advantage: 'Favorable', strategy: 'Use your long 1.15x reach to keep them out of clinch range and strip their armor with Teep kicks.' },
-      { vs: 'Street Boxing', advantage: 'Even', strategy: 'Space them out with long jabs and calf kicks; avoid whiffing M2 when they have Slip Drive ready.' },
-      { vs: 'Ashihara', advantage: 'Caution', strategy: 'Do not throw predictable Teep kicks straight into Sabaki parries; bait their parry with feints.' }
+      { vs: 'Muay Thai', advantage: 'Favorable', strategy: 'Use your long reach and dynamic cooldown loops to strip armor before they establish clinch control.' },
+      { vs: 'Street Boxing', advantage: 'Even', strategy: 'Space them out with jabs; use Cadence Opening to out-pace their inside pocket pressure.' },
+      { vs: 'Ashihara', advantage: 'Caution', strategy: 'Beware of throwing predictable Teep kicks into Sabaki parries; mix up your strike timings.' }
     ]
   },
 
   street_taekwondo: {
     id: 'street_taekwondo',
-    archetype: 'Evasive Kicker',
+    archetype: 'Aggressive Feint Striker',
     difficulty: 'Intermediate',
-    combatPhilosophy: 'High-flying street kicking: rapid chambering, evasive jumping I-Frames, and an aggressive 360 spin-dash with Counter-Bait parry immunity.',
+    combatPhilosophy: 'Trades formal dojang forms for deceptive urban angles, high-speed hip whipping, and the devastating, trajectory-shifting Brazilian Kick (Question Mark Kick).',
     keyStrengths: [
-      'High mobility and evasive S3 jumping stance switches with built-in I-Frames',
-      'Kick Momentum accelerates next light combo (M1) attack speed by +8% after landing M2',
-      'Counter-Bait grants 0.8s of complete Invincibility (I-Frames) if parried during M2 spin'
+      'Neuro-Trauma Hallucination: Feint-traps defender parries during the Brazilian Kick chamber into a 1.0s Spin-Out and 3.0s Confusion State',
+      'Deflective Cadence: Successfully executing a manual Parry accelerates your Posture Regeneration speed by +30% for 8.0 seconds',
+      'Attack Execution Velocity (1.05x AEXSPD): +5% limb travel velocity (~100ms extension travel) and 1.15x sweeping kick reach',
+      'Lightning S3 Spinning Back Kick: Ultra-rapid 0.10s Duration Speed 360° torque kick; snaps across side profile and holds 0.3s',
+      'Controlled Momentum (x0.85): Controlled pushback keeps opponents trapped inside optimal striking perimeter'
     ],
     vulnerabilities: [
-      'Reckless Style makes you take +10% increased damage and +8% longer hitstun',
-      'Lower defense multiplier (0.90x) demands sharp evasive execution'
+      'Combo scaling power modifier (0.96x power) requires disciplined multi-kick chaining to maximize output',
+      'Standard base absorption (1.00x) relies purely on agile positioning and loose urban bounce stance'
     ],
     moves: [
-      { code: 'S1', name: 'Lead Snap Kick', type: 'Light', damage: 4.5, damageLabel: '4.5 HP', startupFrames: 13, startupSpeed: '1.05x (0.21s)', recoverySeconds: 0.08, hitstunSeconds: 0.45, iFrames: 'None', superArmor: false, guardChip: 'Standard (0.9 HP)', description: 'Quick long-range lead kick with rapid chambering.', tacticalRole: 'Rapid kick probe' },
-      { code: 'S2', name: 'Follow-Up Snap Kick', type: 'Light', damage: 5.5, damageLabel: '5.5 HP', startupFrames: 13, startupSpeed: '1.05x (0.21s)', recoverySeconds: 0.08, hitstunSeconds: 0.45, iFrames: 'None', superArmor: false, guardChip: 'Standard (1.1 HP)', description: 'Fast high snap kick keeping target pressured.', tacticalRole: 'Combo extension' },
-      { code: 'S3', name: 'Stance Switch Kick', type: 'Light', damage: 6.5, damageLabel: '6.5 HP', startupFrames: 14, startupSpeed: '1.05x (0.23s)', recoverySeconds: 0.08, hitstunSeconds: 0.45, iFrames: '0.15s Jumping I-Frames', superArmor: false, guardChip: 'Standard (1.3 HP)', description: 'Switches guard stance with jumping kick granting temporary I-Frames.', tacticalRole: 'Airborne frame dodge & kick' },
-      { code: 'S4', name: 'Side Kick', type: 'Finisher', damage: 8.5, damageLabel: '8.5 HP', startupFrames: 16, startupSpeed: '1.00x (0.27s)', recoverySeconds: 0.22, hitstunSeconds: 0.90, iFrames: 'None', superArmor: false, guardChip: 'Heavy (2.2 HP + Heavy Push)', description: 'Heavy thrusting side kick driving opponent backward.', tacticalRole: 'Kinetic pushback' },
-      { code: 'M2', name: 'Spin-Dash Snap Kick', type: 'Heavy', damage: 12.0, damageLabel: '12.0 HP', startupFrames: 21, startupSpeed: '4.5s CD (0.35s)', recoverySeconds: 0.35, hitstunSeconds: 1.10, iFrames: '0.80s Counter-Bait on Parry', superArmor: false, guardChip: 'Guard Break (Shatters)', description: '360° rotational blitz dash into 12.0 DMG Snap Kick. Grants 0.8s I-Frames if parried.', tacticalRole: 'Anti-parry blitz attack' }
+      { code: 'S1', name: 'Right Slanted Snap Kick', type: 'Light', damage: 4.8, damageLabel: '4.8 HP', startupFrames: 12, startupSpeed: '1.05x (0.20s)', recoverySeconds: 0.06, hitstunSeconds: 0.20, iFrames: 'None', superArmor: false, guardChip: 'Standard (1.4 HP)', description: 'Leg slants at 45° before snapping straight; kicking-side hand swings back as torso rotates.', tacticalRole: 'Straight Slim Square opening whip' },
+      { code: 'S2', name: 'Repeat Right Slanted Snap Kick', type: 'Light', damage: 4.8, damageLabel: '4.8 HP', startupFrames: 12, startupSpeed: '1.05x (0.20s)', recoverySeconds: 0.06, hitstunSeconds: 0.22, iFrames: 'None', superArmor: false, guardChip: 'Standard (1.4 HP)', description: 'Double-taps directly from chamber; torso drives into hip line with forward leg pressure.', tacticalRole: 'Straight Slim Square pressure kick' },
+      { code: 'S3', name: 'Spinning Back Kick (Left Leg)', type: 'Light', damage: 6.0, damageLabel: '6.0 HP', startupFrames: 6, startupSpeed: '1.05x (0.10s)', recoverySeconds: 0.02, hitstunSeconds: 0.26, iFrames: 'None', superArmor: false, guardChip: 'Standard (1.8 HP)', description: 'Leg renders instantly, snaps across side profile, holds for 0.3s before vanishing. Rapid 360° reverse torque kick.', tacticalRole: 'Pure Rectangle rapid torque kick' },
+      { code: 'S4', name: 'Side Whip Finisher (Left Leg)', type: 'Finisher', damage: 8.0, damageLabel: '8.0 HP', startupFrames: 15, startupSpeed: '1.00x (0.25s)', recoverySeconds: 0.07, hitstunSeconds: 0.42, iFrames: 'None', superArmor: false, guardChip: 'Heavy (2.4 HP)', description: 'Torso rotates right, unleashing high whipping side kick finisher driving target backward.', tacticalRole: 'Pure Rectangle kinetic finisher' },
+      { code: 'M2', name: 'Brazilian Kick (Question Mark Kick)', type: 'Heavy', damage: 13.5, damageLabel: '13.5 HP (18.0 Empowered)', startupFrames: 23, startupSpeed: '4.5s CD (0.38s)', recoverySeconds: 0.28, hitstunSeconds: 0.85, iFrames: 'None', superArmor: false, guardChip: 'Guard Break (4.5 HP)', description: 'High-slant feint chamber snaps downward into devastating Brazilian Kick. Baits parries into Spin-Out & Confusion.', tacticalRole: 'Deceptive feint-trap heavy strike' }
     ],
     passives: [
       {
-        name: 'Kick Momentum',
-        trigger: 'Successfully landing an M2 strike',
-        type: 'Execution Speed Boost',
-        mechanicalBreakdown: 'Successfully landing an M2 strike increases your light attack (M1) execution speed by +30% for the next combo sequence.',
-        combatAnalogy: 'Riding the kinetic energy of a landed spin-kick straight into rapid-fire snap kicks.',
-        tacticalAdvantage: 'Allows rapid-fire follow-up light kick flurries.',
-        counterplayNote: 'Dash back immediately after taking an M2 hit.'
+        name: 'Neuro-Trauma Hallucination (Brazilian Feint Trap)',
+        trigger: 'Opponent attempts to Parry during initial high-slant feint phase of M2',
+        type: 'Feint Trap & Hallucination',
+        mechanicalBreakdown: 'If the opponent attempts to Parry during the initial high-slant feint phase, the true second strike is empowered (18.0 HP). Landed hit forces the victim into a 1.0s Spin-Out, followed by a 3.0s Confusion State: victim hallucinates two phantom fighter clones flanking on the left and right, motion afterimages, and camera sway with periodic motion blurs. Client-side isolated to victim screen.',
+        combatAnalogy: 'Faking a high snap kick to draw their guard, then snapping the shin downward over their defenses.',
+        tacticalAdvantage: 'Completely dismantles parry-reactive opponents.',
+        counterplayNote: 'Do not panic parry the initial chamber; wait for the downward trajectory.'
       },
       {
-        name: 'Reckless Style',
-        trigger: 'Permanent Stance Modifier',
-        type: 'High Risk / High Reward',
-        mechanicalBreakdown: 'Natively increases total Damage and Speed by +5%, but increases incoming Damage taken by +10% and increases incoming Stun durations by +8%.',
-        combatAnalogy: 'Fighting with explosive wild aggression, trading defensive safety for max striking speed.',
-        tacticalAdvantage: 'Amplified velocity and damage on all attacks.',
-        counterplayNote: 'Counter-attack aggressively to capitalize on their +10% damage penalty.'
-      },
-      {
-        name: 'Counter-Bait',
-        trigger: 'Opponent attempts to Parry during M2 initiation',
-        type: 'Parry Immunity & I-Frames',
-        mechanicalBreakdown: 'If an opponent attempts to Parry during your M2 initiation (S1 Spin Dash), you instantly gain 0.8 seconds of Invincibility Frames (I-Frames).',
-        combatAnalogy: 'Using the rotational momentum of your spin to slip their counter-punch completely.',
-        tacticalAdvantage: 'Hard counters parry-heavy opponents.',
-        counterplayNote: 'Do not attempt to parry the spin dash; evade laterally.'
-      },
-      {
-        name: 'Leg Block & Slip (Special Block)',
-        trigger: 'Holding Block',
-        type: 'Capped Armor & Spin Chance',
-        mechanicalBreakdown: 'Reduces chip damage to 10%, but Armor HP is capped at 12 AP. Has a 5% chance on block hit to trigger an off-balance spin: avoids armor depletion for that hit, but stuns the user for 0.4s.',
-        combatAnalogy: 'Raising high leg shields to absorb kicks while risking balance loss under heavy pressure.',
-        tacticalAdvantage: 'High chip reduction on light hits.',
-        counterplayNote: 'Deplete 12 AP quickly to shatter their block.'
+        name: 'Deflective Cadence (Parry Posture Surge)',
+        trigger: 'Successfully executing a manual Parry',
+        type: 'Posture Regeneration Surge',
+        mechanicalBreakdown: 'Successfully executing a manual Parry accelerates your Posture Regeneration speed by +30% for 8.0 seconds.',
+        combatAnalogy: 'Rhythmic martial breathing that realigns your spine and stance after deflecting incoming force.',
+        tacticalAdvantage: 'High defensive sustain allowing relentless combo reset pressure.',
+        counterplayNote: 'Bait their parry with feints to deny their posture regeneration surge.'
       }
     ],
-    proTactics: 'Leverage your S3 jumping kick for free frame evasion, and use the 360-spin dash to bait parries; even if they try to parry, your Counter-Bait passive grants you 0.8s of invincibility to deny their punish!',
+    proTactics: 'Use the 0.10s S3 Spinning Back Kick to catch opponents expecting a standard cadence, and bait high-level parry players with the M2 Brazilian Kick feint chamber!',
     matchups: [
-      { vs: 'Slugger', advantage: 'Favorable', strategy: 'Use your long 1.12x kick reach to out-space Slugger and avoid their slow heavy punches.' },
-      { vs: 'Street Boxing', advantage: 'Even', strategy: 'Space them out with long snap kicks; if they get inside, your 10% damage-taken penalty hurts.' },
-      { vs: 'Ashihara', advantage: 'Favorable', strategy: 'Your Counter-Bait passive is a direct counter to Sabaki parry: if they parry your spin dash, you instantly get 0.8s I-Frames to deny their parry flow.' }
+      { vs: 'Slugger', advantage: 'Favorable', strategy: 'Out-space them with 1.15x sweeping kick arcs and bait their slow parry with the Brazilian Kick feint.' },
+      { vs: 'Street Boxing', advantage: 'Even', strategy: 'Use the x0.85 knockback momentum to keep them outside their 0.90x inside-pocket range.' },
+      { vs: 'Ashihara', advantage: 'Favorable', strategy: 'If they try Sabaki parry during your M2 feint, your Neuro-Trauma trap turns their parry attempt into a 1.0s Spin-Out and 3.0s Confusion.' }
     ]
   },
 

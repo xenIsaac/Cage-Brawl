@@ -21,7 +21,7 @@ export const STYLE_BASE_POSTURE_CD: Record<string, number> = {
   capoeira: 72,          // 1.20s
   kickboxing: 84,        // 1.40s
   kyokushin: 90,         // 1.50s
-  street_taekwondo: 86,  // 1.43s
+  street_taekwondo: 90,  // ~1.50s (90 frames)
   keysi: 80,             // 1.33s
   cqc: 78,               // 1.30s
   boxing_shell: 72,      // 1.20s
@@ -128,7 +128,13 @@ export function applyFighterPostureCooldown(
 export function updateFighterPostureFrame(fighter: Fighter): void {
   if (fighter.postureCd && fighter.postureCd > 0) {
     // 2x Posture Recovery Speed when Iron Boxing M2 Shoulder Roll Spin Posture Boost is active
-    const decrement = (fighter.shellPostureBoostTimer && fighter.shellPostureBoostTimer > 0) ? 2 : 1;
+    let decrement = (fighter.shellPostureBoostTimer && fighter.shellPostureBoostTimer > 0) ? 2 : 1;
+    // Deflective Cadence: Accelerates Posture Regeneration speed by +30% for 8.0s (480 frames)
+    if (fighter.deflectiveCadenceTimer && fighter.deflectiveCadenceTimer > 0) {
+      if (fighter.deflectiveCadenceTimer % 3 === 0) {
+        decrement += 1;
+      }
+    }
     fighter.postureCd = Math.max(0, fighter.postureCd - decrement);
     fighter.isPostureLocked = fighter.postureCd > 0;
   } else {

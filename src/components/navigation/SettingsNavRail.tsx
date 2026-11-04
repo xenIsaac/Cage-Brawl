@@ -60,23 +60,23 @@ export const SettingsNavRail: React.FC<SettingsNavRailProps> = ({
       transition={{ duration: 0.2, ease: 'easeInOut' }}
       className="flex flex-col gap-1.5 w-full"
     >
-      {/* 1. STASIS BUTTON: EXIT / RETURN (Folds nav on click) */}
+      {/* 1. STASIS BUTTON: EXIT / RETURN (PERSONA 5 STYLING) */}
       <button
         onClick={() => handleItemClick(onExit, true)}
-        className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-red-500/40 bg-red-950/40 text-red-300 hover:text-white hover:bg-red-900/60 transition-all duration-200 transform hover:scale-102 cursor-pointer group text-left relative shadow-md active:scale-95"
+        className="w-full flex items-center gap-3 p-2.5 -skew-x-12 border-2 border-black bg-red-600 text-black hover:bg-white transition-all duration-200 transform hover:scale-102 cursor-pointer group text-left relative shadow-[3px_3px_0px_#ffffff] hover:shadow-[3px_3px_0px_#ef4444] active:scale-95"
         title="Exit Settings & Return to Main Menu"
       >
-        <LogOut className="w-5 h-5 text-red-400 shrink-0 rotate-180 transition-transform group-hover:scale-110" />
+        <LogOut className="w-5 h-5 text-black shrink-0 rotate-180 transition-transform group-hover:scale-110" />
         <div className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${
           isExpanded ? 'opacity-100 max-w-[170px]' : 'opacity-0 max-w-0 pointer-events-none'
         }`}>
-          <div className="font-display font-black italic uppercase text-xs text-red-300">Exit / Return</div>
-          <div className="text-[9px] text-red-400/80 font-mono">Close Settings</div>
+          <div className="font-display font-black italic uppercase text-xs text-black">Exit // Return</div>
+          <div className="text-[9px] text-zinc-900 font-mono font-bold">Close Settings</div>
         </div>
       </button>
 
       {/* 2. STASIS SEARCH BUTTON & RELATED TO SYSTEM */}
-      <div className="w-full p-2 rounded-xl border border-cyan-500/40 bg-zinc-900/90 text-cyan-300 flex flex-col gap-1.5 shadow-md">
+      <div className="w-full p-2 -skew-x-6 border-2 border-cyan-500 bg-black text-cyan-300 flex flex-col gap-1.5 shadow-[3px_3px_0px_#000000]">
         <div className="flex items-center gap-2">
           <Search className="w-4 h-4 text-cyan-400 shrink-0" />
           <div className={`transition-all duration-300 overflow-hidden flex-1 ${
@@ -88,7 +88,7 @@ export const SettingsNavRail: React.FC<SettingsNavRailProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search settings..."
-                className="w-full bg-zinc-950/80 border border-zinc-700/80 text-white placeholder-zinc-500 text-[11px] font-mono px-2 py-1 rounded-lg focus:outline-none focus:border-cyan-400 pr-5"
+                className="w-full bg-zinc-950 border border-zinc-700 text-white placeholder-zinc-500 text-[11px] font-mono px-2 py-1 focus:outline-none focus:border-cyan-400 pr-5 -skew-x-2"
               />
               {searchQuery && (
                 <button
@@ -120,10 +120,10 @@ export const SettingsNavRail: React.FC<SettingsNavRailProps> = ({
                       setActiveCategory('all');
                     }, false);
                   }}
-                  className={`text-[8px] font-mono px-1.5 py-0.5 rounded transition cursor-pointer border ${
+                  className={`text-[8px] font-mono px-1.5 py-0.5 -skew-x-6 transition cursor-pointer border ${
                     searchQuery.toLowerCase() === item.tag.toLowerCase()
-                      ? 'bg-cyan-500/30 text-cyan-200 border-cyan-400 font-bold'
-                      : 'bg-zinc-950/80 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+                      ? 'bg-cyan-400 text-black border-white font-black'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
                   }`}
                 >
                   #{item.label}
@@ -136,11 +136,11 @@ export const SettingsNavRail: React.FC<SettingsNavRailProps> = ({
 
       {/* SEPARATOR BAR */}
       <div className="w-full my-1 pt-1 border-t border-zinc-800 flex items-center justify-between px-1">
-        <div className={`transition-all duration-300 overflow-hidden whitespace-nowrap text-[8.5px] font-mono font-black uppercase tracking-wider text-zinc-500 flex items-center gap-1 ${
+        <div className={`transition-all duration-300 overflow-hidden whitespace-nowrap text-[8.5px] font-mono font-black uppercase tracking-wider text-zinc-400 flex items-center gap-1 ${
           isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}>
-          <Filter className="w-2.5 h-2.5 text-amber-500" />
-          <span>CATEGORIES</span>
+          <Filter className="w-2.5 h-2.5 text-red-500" />
+          <span>// CATEGORIES</span>
         </div>
       </div>
 
@@ -149,18 +149,15 @@ export const SettingsNavRail: React.FC<SettingsNavRailProps> = ({
         {/* ALL SETTINGS / SEARCH RESULTS TAB */}
         <button
           onClick={() => handleItemClick(() => setActiveCategory('all'), false)}
-          className={`w-full flex items-center gap-2.5 p-2 rounded-xl border text-left transition-all duration-150 cursor-pointer group relative ${
+          className={`w-full flex items-center gap-2.5 p-2 -skew-x-6 border-2 text-left transition-all duration-150 cursor-pointer group relative ${
             activeCategory === 'all'
-              ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 font-bold shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-              : 'bg-zinc-950/60 border-zinc-850 text-zinc-400 hover:text-white hover:bg-zinc-900'
+              ? 'bg-cyan-400 border-white text-black font-black shadow-[3px_3px_0px_#000000]'
+              : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
           }`}
           title="All Settings & Search View"
         >
-          {activeCategory === 'all' && (
-            <span className="absolute left-0 top-1 bottom-1 w-0.5 bg-cyan-400 rounded-r shadow-[0_0_6px_rgba(6,182,212,0.8)]" />
-          )}
-          <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-mono font-bold shrink-0 ${
-            activeCategory === 'all' ? 'bg-cyan-400 text-black' : 'bg-zinc-850 text-zinc-400'
+          <div className={`w-5 h-5 -skew-x-6 flex items-center justify-center text-[10px] font-mono font-bold shrink-0 ${
+            activeCategory === 'all' ? 'bg-black text-cyan-400' : 'bg-zinc-850 text-zinc-400'
           }`}>
             <Sparkles className="w-3 h-3" />
           </div>
@@ -170,7 +167,9 @@ export const SettingsNavRail: React.FC<SettingsNavRailProps> = ({
             <div className="font-display font-black uppercase text-[11px] truncate leading-tight">
               All Categories
             </div>
-            <div className="text-[8px] font-mono text-zinc-500 truncate leading-none mt-0.5">
+            <div className={`text-[8px] font-mono truncate leading-none mt-0.5 ${
+              activeCategory === 'all' ? 'text-zinc-900 font-bold' : 'text-zinc-500'
+            }`}>
               Complete Overview
             </div>
           </div>
@@ -188,18 +187,15 @@ export const SettingsNavRail: React.FC<SettingsNavRailProps> = ({
                 setActiveCategory(cat.id);
                 setSearchQuery('');
               }, false)}
-              className={`w-full flex items-center gap-2.5 p-2 rounded-xl border text-left transition-all duration-150 cursor-pointer group relative ${
+              className={`w-full flex items-center gap-2.5 p-2 -skew-x-6 border-2 text-left transition-all duration-150 cursor-pointer group relative ${
                 isActive
-                  ? 'bg-zinc-900 border-amber-500/80 text-white font-bold shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                  : 'bg-zinc-950/60 border-zinc-850 text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  ? 'bg-white border-white text-black font-black shadow-[3px_3px_0px_#ef4444]'
+                  : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
               }`}
               title={cat.label}
             >
-              {isActive && (
-                <span className="absolute left-0 top-1 bottom-1 w-0.5 bg-amber-400 rounded-r shadow-[0_0_6px_rgba(245,158,11,0.8)]" />
-              )}
-              <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-mono font-bold shrink-0 ${
-                isActive ? `${cat.bg} ${cat.color}` : 'bg-zinc-850 text-zinc-400'
+              <div className={`w-5 h-5 -skew-x-6 flex items-center justify-center text-[10px] font-mono font-bold shrink-0 ${
+                isActive ? 'bg-black text-red-600' : 'bg-zinc-850 text-zinc-400'
               }`}>
                 <Icon className="w-3 h-3" />
               </div>
@@ -209,7 +205,9 @@ export const SettingsNavRail: React.FC<SettingsNavRailProps> = ({
                 <div className="font-display font-black uppercase text-[11px] truncate leading-tight">
                   {cat.label}
                 </div>
-                <div className="text-[8px] font-mono text-zinc-500 truncate leading-none mt-0.5">
+                <div className={`text-[8px] font-mono truncate leading-none mt-0.5 ${
+                  isActive ? 'text-zinc-800 font-bold' : 'text-zinc-500'
+                }`}>
                   {cat.sub}
                 </div>
               </div>

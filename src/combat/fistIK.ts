@@ -48,6 +48,10 @@ export const getClampedFistPos = (
   gameTime: number = 0
 ) => {
   const isLeft = fist.punchType === 'left';
+  const rightFist = fighter.fists ? (fighter.fists.find((f: any) => f.punchType === 'right') || fighter.fists[1]) : undefined;
+  const leftFist = fighter.fists ? (fighter.fists.find((f: any) => f.punchType === 'left') || fighter.fists[0]) : undefined;
+  const rightProgress = rightFist ? rightFist.punchProgress : 0;
+  const leftProgress = leftFist ? leftFist.punchProgress : 0;
   let shoulderAngle = isLeft ? -Math.PI / 2.3 : Math.PI / 2.3;
   if (fighter.styleId === 'street_boxing') {
     if (isBlockingActive) {
@@ -119,17 +123,13 @@ export const getClampedFistPos = (
       shoulderAngle = isLeft ? defaultLeft : defaultRight;
     }
   } else if (fighter.styleId === 'aikido') {
-    const rightFist = fighter.fists ? (fighter.fists.find((f: any) => f.punchType === 'right') || fighter.fists[1]) : undefined;
-    const leftFist = fighter.fists ? (fighter.fists.find((f: any) => f.punchType === 'left') || fighter.fists[0]) : undefined;
-    const rightProgress = rightFist ? rightFist.punchProgress : 0;
-    const leftProgress = leftFist ? leftFist.punchProgress : 0;
     const stage = fighter.comboStage === 0 ? 3 : ((fighter.comboStage || 1) - 1);
     const isCurledForS2 = (fighter.comboStage === 1 && rightProgress === 0) || (leftProgress > 0 && (stage === 1 || stage === 0 || leftFist?.comboStage === 1));
     const curlFactor = (fighter as any).aikiCurlFactor !== undefined ? (fighter as any).aikiCurlFactor : (isCurledForS2 ? 1.0 : 0.0);
     const curlEase = 0.5 - 0.5 * Math.cos(curlFactor * Math.PI);
     const isS1Active = rightProgress > 0 && (stage === 0 || rightFist?.comboStage === 0);
     const isS2Active = leftProgress > 0 && (stage === 1 || stage === 0 || leftFist?.comboStage === 1);
-    const isS3Active = rightProgress > 0 && (stage === 2 || rightFist?.comboStage === 2);
+    const isS3Active = leftProgress > 0 && (stage === 2 || leftFist?.comboStage === 2);
     const isS4Active = rightProgress > 0 && (stage === 3 || rightFist?.comboStage === 3);
     if (isLeft) {
       let sAngle = -Math.PI / 1.90;
@@ -167,8 +167,11 @@ export const getClampedFistPos = (
           sAngle = (-Math.PI / 1.90) * (1 - retEase) + (-Math.PI / 2.30) * retEase;
         }
       } else if (isS3Active) {
-        const sweepRatio = Math.sin(rightProgress * Math.PI * 0.5);
-        sAngle += sweepRatio * 0.35;
+        // S3 Left Arm (Striking): Translates directly along forward vector to full reach
+        const isForward = leftFist ? leftFist.isPunching : false;
+        const p = leftProgress;
+        const easedT = isForward ? (p * (2 - p)) : (p * p * (3 - 2 * p));
+        sAngle = (-Math.PI / 1.90) * (1 - easedT) + (-Math.PI / 2.15) * easedT;
       } else if (isS4Active) {
         const tuckRatio = Math.sin(rightProgress * Math.PI * 0.5);
         sAngle -= tuckRatio * 0.20;
@@ -194,21 +197,11 @@ export const getClampedFistPos = (
           sAngle = (Math.PI / 2.0) * (1 - retEase) + (Math.PI / 3.4) * retEase;
         }
       } else if (isS3Active) {
-        const isForward = rightFist ? rightFist.isPunching : false;
-        if (isForward) {
-          if (rightProgress < 0.55) {
-            const wT = rightProgress / 0.55;
-            const sweepT = Math.sin(wT * Math.PI * 0.5);
-            sAngle -= sweepT * 0.25;
-          } else {
-            const sT = (rightProgress - 0.55) / 0.45;
-            const thrustEase = 1 - Math.pow(1 - sT, 2.8);
-            sAngle = (Math.PI / 2.0 - 0.25) * (1 - thrustEase) + (Math.PI / 2.6) * thrustEase;
-          }
-        } else {
-          const retEase = rightProgress * rightProgress * (3 - 2 * rightProgress);
-          sAngle = (Math.PI / 2.0) * (1 - retEase) + (Math.PI / 2.6) * retEase;
-        }
+        // S3 Right Arm (Counter-Pull): Smooth outward recoil curve to the right flank (Zero instant jumps)
+        const isForward = leftFist ? leftFist.isPunching : false;
+        const p = leftProgress;
+        const easedT = isForward ? (p * (2 - p)) : (p * p * (3 - 2 * p));
+        sAngle = (Math.PI / 2.0) + (1 * easedT * 0.35);
       } else if (isS4Active) {
         const isForward = rightFist ? rightFist.isPunching : false;
         if (isForward) {
@@ -227,6 +220,24 @@ export const getClampedFistPos = (
         }
       }
       shoulderAngle = sAngle;
+    }
+  }
+  if (fighter.styleId === 'street_taekwondo') {
+    const isHeavy = !!(rightFist && rightFist.isHeavy);
+    const isM2 = (fighter.heavyWindup && fighter.heavyWindup > 0) || (rightProgress > 0 && isHeavy);
+    const stage = fist.comboStage !== undefined 
+      ? fist.comboStage 
+      : (fighter.comboStage === 0 ? 3 : ((fighter.comboStage || 1) - 1));
+    const isS1orS2 = stage === 0 || stage === 1;
+    if (!isLeft && (isS1orS2 || isM2) && rightProgress > 0) {
+      const p = rightProgress;
+      const sway = p * p * (3 - 2 * p);
+      shoulderAngle = (Math.PI / 2.3) + sway * 0.28;
+    } else if (isLeft && (stage === 3 || fist.comboStage === 3) && leftProgress > 0) {
+      // S4 Left Arm Sway: arm swings back smoothly along the left flank as kinetic counterbalance
+      const p = leftProgress;
+      const sway = p * p * (3 - 2 * p);
+      shoulderAngle = (-Math.PI / 2.3) - sway * 0.32;
     }
   }
   shoulderAngle = getKickShoulderAngle(fighter as CombatFighter, isLeft, shoulderAngle);
@@ -268,7 +279,7 @@ export const getClampedFistPos = (
   const dy = rawY - shoulderY;
   const D = Math.sqrt(dx * dx + dy * dy);
 
-  const clampedD = Math.min(D, totalL);
+  const clampedD = Math.min(D, totalL * 0.985);
   const clampedFistX = D > 0 ? shoulderX + (dx / D) * clampedD : shoulderX;
   const clampedFistY = D > 0 ? shoulderY + (dy / D) * clampedD : shoulderY;
 

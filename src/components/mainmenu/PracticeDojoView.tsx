@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Play, Swords, Shield, Target, Activity, Zap, RotateCcw, 
-  Sparkles, Check, ArrowLeft, X, Bot, Eye, Settings, Compass,
-  Sliders, Flame, ChevronRight, Keyboard, Monitor, Smartphone
+  Sparkles, Check, Bot, Eye, Settings, Flame, ChevronRight, ChevronLeft, 
+  LogOut, Heart, BatteryCharging, AlertTriangle
 } from 'lucide-react';
-import { PlayerStats, FightingStyle, MatchData } from '../../types';
+import { PlayerStats, MatchData } from '../../types';
 import { FIGHTING_STYLES } from '../../data/styles';
 import { soundManager } from '../SoundManager';
 import { DummyConfig } from './types';
-
-import { isPcDevice as detectIsPc, isMobileDevice } from '../../utils/deviceDetection';
+import { useResponsiveLayout } from '../../utils/useResponsiveLayout';
 
 interface PracticeDojoViewProps {
   stats: PlayerStats;
@@ -36,25 +35,11 @@ export const PracticeDojoView: React.FC<PracticeDojoViewProps> = ({
     infiniteSuper: false,
   });
 
-  const [isPcDevice, setIsPcDevice] = useState<boolean>(() => {
-    return detectIsPc() || (typeof window !== 'undefined' && window.innerWidth >= 1024);
-  });
+  // Mobile / compact slide deck pagination (01: Style, 02: Dummy, 03: Sandbox)
+  const [activeSlide, setActiveSlide] = useState<number>(0);
 
-  const [isPortrait, setIsPortrait] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerHeight > window.innerWidth && isMobileDevice();
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsPcDevice(detectIsPc() || window.innerWidth >= 1024);
-      setIsPortrait(window.innerHeight > window.innerWidth && isMobileDevice());
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const { isPortrait, isLandscape, isMobile, isCompactLandscape } = useResponsiveLayout();
+  const isPcDevice = !isMobile;
 
   const playerStyle = FIGHTING_STYLES.find(s => s.id === selectedPlayerStyleId) || FIGHTING_STYLES[0];
   const dummyStyle = FIGHTING_STYLES.find(s => s.id === dummyConfig.styleId) || FIGHTING_STYLES[0];
@@ -77,12 +62,19 @@ export const PracticeDojoView: React.FC<PracticeDojoViewProps> = ({
         heightInInches: 68,
         level: 1,
       },
+      dummyBehavior: dummyConfig.behavior,
+      dummyStyleId: dummyConfig.styleId,
+      dummyConfig: dummyConfig,
+      playerStyleId: selectedPlayerStyleId,
+      isPracticeMode: true,
+      infiniteStamina: dummyConfig.staminaRecovery,
+      godMode: dummyConfig.healthRecovery,
     } as any;
 
     onLaunchDojo(matchData);
   };
 
-  // Keyboard navigation for PC Station
+  // Keyboard navigation for quick access
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -112,641 +104,619 @@ export const PracticeDojoView: React.FC<PracticeDojoViewProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedPlayerStyleId, dummyConfig, handleLaunch, onClose]);
+  }, [selectedPlayerStyleId, dummyConfig, onClose]);
+
+  const SLIDE_TABS = [
+    { id: 0, label: '01 // COMBAT STYLES', icon: Swords },
+    { id: 1, label: '02 // DUMMY MATRIX', icon: Bot },
+    { id: 2, label: '03 // LAB SETTINGS', icon: Zap },
+  ];
 
   return (
     <div
       id="full-screen-dojo-hub"
-      className={`fixed inset-0 z-[120] bg-zinc-950 text-white flex flex-col pointer-events-auto select-none overflow-hidden transition-all duration-300 ${
-        isNavHidden ? 'pl-0' : 'pl-14 sm:pl-16'
-      }`}
+      className="fixed inset-0 z-[120] bg-zinc-950 text-white flex flex-col pointer-events-auto select-none overflow-hidden transition-all duration-300"
     >
-      {/* 1. TOP COMMAND HEADER */}
-      <div className="px-4 sm:px-6 py-3 border-b border-zinc-850 bg-gradient-to-r from-zinc-950 via-zinc-900/90 to-zinc-950 flex items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-cyan-400 shadow-md">
-            <Target className="w-5 h-5" />
+      {/* BACKGROUND COMIC WATERMARK */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden select-none z-0 opacity-5">
+        <div className="absolute -top-10 -right-10 font-display font-black italic text-9xl text-white tracking-tighter -skew-x-12 select-none">
+          OCTAGON LAB
+        </div>
+        <div className="absolute -bottom-10 -left-10 font-display font-black italic text-9xl text-red-600 tracking-tighter -skew-x-12 select-none">
+          PERFECT FORM
+        </div>
+      </div>
+
+      {/* 1. PERSONA COMIC COLLAGE HEADER */}
+      <div className="px-3 sm:px-6 py-2.5 bg-zinc-950 border-b-2 border-white/20 flex items-center justify-between gap-2 shrink-0 z-20">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* PERSONA STAMP BADGE */}
+          <div className="bg-red-600 text-black px-2.5 sm:px-3 py-1 font-display font-black italic text-xs sm:text-sm uppercase tracking-wider -skew-x-12 shadow-[3px_3px_0px_#ffffff] transform -rotate-1 flex items-center gap-1.5">
+            <Target className="w-3.5 h-3.5 text-black" />
+            <span>DOJO // 04</span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm sm:text-base font-display font-black italic uppercase tracking-wider text-white">
-                PRACTICE & TRAINING DOJO
-              </h1>
-              <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold">
-                OCTAGON LAB
-              </span>
-            </div>
-            <p className="text-[10px] sm:text-xs text-zinc-400 font-mono hidden sm:block">
-              Free sparring sandbox • Frame-data drills • Custom dummy AI simulation
-            </p>
+
+          <div className="flex flex-col">
+            <h1 className="text-sm sm:text-base md:text-lg font-display font-black italic uppercase tracking-tighter text-white -skew-x-12 leading-none">
+              OCTAGON SPAR LAB
+            </h1>
+            <span className="text-[9px] sm:text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider hidden xs:inline">
+              ✦ FRAME-DATA DRILLS & SPARRING MATRIX ✦
+            </span>
           </div>
         </div>
 
-        {/* Right Action Bar */}
+        {/* RIGHT ACTION BUTTONS: LAUNCH & EXIT */}
         <div className="flex items-center gap-2">
+          {/* PERSONA HIGH-CONTRAST LAUNCH BUTTON */}
           <button
             onClick={handleLaunch}
-            className="px-4 py-1.5 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white rounded-xl text-xs font-mono font-black uppercase tracking-wider transition cursor-pointer shadow-lg shadow-cyan-600/30 active:scale-95 flex items-center gap-1.5"
+            className="flex items-center gap-1.5 px-3 sm:px-5 py-1.5 bg-amber-400 hover:bg-white text-black font-display font-black italic uppercase text-xs sm:text-sm tracking-wider -skew-x-12 shadow-[3px_3px_0px_#ef4444] hover:shadow-[3px_3px_0px_#000000] transition cursor-pointer active:scale-95 shrink-0"
           >
-            <Play className="w-3.5 h-3.5 fill-white" />
-            <span>Launch Dojo</span>
-            <span className="hidden md:inline text-[9px] font-mono opacity-60">[T]</span>
+            <Play className="w-3.5 h-3.5 fill-black" />
+            <span>LAUNCH DOJO</span>
+            <span className="hidden md:inline text-[9px] font-mono bg-black text-amber-400 px-1 py-0.2">[T]</span>
           </button>
 
+          {/* PROMINENT PERSONA RETURN / EXIT BUTTON */}
           <button
             onClick={() => {
               soundManager.playRollTick?.();
               onClose();
             }}
-            className="p-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 transition cursor-pointer"
-            title="Exit Dojo Hub (ESC)"
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase tracking-wider text-xs sm:text-sm -skew-x-12 shadow-[3px_3px_0px_#ffffff] hover:shadow-[3px_3px_0px_#ef4444] transition-all duration-150 cursor-pointer active:scale-95 group shrink-0"
+            title="Return to Menu (ESC)"
           >
-            <X className="w-4 h-4" />
+            <LogOut className="w-3.5 h-3.5 rotate-180 text-black group-hover:scale-110" />
+            <span className="hidden sm:inline">RETURN // MENU</span>
+            <span className="sm:hidden">EXIT</span>
           </button>
         </div>
       </div>
 
-      {/* 2. MAIN WORKSPACE: PC 3-COLUMN STATION vs MOBILE DYNAMIC TABS */}
-      {isPcDevice ? (
-        /* PC MULTI-COLUMN COMMAND WORKSTATION */
-        <div className="flex-1 grid grid-cols-12 overflow-hidden min-h-0 divide-x divide-zinc-850">
-          
-          {/* COLUMN 1: FIGHTER STYLE SELECTION (4 cols) */}
-          <div className="col-span-4 h-full flex flex-col bg-zinc-950/90 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-            <div className="flex items-center justify-between border-b border-zinc-850 pb-2">
-              <span className="text-xs font-display font-black uppercase text-zinc-300 flex items-center gap-1.5">
-                <Swords className="w-4 h-4 text-cyan-400" />
-                <span>1. Your Combat Style</span>
-              </span>
-              <span className="text-[10px] font-mono text-cyan-400 font-bold uppercase">
-                {playerStyle.name}
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              {FIGHTING_STYLES.map(style => {
-                const isSelected = style.id === selectedPlayerStyleId;
-                const isUndergoingRework = style.reworkStatus === 'undergoing_rework';
-                const isUndergoingDev = style.reworkStatus === 'undergoing_development';
-                const isUnavailable = isUndergoingRework || isUndergoingDev;
-                const statusLabel = isUndergoingDev 
-                  ? 'UNDERGOING DEVELOPMENT' 
-                  : (isUndergoingRework ? 'UNDERGOING REWORK' : null);
-
-                return (
-                  <button
-                    key={style.id}
-                    disabled={isUnavailable}
-                    onClick={() => {
-                      if (isUnavailable) return;
-                      setSelectedPlayerStyleId(style.id);
-                      soundManager.playRollTick?.();
-                    }}
-                    className={`w-full p-3 rounded-xl border text-left transition flex items-center justify-between gap-3 ${
-                      isUnavailable
-                        ? 'opacity-40 cursor-not-allowed bg-zinc-950/40 border-zinc-900'
-                        : isSelected
-                          ? 'bg-cyan-950/60 border-cyan-500/70 shadow-md ring-1 ring-cyan-400/40 cursor-pointer'
-                          : 'bg-zinc-900/60 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900 cursor-pointer'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0 border border-white/20"
-                        style={{ backgroundColor: style.color || '#333' }}
-                      >
-                        {style.name.charAt(0)}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-display font-black uppercase text-white truncate flex items-center gap-1.5">
-                          <span>{style.name}</span>
-                          {statusLabel && (
-                            <span className={`text-[7.5px] font-mono uppercase font-bold px-1.5 py-0.2 rounded border ${
-                              isUndergoingDev
-                                ? 'bg-cyan-950 text-cyan-400 border-cyan-500/40'
-                                : 'bg-amber-950 text-amber-400 border-amber-500/40'
-                            }`}>
-                              {statusLabel}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] font-mono text-zinc-400 truncate">
-                          7.69% Drop • Speed: {(style.statModifiers.speed * 100).toFixed(0)}%
-                        </div>
-                      </div>
-                    </div>
-
-                    {isSelected && (
-                      <span className="w-5 h-5 rounded-full bg-cyan-500 text-black flex items-center justify-center text-[10px] font-black shrink-0">
-                        ✓
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* COLUMN 2: TRAINING DUMMY & BEHAVIOR MATRIX (4 cols) */}
-          <div className="col-span-4 h-full flex flex-col bg-zinc-950/70 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-            <div className="flex items-center justify-between border-b border-zinc-850 pb-2">
-              <span className="text-xs font-display font-black uppercase text-zinc-300 flex items-center gap-1.5">
-                <Bot className="w-4 h-4 text-amber-400" />
-                <span>2. Sparring Dummy Config</span>
-              </span>
-              <span className="text-[10px] font-mono text-amber-400 font-bold uppercase">
-                {dummyStyle.name}
-              </span>
-            </div>
-
-            {/* Dummy Style Picker Strip */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-mono text-zinc-400 uppercase font-bold">
-                Dummy Fighting Style:
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {FIGHTING_STYLES.filter(s => s.reworkStatus !== 'undergoing_rework' && s.reworkStatus !== 'undergoing_development').map(style => {
-                  const isSelected = style.id === dummyConfig.styleId;
-                  return (
-                    <button
-                      key={style.id}
-                      onClick={() => {
-                        setDummyConfig(prev => ({ ...prev, styleId: style.id }));
-                        soundManager.playRollTick?.();
-                      }}
-                      className={`p-2 rounded-xl text-left border text-[11px] font-display font-bold uppercase transition flex items-center gap-2 cursor-pointer ${
-                        isSelected
-                          ? 'bg-amber-950/60 border-amber-500 text-amber-200'
-                          : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: style.color }} />
-                      <span className="truncate">{style.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Dummy Behavior State Selector */}
-            <div className="space-y-2 pt-2 border-t border-zinc-850">
-              <label className="text-[10px] font-mono text-zinc-400 uppercase font-bold">
-                AI Behavior Routine:
-              </label>
-              <div className="space-y-1.5 font-mono text-xs">
-                {[
-                  { id: 'test_ai', label: '0. Test AI (Infinite HP)', desc: 'Dummy stays completely still with infinite HP for limitless combo testing.', key: '[0]' },
-                  { id: 'idle', label: '1. Stationary / Idle', desc: 'Dummy stands in stance without acting for raw frame string testing.', key: '[1]' },
-                  { id: 'block_only', label: '2. Permanent Guard & Parry', desc: 'Dummy permanently blocks to test guard break and chip damage.', key: '[2]' },
-                  { id: 'counter', label: '3. Counter-Striker AI', desc: 'Dummy punishes whiffs and tests reaction speeds.', key: '[3]' },
-                  { id: 'aggressive', label: '4. Full Combat AI Sparring', desc: 'Active aggressive sparring partner with full moveset.', key: '[4]' },
-                ].map(b => {
-                  const isSel = dummyConfig.behavior === b.id;
-                  return (
-                    <button
-                      key={b.id}
-                      onClick={() => {
-                        setDummyConfig(prev => ({ ...prev, behavior: b.id as any }));
-                        soundManager.playRollTick?.();
-                      }}
-                      className={`w-full p-2.5 rounded-xl border text-left transition cursor-pointer flex items-start justify-between gap-2 ${
-                        isSel
-                          ? 'bg-purple-950/60 border-purple-500/80 text-purple-200 shadow-sm'
-                          : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-                      }`}
-                    >
-                      <div>
-                        <div className="font-bold text-xs flex items-center gap-1.5">
-                          <span>{b.label}</span>
-                          <span className="text-[9px] opacity-60 text-purple-300">{b.key}</span>
-                        </div>
-                        <div className="text-[10px] text-zinc-400 font-sans mt-0.5">
-                          {b.desc}
-                        </div>
-                      </div>
-                      {isSel && <Check className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* COLUMN 3: SIMULATION RULES & QUICK LAUNCH TELEMETRY (4 cols) */}
-          <div className="col-span-4 h-full flex flex-col bg-zinc-950/90 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-            <div className="flex items-center justify-between border-b border-zinc-850 pb-2">
-              <span className="text-xs font-display font-black uppercase text-zinc-300 flex items-center gap-1.5">
-                <Sliders className="w-4 h-4 text-emerald-400" />
-                <span>3. Simulation Parameters</span>
-              </span>
-              <span className="text-[10px] font-mono text-emerald-400 font-bold">
-                ACTIVE LAB
-              </span>
-            </div>
-
-            {/* Quick Parameter Toggles */}
-            <div className="space-y-2 text-xs font-mono">
-              <label className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 cursor-pointer">
-                <span className="text-zinc-300">Instant Health Regeneration</span>
-                <input
-                  type="checkbox"
-                  checked={dummyConfig.healthRecovery}
-                  onChange={(e) => setDummyConfig(prev => ({ ...prev, healthRecovery: e.target.checked }))}
-                  className="w-4 h-4 accent-emerald-500"
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 cursor-pointer">
-                <span className="text-zinc-300">Infinite / Fast Stamina</span>
-                <input
-                  type="checkbox"
-                  checked={dummyConfig.staminaRecovery}
-                  onChange={(e) => setDummyConfig(prev => ({ ...prev, staminaRecovery: e.target.checked }))}
-                  className="w-4 h-4 accent-emerald-500"
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 cursor-pointer">
-                <span className="text-zinc-300">Instant M2 Heavy Strike Ready</span>
-                <input
-                  type="checkbox"
-                  checked={dummyConfig.infiniteSuper}
-                  onChange={(e) => setDummyConfig(prev => ({ ...prev, infiniteSuper: e.target.checked }))}
-                  className="w-4 h-4 accent-emerald-500"
-                />
-              </label>
-            </div>
-
-            {/* Launch Hero Card */}
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-cyan-950/70 via-zinc-900 to-zinc-950 border border-cyan-500/50 space-y-3 mt-4 shadow-xl">
-              <div className="flex items-center gap-2 text-xs font-display font-black uppercase text-cyan-300">
-                <Target className="w-4 h-4 text-cyan-400" />
-                <span>Ready to Spar</span>
-              </div>
-              <p className="text-xs text-zinc-300 leading-relaxed font-sans">
-                Jump into the Octagon with <strong className="text-white">{playerStyle.name}</strong> against <strong className="text-white">{dummyStyle.name}</strong> to master dodge cancels and frame traps.
-              </p>
-
-              <button
-                onClick={handleLaunch}
-                className="w-full py-3 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white rounded-xl text-xs font-mono font-black uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/30 active:scale-95 cursor-pointer"
-              >
-                <Play className="w-4 h-4 fill-white" />
-                <span>Enter Practice Dojo [Space]</span>
-              </button>
-            </div>
-
-            {/* Keyboard Shortcuts Guide */}
-            <div className="p-3 bg-zinc-900/50 rounded-xl border border-zinc-850 space-y-1.5 text-[10px] font-mono text-zinc-400">
-              <div className="flex items-center gap-1 font-bold uppercase text-zinc-300">
-                <Keyboard className="w-3.5 h-3.5 text-purple-400" />
-                <span>Quick Hotkeys</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Launch Match:</span>
-                <span className="text-cyan-300 font-bold">[T] or [Space]</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Set Dummy Behavior:</span>
-                <span className="text-zinc-200 font-bold">[1] [2] [3] [4]</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Close Hub:</span>
-                <span className="text-red-300 font-bold">[ESC]</span>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-      ) : !isPortrait ? (
-        /* MOBILE DYNAMIC LANDSCAPE WORKSPACE (ELIMINATES VERTICAL SCROLLING) */
-        <div className="flex-1 grid grid-cols-12 gap-2.5 p-2.5 min-h-0 overflow-hidden">
-          {/* Column 1: Styles (4 cols) */}
-          <div className="col-span-4 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-2.5 flex flex-col justify-between overflow-y-auto custom-scrollbar">
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-mono font-bold uppercase text-zinc-400 flex items-center justify-between">
-                <span>1. Your Style</span>
-                <span className="text-cyan-400 truncate max-w-[90px]">{playerStyle.name}</span>
-              </span>
-              <div className="flex flex-wrap gap-1">
-                {FIGHTING_STYLES.map(s => {
-                  const isSel = s.id === selectedPlayerStyleId;
-                  const isUndergoingRework = s.reworkStatus === 'undergoing_rework';
-                  const isUndergoingDev = s.reworkStatus === 'undergoing_development';
-                  const isUnavailable = isUndergoingRework || isUndergoingDev;
-
-                  return (
-                    <button
-                      key={s.id}
-                      disabled={isUnavailable}
-                      onClick={() => {
-                        if (isUnavailable) return;
-                        setSelectedPlayerStyleId(s.id);
-                        soundManager.playRollTick?.();
-                      }}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-display font-black uppercase transition flex items-center gap-1 border ${
-                        isUnavailable
-                          ? 'opacity-40 cursor-not-allowed bg-zinc-950 text-zinc-500 border-zinc-900'
-                          : isSel
-                            ? 'bg-cyan-500 text-black border-cyan-400 font-black shadow-sm cursor-pointer'
-                            : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200 cursor-pointer'
-                      }`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
-                      <span className="truncate max-w-[65px]">{s.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-1.5 pt-2 border-t border-zinc-800/80">
-              <span className="text-[10px] font-mono font-bold uppercase text-zinc-400 flex items-center justify-between">
-                <span>2. Dummy Style</span>
-                <span className="text-amber-400 truncate max-w-[90px]">{dummyStyle.name}</span>
-              </span>
-              <div className="flex flex-wrap gap-1">
-                {FIGHTING_STYLES.filter(s => s.reworkStatus !== 'undergoing_rework' && s.reworkStatus !== 'undergoing_development').map(s => {
-                  const isSel = s.id === dummyConfig.styleId;
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => {
-                        setDummyConfig(prev => ({ ...prev, styleId: s.id }));
-                        soundManager.playRollTick?.();
-                      }}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-display font-black uppercase transition flex items-center gap-1 border cursor-pointer ${
-                        isSel
-                          ? 'bg-amber-500 text-black border-amber-400 font-black shadow-sm'
-                          : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
-                      }`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
-                      <span className="truncate max-w-[65px]">{s.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Column 2: Behavior & Regens (5 cols) */}
-          <div className="col-span-5 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-2.5 flex flex-col justify-between overflow-y-auto custom-scrollbar">
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-mono font-bold uppercase text-zinc-400 block">
-                3. Dummy Routine:
-              </span>
-              <div className="grid grid-cols-2 gap-1.5 text-[10px] font-mono">
-                {[
-                  { id: 'idle', label: '1. Idle Stance' },
-                  { id: 'block_only', label: '2. Permanent Guard' },
-                  { id: 'counter', label: '3. Counter-Strike' },
-                  { id: 'aggressive', label: '4. Sparring AI' },
-                ].map(b => (
-                  <button
-                    key={b.id}
-                    onClick={() => {
-                      setDummyConfig(prev => ({ ...prev, behavior: b.id as any }));
-                      soundManager.playRollTick?.();
-                    }}
-                    className={`py-1.5 px-2 rounded-xl border text-left font-bold uppercase transition flex items-center justify-between cursor-pointer ${
-                      dummyConfig.behavior === b.id
-                        ? 'bg-purple-950 border-purple-500 text-purple-200 shadow-sm'
-                        : 'bg-zinc-900/90 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    <span className="truncate">{b.label}</span>
-                    {dummyConfig.behavior === b.id && <Check className="w-3 h-3 text-purple-400 shrink-0" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-1.5 pt-2 border-t border-zinc-800/80">
-              <span className="text-[10px] font-mono font-bold uppercase text-zinc-400 block">
-                4. Simulation Sandbox:
-              </span>
-              <div className="grid grid-cols-2 gap-1.5 text-[10px] font-mono">
+      {/* MOBILE / COMPACT SCREEN SLIDE DECK TABS (ELIMINATES SCROLLING) */}
+      {!isPcDevice && (
+        <div className="px-3 py-1.5 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between gap-1.5 shrink-0 z-20">
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+            {SLIDE_TABS.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeSlide === tab.id;
+              return (
                 <button
-                  onClick={() => setDummyConfig(p => ({ ...p, healthRecovery: !p.healthRecovery }))}
-                  className={`py-1.5 px-2 rounded-xl border text-center font-bold uppercase transition cursor-pointer ${
-                    dummyConfig.healthRecovery
-                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+                  key={tab.id}
+                  onClick={() => {
+                    soundManager.playRollTick?.();
+                    setActiveSlide(tab.id);
+                  }}
+                  className={`px-2.5 py-1 text-[11px] font-display font-black italic uppercase tracking-wider -skew-x-12 transition flex items-center gap-1 shrink-0 cursor-pointer ${
+                    isActive
+                      ? 'bg-red-600 text-black shadow-[2px_2px_0px_#ffffff]'
+                      : 'bg-zinc-800 text-zinc-400 hover:text-white'
                   }`}
                 >
-                  HP Regen: {dummyConfig.healthRecovery ? 'ON' : 'OFF'}
+                  <Icon className="w-3 h-3" />
+                  <span>{tab.label}</span>
                 </button>
-                <button
-                  onClick={() => setDummyConfig(p => ({ ...p, staminaRecovery: !p.staminaRecovery }))}
-                  className={`py-1.5 px-2 rounded-xl border text-center font-bold uppercase transition cursor-pointer ${
-                    dummyConfig.staminaRecovery
-                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-500'
-                  }`}
-                >
-                  Stamina: {dummyConfig.staminaRecovery ? 'MAX' : 'NORMAL'}
-                </button>
-              </div>
-            </div>
+              );
+            })}
           </div>
 
-          {/* Column 3: Launch Hero (3 cols) */}
-          <div className="col-span-3 bg-gradient-to-br from-cyan-950/70 via-zinc-900 to-zinc-950 border border-cyan-500/50 rounded-2xl p-2.5 flex flex-col justify-between shadow-xl">
-            <div className="space-y-1">
-              <div className="flex items-center gap-1 text-[11px] font-display font-black uppercase text-cyan-300">
-                <Target className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Octagon Spar</span>
-              </div>
-              <p className="text-[9.5px] text-zinc-300 leading-tight font-sans line-clamp-3">
-                Master strike spacing with <strong className="text-white">{playerStyle.name}</strong> vs <strong className="text-white">{dummyStyle.name}</strong>.
-              </p>
-            </div>
-
+          {/* SLIDE PAGER BUTTONS */}
+          <div className="flex items-center gap-1 shrink-0">
             <button
-              onClick={handleLaunch}
-              className="w-full py-2.5 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 text-white rounded-xl text-xs font-mono font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-600/30 active:scale-95 cursor-pointer"
+              onClick={() => {
+                soundManager.playRollTick?.();
+                setActiveSlide((prev) => (prev > 0 ? prev - 1 : SLIDE_TABS.length - 1));
+              }}
+              className="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 -skew-x-12 cursor-pointer"
+              title="Previous Slide"
             >
-              <Play className="w-3.5 h-3.5 fill-white" />
-              <span>Enter Dojo</span>
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => {
+                soundManager.playRollTick?.();
+                setActiveSlide((prev) => (prev < SLIDE_TABS.length - 1 ? prev + 1 : 0));
+              }}
+              className="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 -skew-x-12 cursor-pointer"
+              title="Next Slide"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
-      ) : (
-        /* MOBILE TOUCH-FRIENDLY PORTRAIT DYNAMIC VIEW */
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-          
-          {/* Scrollable Content Body */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 custom-scrollbar">
-            
-            {/* Player Style Selector Carousel */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-mono text-zinc-400 uppercase font-bold flex items-center justify-between">
-                <span>Your Style:</span>
-                <span className="text-cyan-400">{playerStyle.name}</span>
-              </label>
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
-                {FIGHTING_STYLES.map(s => {
-                  const isSel = s.id === selectedPlayerStyleId;
-                  const isUndergoingRework = s.reworkStatus === 'undergoing_rework';
-                  const isUndergoingDev = s.reworkStatus === 'undergoing_development';
+      )}
+
+      {/* 2. MAIN WORKSPACE */}
+      <div className="flex-1 p-3 sm:p-4 min-h-0 overflow-hidden relative z-10">
+        {isPcDevice ? (
+          /* ============================================================== */
+          /* DESKTOP 3-COLUMN COMIC COLLAGE STATION (NO SCROLLING)          */
+          /* ============================================================== */
+          <div className="h-full grid grid-cols-12 gap-3.5 overflow-hidden">
+            {/* COLUMN 1: FIGHTER COMBAT STYLES (4 cols) */}
+            <div className="col-span-4 h-full bg-zinc-950/80 border-2 border-zinc-800 p-3.5 flex flex-col justify-between overflow-hidden shadow-[4px_4px_0px_#000000]">
+              {/* Paper Tape Header */}
+              <div className="flex items-center justify-between border-b-2 border-red-600/60 pb-2 mb-2 shrink-0">
+                <div className="bg-black text-red-500 border border-red-500 px-2 py-0.5 text-xs font-mono font-black italic -skew-x-12 shadow-[2px_2px_0px_#ef4444]">
+                  // 01 YOUR FIGHTER STANCE
+                </div>
+                <span className="text-xs font-display font-black italic uppercase text-amber-400 -skew-x-12">
+                  {playerStyle.name}
+                </span>
+              </div>
+
+              {/* Style List Cards */}
+              <div className="flex-1 space-y-1.5 overflow-y-auto pr-1 custom-scrollbar min-h-0">
+                {FIGHTING_STYLES.map((style) => {
+                  const isSelected = style.id === selectedPlayerStyleId;
+                  const isUndergoingRework = style.reworkStatus === 'undergoing_rework';
+                  const isUndergoingDev = style.reworkStatus === 'undergoing_development';
                   const isUnavailable = isUndergoingRework || isUndergoingDev;
-                  const chipLabel = isUndergoingDev 
-                    ? 'DEV' 
-                    : (isUndergoingRework ? 'REWORK' : null);
 
                   return (
                     <button
-                      key={s.id}
+                      key={style.id}
                       disabled={isUnavailable}
                       onClick={() => {
                         if (isUnavailable) return;
-                        setSelectedPlayerStyleId(s.id);
+                        setSelectedPlayerStyleId(style.id);
                         soundManager.playRollTick?.();
                       }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-display font-black uppercase shrink-0 transition flex items-center gap-1.5 border ${
+                      className={`w-full p-2.5 text-left transition -skew-x-12 flex items-center justify-between gap-2 border cursor-pointer ${
                         isUnavailable
-                          ? 'opacity-40 cursor-not-allowed bg-zinc-950 text-zinc-500 border-zinc-900'
-                          : isSel
-                            ? 'bg-cyan-500 text-black shadow-md border-cyan-400 font-black cursor-pointer'
-                            : 'bg-zinc-900/90 text-zinc-400 border-zinc-800 cursor-pointer'
+                          ? 'opacity-35 cursor-not-allowed bg-zinc-900/50 border-zinc-850'
+                          : isSelected
+                            ? 'bg-red-600 text-black border-white shadow-[3px_3px_0px_#ffffff]'
+                            : 'bg-zinc-900/80 border-zinc-800 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-850'
                       }`}
                     >
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                      <span>{s.name}</span>
-                      {chipLabel && (
-                        <span className={`text-[7px] font-mono px-1 py-0.2 rounded border ${
-                          isUndergoingDev
-                            ? 'text-cyan-400 border-cyan-500/40 bg-cyan-950/40'
-                            : 'text-amber-400 border-amber-500/40 bg-amber-950/40'
-                        }`}>
-                          {chipLabel}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div
+                          className={`w-7 h-7 flex items-center justify-center font-display font-black text-xs shrink-0 border ${
+                            isSelected ? 'bg-black text-white border-white' : 'border-white/20'
+                          }`}
+                          style={{ backgroundColor: !isSelected ? style.color : undefined }}
+                        >
+                          {style.name.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className={`text-xs font-display font-black uppercase truncate ${isSelected ? 'text-black' : 'text-white'}`}>
+                            {style.name}
+                          </div>
+                          <div className={`text-[9.5px] font-mono truncate ${isSelected ? 'text-zinc-900 font-bold' : 'text-zinc-400'}`}>
+                            Speed: {(style.statModifiers.speed * 100).toFixed(0)}% • Reach: {(style.statModifiers.reach * 100).toFixed(0)}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {isSelected && (
+                        <span className="font-mono font-black text-black text-xs shrink-0">
+                          ▶ ACTIVE
                         </span>
                       )}
                     </button>
                   );
                 })}
               </div>
+
+              {/* Style Telemetry Note */}
+              <div className="mt-2 pt-2 border-t border-zinc-850 text-[10px] font-mono text-zinc-400 flex items-center justify-between shrink-0">
+                <span>Torque Mechanics: Active</span>
+                <span className="text-amber-400 font-bold">100% Kinetic Sync</span>
+              </div>
             </div>
 
-            {/* Dummy Style Selector Carousel */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-mono text-zinc-400 uppercase font-bold flex items-center justify-between">
-                <span>Dummy Style:</span>
-                <span className="text-amber-400">{dummyStyle.name}</span>
-              </label>
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
-                {FIGHTING_STYLES.filter(s => s.reworkStatus !== 'undergoing_rework' && s.reworkStatus !== 'undergoing_development').map(s => {
-                  const isSel = s.id === dummyConfig.styleId;
-                  return (
+            {/* COLUMN 2: SPARRING DUMMY CONFIG & AI MATRIX (4 cols) */}
+            <div className="col-span-4 h-full bg-zinc-950/80 border-2 border-zinc-800 p-3.5 flex flex-col justify-between overflow-hidden shadow-[4px_4px_0px_#000000]">
+              {/* Paper Tape Header */}
+              <div className="flex items-center justify-between border-b-2 border-amber-500/60 pb-2 mb-2 shrink-0">
+                <div className="bg-black text-amber-400 border border-amber-400 px-2 py-0.5 text-xs font-mono font-black italic -skew-x-12 shadow-[2px_2px_0px_#fbbf24]">
+                  // 02 DUMMY STANCE & AI ROUTINE
+                </div>
+                <span className="text-xs font-display font-black italic uppercase text-red-500 -skew-x-12">
+                  {dummyStyle.name}
+                </span>
+              </div>
+
+              <div className="flex-1 space-y-3 overflow-y-auto pr-1 custom-scrollbar min-h-0">
+                {/* Dummy Stance Selector */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-mono font-bold uppercase text-zinc-400 block">
+                    Dummy Stance:
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {FIGHTING_STYLES.filter(s => s.reworkStatus !== 'undergoing_rework' && s.reworkStatus !== 'undergoing_development').map((s) => {
+                      const isSel = s.id === dummyConfig.styleId;
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => {
+                            setDummyConfig(prev => ({ ...prev, styleId: s.id }));
+                            soundManager.playRollTick?.();
+                          }}
+                          className={`p-2 text-left font-display font-black text-xs uppercase -skew-x-12 border transition cursor-pointer flex items-center gap-1.5 ${
+                            isSel
+                              ? 'bg-amber-400 text-black border-white shadow-[2px_2px_0px_#000000]'
+                              : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          <span className="w-2 h-2 shrink-0" style={{ backgroundColor: s.color }} />
+                          <span className="truncate">{s.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Dummy Routine Modes */}
+                <div className="space-y-1.5 pt-1 border-t border-zinc-850">
+                  <span className="text-[10px] font-mono font-bold uppercase text-zinc-400 block">
+                    AI Behavior Pattern:
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'idle', label: '1. Idle Poke Stance', desc: 'Resting Stance Test' },
+                      { id: 'block_only', label: '2. Pocket Shell', desc: 'Clamped Guard Only' },
+                      { id: 'counter', label: '3. Slip Counter', desc: 'Parry & Retaliate' },
+                      { id: 'aggressive', label: '4. Inside Brawler', desc: 'Predatory Shuffles' },
+                    ].map((b) => {
+                      const isSel = dummyConfig.behavior === b.id;
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={() => {
+                            setDummyConfig(prev => ({ ...prev, behavior: b.id as any }));
+                            soundManager.playRollTick?.();
+                          }}
+                          className={`p-2 text-left -skew-x-12 border transition cursor-pointer flex flex-col justify-between ${
+                            isSel
+                              ? 'bg-white text-black border-red-600 shadow-[3px_3px_0px_#ef4444]'
+                              : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          <span className="font-display font-black text-xs uppercase leading-tight">
+                            {b.label}
+                          </span>
+                          <span className={`text-[9px] font-mono ${isSel ? 'text-zinc-800 font-bold' : 'text-zinc-500'}`}>
+                            {b.desc}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Banner */}
+              <div className="mt-2 pt-2 border-t border-zinc-850 text-[10px] font-mono text-zinc-400 flex items-center justify-between shrink-0">
+                <span>Guard Absorption: Clamped</span>
+                <span className="text-red-500 font-bold">Pocket Shell Active</span>
+              </div>
+            </div>
+
+            {/* COLUMN 3: LAB SIMULATION HUD & LAUNCH POSTER (4 cols) */}
+            <div className="col-span-4 h-full bg-zinc-950/80 border-2 border-zinc-800 p-3.5 flex flex-col justify-between overflow-hidden shadow-[4px_4px_0px_#000000]">
+              {/* Paper Tape Header */}
+              <div className="flex items-center justify-between border-b-2 border-white/40 pb-2 mb-2 shrink-0">
+                <div className="bg-white text-black border border-white px-2 py-0.5 text-xs font-mono font-black italic -skew-x-12 shadow-[2px_2px_0px_#000000]">
+                  // 03 LAB PHYSICS & DRILL HUD
+                </div>
+                <span className="text-xs font-display font-black italic uppercase text-emerald-400 -skew-x-12">
+                  READY
+                </span>
+              </div>
+
+              <div className="flex-1 space-y-3 overflow-y-auto pr-1 custom-scrollbar min-h-0">
+                {/* Simulation Toggles */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-mono font-bold uppercase text-zinc-400 block">
+                    Regeneration & Hitboxes:
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
                     <button
-                      key={s.id}
-                      onClick={() => {
-                        setDummyConfig(prev => ({ ...prev, styleId: s.id }));
-                        soundManager.playRollTick?.();
-                      }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-display font-black uppercase shrink-0 transition flex items-center gap-1.5 border cursor-pointer ${
-                        isSel
-                          ? 'bg-amber-500 text-black shadow-md border-amber-400 font-black'
-                          : 'bg-zinc-900/90 text-zinc-400 border-zinc-800'
+                      onClick={() => setDummyConfig(p => ({ ...p, healthRecovery: !p.healthRecovery }))}
+                      className={`p-2.5 -skew-x-12 border text-center font-display font-black uppercase text-xs transition cursor-pointer flex flex-col items-center gap-1 ${
+                        dummyConfig.healthRecovery
+                          ? 'bg-emerald-500 text-black border-white shadow-[2px_2px_0px_#000000]'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-500'
                       }`}
                     >
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                      <span>{s.name}</span>
+                      <Heart className="w-4 h-4" />
+                      <span>HP REGEN: {dummyConfig.healthRecovery ? 'ON' : 'OFF'}</span>
                     </button>
-                  );
-                })}
+
+                    <button
+                      onClick={() => setDummyConfig(p => ({ ...p, staminaRecovery: !p.staminaRecovery }))}
+                      className={`p-2.5 -skew-x-12 border text-center font-display font-black uppercase text-xs transition cursor-pointer flex flex-col items-center gap-1 ${
+                        dummyConfig.staminaRecovery
+                          ? 'bg-amber-400 text-black border-white shadow-[2px_2px_0px_#000000]'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+                      }`}
+                    >
+                      <BatteryCharging className="w-4 h-4" />
+                      <span>STAMINA: {dummyConfig.staminaRecovery ? 'MAX' : 'NORMAL'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Matchup Telemetry Poster */}
+                <div className="bg-zinc-900 border-2 border-red-600/70 p-3 -skew-x-12 space-y-2 shadow-[3px_3px_0px_#000000]">
+                  <div className="text-xs font-display font-black italic uppercase text-red-500 flex items-center justify-between">
+                    <span>MATCHUP DRILL</span>
+                    <span className="text-white">SECTION 1.25</span>
+                  </div>
+                  <div className="text-xs font-mono text-zinc-300">
+                    <div className="flex justify-between py-0.5 border-b border-zinc-800">
+                      <span className="text-zinc-500">Player:</span>
+                      <span className="text-white font-bold">{playerStyle.name}</span>
+                    </div>
+                    <div className="flex justify-between py-0.5 border-b border-zinc-800">
+                      <span className="text-zinc-500">Opponent:</span>
+                      <span className="text-amber-400 font-bold">{dummyStyle.name}</span>
+                    </div>
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-zinc-500">Routine:</span>
+                      <span className="text-emerald-400 font-bold">{dummyConfig.behavior.toUpperCase()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Big Launch Button in Column 3 */}
+              <div className="pt-2 border-t border-zinc-850 shrink-0">
+                <button
+                  onClick={handleLaunch}
+                  className="w-full py-3 bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-black font-display font-black italic text-base uppercase tracking-wider -skew-x-12 shadow-[4px_4px_0px_#ffffff] transition cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Play className="w-5 h-5 fill-black" />
+                  <span>ENTER PRACTICE DOJO</span>
+                </button>
               </div>
             </div>
+          </div>
+        ) : (
+          /* ============================================================== */
+          /* MOBILE / COMPACT SLIDE DECK (ELIMINATES SCROLLING)             */
+          /* ============================================================== */
+          <div className="h-full flex flex-col justify-between overflow-hidden">
+            {/* SLIDE 0: PLAYER COMBAT STYLES */}
+            {activeSlide === 0 && (
+              <div className="flex-1 bg-zinc-950/90 border-2 border-zinc-800 p-3 flex flex-col justify-between overflow-hidden shadow-[3px_3px_0px_#000000]">
+                <div className="flex items-center justify-between border-b-2 border-red-600 pb-1.5 mb-2 shrink-0">
+                  <span className="bg-black text-red-500 border border-red-500 px-2 py-0.5 text-xs font-mono font-black italic -skew-x-12">
+                    01 // SELECT YOUR STANCE
+                  </span>
+                  <span className="text-xs font-display font-black text-amber-400 -skew-x-12">
+                    {playerStyle.name}
+                  </span>
+                </div>
 
-            {/* Dummy Behavior Chips */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-mono text-zinc-400 uppercase font-bold">
-                Dummy Routine:
-              </label>
-              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                {[
-                  { id: 'test_ai', label: '0. Test AI' },
-                  { id: 'idle', label: '1. Idle' },
-                  { id: 'block_only', label: '2. Guard' },
-                  { id: 'counter', label: '3. Counter' },
-                  { id: 'aggressive', label: '4. Sparring AI' },
-                ].map(b => (
+                <div className="flex-1 grid grid-cols-2 gap-1.5 overflow-y-auto pr-1 custom-scrollbar min-h-0">
+                  {FIGHTING_STYLES.map((style) => {
+                    const isSelected = style.id === selectedPlayerStyleId;
+                    const isUndergoingRework = style.reworkStatus === 'undergoing_rework';
+                    const isUndergoingDev = style.reworkStatus === 'undergoing_development';
+                    const isUnavailable = isUndergoingRework || isUndergoingDev;
+
+                    return (
+                      <button
+                        key={style.id}
+                        disabled={isUnavailable}
+                        onClick={() => {
+                          if (isUnavailable) return;
+                          setSelectedPlayerStyleId(style.id);
+                          soundManager.playRollTick?.();
+                        }}
+                        className={`p-2 text-left transition -skew-x-12 border flex items-center justify-between gap-1.5 cursor-pointer ${
+                          isUnavailable
+                            ? 'opacity-30 cursor-not-allowed bg-zinc-900 border-zinc-850'
+                            : isSelected
+                              ? 'bg-red-600 text-black border-white shadow-[2px_2px_0px_#ffffff]'
+                              : 'bg-zinc-900 border-zinc-800 text-zinc-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-2.5 h-2.5 shrink-0" style={{ backgroundColor: style.color }} />
+                          <span className="text-xs font-display font-black uppercase truncate">{style.name}</span>
+                        </div>
+                        {isSelected && <span className="font-mono text-[10px] font-black">✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-2 pt-2 border-t border-zinc-850 flex items-center justify-between shrink-0">
+                  <span className="text-[10px] font-mono text-zinc-400">Torque: Section 1.25 Active</span>
                   <button
-                    key={b.id}
                     onClick={() => {
-                      setDummyConfig(prev => ({ ...prev, behavior: b.id as any }));
                       soundManager.playRollTick?.();
+                      setActiveSlide(1);
                     }}
-                    className={`py-2 px-3 rounded-xl border text-left font-bold uppercase transition flex items-center justify-between ${
-                      dummyConfig.behavior === b.id
-                        ? 'bg-purple-950 border-purple-500 text-purple-200'
-                        : 'bg-zinc-900 border-zinc-800 text-zinc-400'
-                    }`}
+                    className="px-3 py-1 bg-white text-black font-display font-black italic text-xs uppercase -skew-x-12 flex items-center gap-1 cursor-pointer"
                   >
-                    <span>{b.label}</span>
-                    {dummyConfig.behavior === b.id && <Check className="w-3.5 h-3.5 text-purple-400" />}
+                    <span>NEXT: DUMMY</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
                   </button>
-                ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Simulation Parameter Toggles */}
-            <div className="space-y-1.5 pt-2">
-              <label className="text-[10px] font-mono text-zinc-400 uppercase font-bold">
-                Regeneration:
-              </label>
-              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                <button
-                  onClick={() => setDummyConfig(p => ({ ...p, healthRecovery: !p.healthRecovery }))}
-                  className={`p-2.5 rounded-xl border text-center font-bold uppercase transition ${
-                    dummyConfig.healthRecovery
-                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-500'
-                  }`}
-                >
-                  HP Regen: {dummyConfig.healthRecovery ? 'ON' : 'OFF'}
-                </button>
-                <button
-                  onClick={() => setDummyConfig(p => ({ ...p, staminaRecovery: !p.staminaRecovery }))}
-                  className={`p-2.5 rounded-xl border text-center font-bold uppercase transition ${
-                    dummyConfig.staminaRecovery
-                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-500'
-                  }`}
-                >
-                  Stamina: {dummyConfig.staminaRecovery ? 'MAX' : 'NORMAL'}
-                </button>
+            {/* SLIDE 1: DUMMY STANCE & AI MATRIX */}
+            {activeSlide === 1 && (
+              <div className="flex-1 bg-zinc-950/90 border-2 border-zinc-800 p-3 flex flex-col justify-between overflow-hidden shadow-[3px_3px_0px_#000000]">
+                <div className="flex items-center justify-between border-b-2 border-amber-500 pb-1.5 mb-2 shrink-0">
+                  <span className="bg-black text-amber-400 border border-amber-400 px-2 py-0.5 text-xs font-mono font-black italic -skew-x-12">
+                    02 // DUMMY STANCE & BEHAVIOR
+                  </span>
+                  <span className="text-xs font-display font-black text-red-500 -skew-x-12">
+                    {dummyStyle.name}
+                  </span>
+                </div>
+
+                <div className="flex-1 space-y-2.5 overflow-y-auto pr-1 custom-scrollbar min-h-0">
+                  {/* Dummy Style Picker Strip */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-mono uppercase text-zinc-400 font-bold">Dummy Stance:</span>
+                    <div className="grid grid-cols-2 gap-1">
+                      {FIGHTING_STYLES.filter(s => s.reworkStatus !== 'undergoing_rework' && s.reworkStatus !== 'undergoing_development').map((s) => {
+                        const isSel = s.id === dummyConfig.styleId;
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => {
+                              setDummyConfig(prev => ({ ...prev, styleId: s.id }));
+                              soundManager.playRollTick?.();
+                            }}
+                            className={`p-1.5 text-left font-display font-black text-xs uppercase -skew-x-12 border cursor-pointer flex items-center gap-1 ${
+                              isSel ? 'bg-amber-400 text-black border-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                            }`}
+                          >
+                            <span className="w-2 h-2 shrink-0" style={{ backgroundColor: s.color }} />
+                            <span className="truncate">{s.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Dummy Behavior */}
+                  <div className="space-y-1 pt-1.5 border-t border-zinc-850">
+                    <span className="text-[10px] font-mono uppercase text-zinc-400 font-bold">Sparring Routine:</span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        { id: 'idle', label: '1. Idle Poke Stance' },
+                        { id: 'block_only', label: '2. Clamped Guard' },
+                        { id: 'counter', label: '3. Slip Counter' },
+                        { id: 'aggressive', label: '4. Inside Brawler' },
+                      ].map((b) => {
+                        const isSel = dummyConfig.behavior === b.id;
+                        return (
+                          <button
+                            key={b.id}
+                            onClick={() => {
+                              setDummyConfig(prev => ({ ...prev, behavior: b.id as any }));
+                              soundManager.playRollTick?.();
+                            }}
+                            className={`p-2 text-left font-display font-black text-xs uppercase -skew-x-12 border cursor-pointer ${
+                              isSel ? 'bg-white text-black border-red-600 shadow-[2px_2px_0px_#ef4444]' : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                            }`}
+                          >
+                            {b.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-2 pt-2 border-t border-zinc-850 flex items-center justify-between shrink-0">
+                  <button
+                    onClick={() => {
+                      soundManager.playRollTick?.();
+                      setActiveSlide(0);
+                    }}
+                    className="px-2.5 py-1 bg-zinc-800 text-zinc-300 font-display font-black italic text-xs uppercase -skew-x-12 flex items-center gap-1 cursor-pointer"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>BACK</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      soundManager.playRollTick?.();
+                      setActiveSlide(2);
+                    }}
+                    className="px-3 py-1 bg-white text-black font-display font-black italic text-xs uppercase -skew-x-12 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>NEXT: SETTINGS</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
+            {/* SLIDE 2: LAB SETTINGS & LAUNCH DOCK */}
+            {activeSlide === 2 && (
+              <div className="flex-1 bg-zinc-950/90 border-2 border-zinc-800 p-3 flex flex-col justify-between overflow-hidden shadow-[3px_3px_0px_#000000]">
+                <div className="flex items-center justify-between border-b-2 border-white pb-1.5 mb-2 shrink-0">
+                  <span className="bg-white text-black px-2 py-0.5 text-xs font-mono font-black italic -skew-x-12">
+                    03 // LAB SETTINGS
+                  </span>
+                  <span className="text-xs font-display font-black text-emerald-400 -skew-x-12">
+                    OCTAGON SPAR
+                  </span>
+                </div>
+
+                <div className="flex-1 space-y-2.5 overflow-y-auto pr-1 custom-scrollbar min-h-0">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setDummyConfig(p => ({ ...p, healthRecovery: !p.healthRecovery }))}
+                      className={`p-2.5 -skew-x-12 border text-center font-display font-black uppercase text-xs transition cursor-pointer flex flex-col items-center gap-1 ${
+                        dummyConfig.healthRecovery
+                          ? 'bg-emerald-500 text-black border-white shadow-[2px_2px_0px_#000000]'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+                      }`}
+                    >
+                      <Heart className="w-4 h-4" />
+                      <span>HP REGEN: {dummyConfig.healthRecovery ? 'ON' : 'OFF'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setDummyConfig(p => ({ ...p, staminaRecovery: !p.staminaRecovery }))}
+                      className={`p-2.5 -skew-x-12 border text-center font-display font-black uppercase text-xs transition cursor-pointer flex flex-col items-center gap-1 ${
+                        dummyConfig.staminaRecovery
+                          ? 'bg-amber-400 text-black border-white shadow-[2px_2px_0px_#000000]'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+                      }`}
+                    >
+                      <BatteryCharging className="w-4 h-4" />
+                      <span>STAMINA: {dummyConfig.staminaRecovery ? 'MAX' : 'NORMAL'}</span>
+                    </button>
+                  </div>
+
+                  {/* Summary Poster */}
+                  <div className="bg-zinc-900 border border-zinc-700 p-2.5 -skew-x-12 text-xs font-mono space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Your Fighter:</span>
+                      <span className="text-white font-bold">{playerStyle.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Opponent:</span>
+                      <span className="text-amber-400 font-bold">{dummyStyle.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Routine:</span>
+                      <span className="text-emerald-400 font-bold">{dummyConfig.behavior.toUpperCase()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mobile Launch Button */}
+                <div className="pt-2 border-t border-zinc-850 shrink-0">
+                  <button
+                    onClick={handleLaunch}
+                    className="w-full py-2.5 bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 text-black font-display font-black italic text-sm uppercase tracking-wider -skew-x-12 shadow-[3px_3px_0px_#ffffff] transition cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-4 h-4 fill-black" />
+                    <span>LAUNCH DOJO NOW</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
+        )}
+      </div>
 
-          {/* Bottom Launch Button Dock */}
-          <div className="p-3 bg-zinc-950/95 border-t border-zinc-850 shrink-0">
-            <button
-              onClick={handleLaunch}
-              className="w-full py-3 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 text-white rounded-xl text-xs font-mono font-black uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/30 active:scale-95"
-            >
-              <Play className="w-4 h-4 fill-white" />
-              <span>Launch Practice Dojo</span>
-            </button>
-          </div>
-
-        </div>
-      )}
-
-      {/* 3. FOOTER STATUS BAR */}
-      <div className="px-4 py-1.5 border-t border-zinc-850 bg-zinc-950 text-[9px] font-mono text-zinc-400 flex items-center justify-between shrink-0 select-none">
+      {/* 3. COMIC COLLAGE FOOTER TELEMETRY */}
+      <div className="px-3 sm:px-6 py-1.5 bg-black border-t border-zinc-800 text-[10px] font-mono text-zinc-400 flex items-center justify-between shrink-0 select-none z-20">
         <div className="flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-          <span className="text-zinc-300 font-bold uppercase">OCTAGON SPAR LAB</span>
+          <span className="w-2 h-2 bg-red-600 transform rotate-45 animate-pulse" />
+          <span className="text-white font-bold uppercase">OCTAGON SPAR LAB // SECTION 1.25</span>
           <span className="text-zinc-600 hidden sm:inline">•</span>
-          <span className="text-zinc-400 hidden sm:inline">Dummy Routine: {dummyConfig.behavior.toUpperCase()}</span>
+          <span className="text-amber-400 font-bold hidden sm:inline">{dummyConfig.behavior.toUpperCase()} ROUTINE</span>
         </div>
-        <div className="flex items-center gap-2 text-zinc-500">
-          <span>Press ESC or Tap ✕ to Exit</span>
+        <div className="flex items-center gap-2 text-zinc-400">
+          <span className="hidden sm:inline">ESC / TAP ✕ TO RETURN</span>
         </div>
       </div>
     </div>

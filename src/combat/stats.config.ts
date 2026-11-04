@@ -94,7 +94,7 @@ export function calculateHeightModifiers(heightInInches: number): HeightModifier
   } else if (diff > 0) {
     scaleFactor = Math.round((1.80 + (diff / 18) * 0.27) * 1000) / 1000;
   }
-  const reachBonus = Math.round(((scaleFactor / 1.80) - 1) * 100);
+  const reachBonus = Math.round(((scaleFactor / 1.80) - 1) * 1000) / 1000;
   const trueScaleBonus = Math.round(((scaleFactor - 1.80) / 1.80) * 100);
 
   // 7. Movement Speed (Stride Speed): -10% at 4'11" (0.90x) -> 1.00x -> +5% at 7'2" (1.05x)
@@ -193,6 +193,7 @@ export interface StyleStatProfile {
   power: number;
   defense: number;
   knockback: number;
+  executionSpeed?: number;
 }
 
 /**
@@ -297,19 +298,12 @@ export const STYLE_STAT_PROFILES: Record<string, StyleStatProfile> = {
   },
   kickboxing: {
     name: 'Kickboxing',
-    speed: 1.04,
+    speed: 1.10, // Attack Speed: 1.10x
     reach: 1.04,
-    power: 1.10,
+    power: 1.05, // Damage: 1.05x
     defense: 1.00,
     knockback: 1.05,
-  },
-  street_taekwondo: {
-    name: 'Street Taekwondo',
-    speed: 1.08,
-    reach: 1.12,
-    power: 1.15,
-    defense: 0.88,
-    knockback: 1.15,
+    executionSpeed: 0.95, // Attack Execution: 0.95x
   },
 };
 

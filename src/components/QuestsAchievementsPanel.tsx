@@ -2,8 +2,9 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Award, Flame, Sparkles, Trophy, 
-  Swords, Zap, Crown
+  Swords, Zap, Crown, LogOut
 } from 'lucide-react';
+import { soundManager } from './SoundManager';
 import { PlayerStats } from '../types';
 
 interface QuestsAchievementsPanelProps {
@@ -151,9 +152,25 @@ export default function QuestsAchievementsPanel({
             </motion.div>
           </AnimatePresence>
 
-          <div className="bg-zinc-950 border border-amber-500/30 px-3 py-1 rounded-xl flex items-center gap-1.5 font-mono text-xs shadow-sm">
-            <span className="text-amber-400 font-bold">$</span>
-            <span className="font-bold text-white">{stats.cash.toLocaleString()}</span>
+          <div className="flex items-center gap-2">
+            <div className="bg-zinc-950 border border-amber-500/30 px-3 py-1 text-xs font-mono font-bold text-amber-400 -skew-x-12 shadow-[2px_2px_0px_#000000]">
+              ${stats.cash.toLocaleString()}
+            </div>
+
+            {/* PROMINENT PERSONA RETURN / EXIT BUTTON */}
+            {onClose && (
+              <button
+                onClick={() => {
+                  soundManager.playRollTick?.();
+                  onClose();
+                }}
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase tracking-wider text-xs sm:text-sm -skew-x-12 shadow-[3px_3px_0px_#ffffff] hover:shadow-[3px_3px_0px_#ef4444] transition-all duration-150 cursor-pointer active:scale-95 group shrink-0"
+                title="Return to Menu"
+              >
+                <LogOut className="w-3.5 h-3.5 rotate-180 text-black group-hover:scale-110" />
+                <span>RETURN // MENU</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -175,10 +192,10 @@ export default function QuestsAchievementsPanel({
                   return (
                     <div
                       key={item.id}
-                      className={`p-4 rounded-2xl border flex flex-col justify-between transition ${
+                      className={`p-3.5 sm:p-4 border-2 -skew-x-12 flex flex-col justify-between transition ${
                         item.unlocked
-                          ? 'bg-amber-950/20 border-amber-500/60 shadow-lg ring-1 ring-amber-500/30'
-                          : 'bg-zinc-950/60 border-zinc-850 opacity-80'
+                          ? 'bg-amber-950/40 border-amber-400 shadow-[4px_4px_0px_#fbbf24] ring-1 ring-amber-400/50'
+                          : 'bg-zinc-950 border-zinc-800 shadow-[4px_4px_0px_#000000] opacity-85 hover:border-zinc-700'
                       }`}
                     >
                       <div>
@@ -190,36 +207,36 @@ export default function QuestsAchievementsPanel({
                             </span>
                           </div>
                           {item.unlocked ? (
-                            <span className="text-[8px] font-mono font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                            <span className="text-[8px] font-mono font-black text-black bg-amber-400 px-1.5 py-0.5 border border-white">
                               ✓ UNLOCKED
                             </span>
                           ) : (
-                            <span className="text-[8px] font-mono font-bold text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded">
+                            <span className="text-[8px] font-mono font-bold text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5">
                               LOCKED
                             </span>
                           )}
                         </div>
-                        <p className="text-[10px] sm:text-xs text-zinc-400 mt-1 leading-relaxed">
+                        <p className="text-[10px] sm:text-xs font-mono text-zinc-300 mt-1 leading-relaxed">
                           {item.description}
                         </p>
                       </div>
 
-                      <div className="mt-4 space-y-2 pt-2 border-t border-zinc-850">
+                      <div className="mt-3 space-y-2 pt-2 border-t border-zinc-800">
                         <div>
                           <div className="flex justify-between items-center text-[9px] font-mono text-zinc-400 mb-1">
                             <span>Progress</span>
                             <span className="font-bold text-white">{item.progress} / {item.target}</span>
                           </div>
-                          <div className="w-full h-1.5 bg-zinc-950 rounded-full overflow-hidden border border-zinc-800">
+                          <div className="w-full h-2 bg-zinc-900 border border-zinc-800 overflow-hidden">
                             <div
-                              className={`h-full transition-all duration-300 ${item.unlocked ? 'bg-amber-400' : 'bg-zinc-600'}`}
+                              className={`h-full transition-all duration-300 ${item.unlocked ? 'bg-amber-400' : 'bg-red-600'}`}
                               style={{ width: `${percent}%` }}
                             />
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between text-[9px] font-mono font-bold text-zinc-300 pt-0.5">
-                          <span className="text-emerald-400">+${item.rewardCash}</span>
+                        <div className="flex items-center justify-between text-[10px] font-mono font-bold text-zinc-300 pt-0.5">
+                          <span className="text-emerald-400 font-bold">+${item.rewardCash}</span>
                           {item.rewardRolls > 0 && <span className="text-amber-400">+{item.rewardRolls} Rolls</span>}
                         </div>
                       </div>

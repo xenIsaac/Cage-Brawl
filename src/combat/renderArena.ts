@@ -36,7 +36,7 @@ export const drawArenaFloor = (
     tapeColor = '#eab308';
   }
 
-  // 1. Mat background fill (Zinc-950 dark canvas mat)
+  // 1. Deep charcoal/dark-grey floor mat background fill
   ctx.fillStyle = matColor;
   ctx.beginPath();
   for (let i = 0; i <= sides; i++) {
@@ -45,6 +45,25 @@ export const drawArenaFloor = (
   }
   ctx.closePath();
   ctx.fill();
+
+  // 1b. Directional Overhead Arena Cage Lighting (High-contrast theatrical spotlight)
+  ctx.save();
+  ctx.beginPath();
+  for (let i = 0; i <= sides; i++) {
+    const angle = (i * 2 * Math.PI) / sides + angleOffset;
+    ctx.lineTo(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
+  }
+  ctx.closePath();
+  ctx.clip();
+
+  const spotGradient = ctx.createRadialGradient(centerX, centerY - 20, 10, centerX, centerY, radius * 0.95);
+  spotGradient.addColorStop(0, 'rgba(255, 255, 255, 0.07)');
+  spotGradient.addColorStop(0.4, 'rgba(239, 68, 68, 0.03)');
+  spotGradient.addColorStop(0.85, 'rgba(0, 0, 0, 0.35)');
+  spotGradient.addColorStop(1, 'rgba(0, 0, 0, 0.70)');
+  ctx.fillStyle = spotGradient;
+  ctx.fillRect(0, 0, size, size);
+  ctx.restore();
 
   // 2. Draw cage fence wireframe grid
   ctx.strokeStyle = wireColor; // Sleek wire mesh lines
@@ -88,13 +107,15 @@ export const drawArenaFloor = (
   ctx.closePath();
   ctx.stroke();
 
-  // 4. Inner Neon Warning Tape Line
+  // 4. Inner Neon Warning Tape Line (Crisp Glowing Boundary Line)
+  ctx.save();
+  ctx.shadowColor = tapeColor;
+  ctx.shadowBlur = 12;
   ctx.strokeStyle = tapeColor;
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3.5;
   ctx.beginPath();
   for (let i = 0; i <= sides; i++) {
     const angle = (i * 2 * Math.PI) / sides + angleOffset;
-    // Slightly inset the red line
     const insetRadius = radius - 4;
     const x = centerX + insetRadius * Math.cos(angle);
     const y = centerY + insetRadius * Math.sin(angle);
@@ -103,6 +124,7 @@ export const drawArenaFloor = (
   }
   ctx.closePath();
   ctx.stroke();
+  ctx.restore();
 
   // 5. Authentic UFC-Style Corner Pads (Solid cylindrical foam bumper pads)
   for (let i = 0; i < sides; i++) {
@@ -309,28 +331,9 @@ export const renderParticlesAndTexts = (
         ctx.lineTo(rightX, rightY);
         ctx.stroke();
       } else if (p.type === 'afterimage') {
-        const progress = Math.min(1.0, p.life / p.maxLife);
-        const fadeAlpha = Math.max(0, (1 - progress) * (p.alpha || 0.45));
-        ctx.save();
-        ctx.globalAlpha = fadeAlpha;
-        ctx.translate(p.x, p.y);
-        if ((p as any).facingAngle !== undefined) {
-          ctx.rotate((p as any).facingAngle);
-        }
-        ctx.fillStyle = p.color || 'rgba(255, 255, 255, 0.45)';
-        ctx.beginPath();
-        ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-
-        // Directional nose / indicator
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(p.radius * 0.75, 0, p.radius * 0.22, 0, Math.PI * 2);
-        ctx.fill();
+        // Section 1.21: Legacy 2D flat circle on floor purged in favor of 3D volumetric ghost silhouettes
         ctx.restore();
+        return;
       } else if (p.type === 'shockwave') {
         const progress = Math.min(1.0, p.life / p.maxLife);
         const currentRadius = p.radius * (0.8 + 1.4 * progress);

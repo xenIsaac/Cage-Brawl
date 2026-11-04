@@ -81,7 +81,7 @@ export function getHeightModifiers(heightInInches: number): HeightModifiers {
   } else if (diff > 0) {
     scaleFactor = Math.round((1.80 + (diff / 18) * 0.27) * 1000) / 1000;
   }
-  const reachBonus = Math.round(((scaleFactor / 1.80) - 1) * 100);
+  const reachBonus = Math.round(((scaleFactor / 1.80) - 1) * 1000) / 1000;
   const trueScaleBonus = Math.round(((scaleFactor - 1.80) / 1.80) * 100);
 
   // 7. Movement Speed (Stride Speed): -10% at 4'11" (0.90x) -> 1.00x -> +5% at 7'2" (1.05x)

@@ -28,11 +28,11 @@ export const DEFAULT_PORTRAIT_LAYOUT: VirtualControlItem[] = [
   { id: 'dash', label: 'Dash / Dodge', x: 84, y: 88, radius: 28, color: '#a855f7', opacity: 0.85, scale: 1.0 },
   { id: 'sprint', label: 'Sprint', x: 44, y: 88, radius: 26, color: '#10b981', opacity: 0.85, scale: 1.0 },
   { id: 'target_switch', label: 'Switch Target', x: 68, y: 64, radius: 26, color: '#38bdf8', opacity: 0.85, scale: 0.95 },
-  { id: 'player_card', label: 'Your Card (P1)', x: 24, y: 7, radius: 30, color: '#3b82f6', opacity: 0.85, scale: 0.75 },
-  { id: 'opponent_card', label: 'Enemy Card (P2)', x: 76, y: 7, radius: 30, color: '#ef4444', opacity: 0.85, scale: 0.75 },
-  { id: 'status_bar', label: 'Status Bar', x: 24, y: 19, radius: 26, color: '#f97316', opacity: 0.9, scale: 1.0 },
+  { id: 'player_card', label: 'Your Card (P1)', x: 22, y: 6, radius: 30, color: '#3b82f6', opacity: 0.85, scale: 0.75 },
+  { id: 'opponent_card', label: 'Enemy Card (P2)', x: 78, y: 6, radius: 30, color: '#ef4444', opacity: 0.85, scale: 0.75 },
+  { id: 'status_bar', label: 'Status Bar', x: 22, y: 16, radius: 26, color: '#f97316', opacity: 0.9, scale: 1.0 },
   { id: 'm2_cooldown', label: 'M2 Cooldown', x: 14, y: 35, radius: 28, color: '#f59e0b', opacity: 0.9, scale: 0.95 },
-  { id: 'menu_settings', label: 'Menu / Settings', x: 88, y: 5, radius: 24, color: '#10b981', opacity: 0.8, scale: 0.85 },
+  { id: 'menu_settings', label: 'Menu / Settings', x: 90, y: 5, radius: 24, color: '#10b981', opacity: 0.8, scale: 0.85 },
 ];
 
 export function formatKeyCode(code: string): string {

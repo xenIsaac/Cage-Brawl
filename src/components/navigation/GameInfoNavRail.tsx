@@ -83,7 +83,7 @@ export const GameInfoNavRail: React.FC<GameInfoNavRailProps> = ({
             ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold shadow-[0_0_15px_rgba(245,158,11,0.25)]'
             : 'bg-zinc-950/60 border-zinc-850 text-zinc-400 hover:text-white hover:bg-zinc-900'
         }`}
-        title="Latest Update (v1.7.6 Part 3: Navigation & Matrix Overhaul)"
+        title="Latest Update (v1.7.6 Part 4: Fair-Play & Perception Matrix)"
       >
         {activeTab === 'latest' && (
           <span className="absolute left-0 top-1 bottom-1 w-0.5 bg-amber-400 rounded-r shadow-[0_0_6px_rgba(245,158,11,0.8)]" />
@@ -99,11 +99,11 @@ export const GameInfoNavRail: React.FC<GameInfoNavRailProps> = ({
           <div className="font-display font-black uppercase text-[11px] truncate leading-tight flex items-center gap-1.5">
             <span>Latest Update</span>
             <span className="text-[7.5px] font-mono font-bold px-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
-              PART 3
+              PART 4
             </span>
           </div>
           <div className="text-[8px] font-mono text-zinc-400 truncate leading-none mt-0.5">
-            v1.7.6 Final Matrix
+            v1.7.6 Fair-Play Matrix
           </div>
         </div>
       </button>

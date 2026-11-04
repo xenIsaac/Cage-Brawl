@@ -14,6 +14,7 @@ import {
   MilestoneProgressState 
 } from '../data/careerMilestones';
 import { soundManager } from './SoundManager';
+import { useResponsiveLayout } from '../utils/useResponsiveLayout';
 
 interface CareerMilestonesScreenProps {
   stats: PlayerStats;
@@ -34,6 +35,7 @@ export default function CareerMilestonesScreen({
   setIsNavHidden,
   onClaimableCountChange,
 }: CareerMilestonesScreenProps) {
+  const { isPortrait, isLandscape, isMobile, isCompactLandscape } = useResponsiveLayout();
   const [milestoneState, setMilestoneState] = useState<MilestoneProgressState>(() => 
     CareerMilestoneManager.syncWithStats(email, stats)
   );
@@ -146,7 +148,7 @@ export default function CareerMilestonesScreen({
 
   return (
     <div className={`fixed inset-0 z-40 bg-zinc-950 text-white flex flex-col select-none overflow-hidden transition-all duration-300 ${
-      isNavHidden ? 'pl-0' : 'pl-14 sm:pl-16'
+      isNavHidden || isPortrait || isMobile ? 'pl-0' : 'pl-14 sm:pl-16'
     }`}>
       {/* ============================================================== */}
       {/* 1. TOP HEADER & TELEMETRY                                      */}

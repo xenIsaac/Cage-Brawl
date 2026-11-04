@@ -15,7 +15,7 @@ import MobileControls from './MobileControls';
 import HudEditorModal from './HudEditorModal';
 import LiveHudEditor from './LiveHudEditor';
 import { StatusBar, ActiveStatusItem, extractFighterStatuses } from './StatusBar';
-import { SettingsModal } from './SettingsModal';
+import { SettingsView } from './mainmenu/SettingsView';
 import { CodexModal } from './CodexModal';
 import PostMatchHUD from './PostMatchHUD';
 import { getHeightModifiers, formatHeight } from '../utils/heightModifiers';
@@ -32,6 +32,7 @@ import { CareerMilestoneManager } from '../data/careerMilestones';
 import { isMobileDevice } from '../utils/deviceDetection';
 import { drawArenaFloor as drawArenaFloorModule, renderParticlesAndTexts as renderParticlesAndTextsModule } from '../combat/renderArena';
 import { drawFighter as drawFighterModule, getFighterVisualTransform } from '../combat/renderFighter';
+import { prewarmCountdownBuffers, drawCachedCountdown } from '../utils/countdownBuffer';
 import { updateFighterAI as updateFighterAIModule } from '../combat/ai';
 import { getCapoeiraKickEase, getFistRelativePos, getClampedFistPos } from '../combat/fistIK';
 import { checkDirectionalBlock } from '../combat/blockEngine';
@@ -60,10 +61,11 @@ import {
   tickStreetBoxingAutoBurst,
   isStreetBoxingFlurryUnparryable,
   applyGlobalM2RetractionOverride,
+  isS2FullyRetractedToStance,
   HITSTUN_FRAMES,
   HIT_ATTACK_LOCKOUT_FRAMES
 } from '../combat/combatEngine';
-import { ModeSelectorOverlay } from './arena/ModeSelectorOverlay';
+import { PracticeDojoView } from './mainmenu/PracticeDojoView';
 import { SpectatorChamberModal } from './arena/SpectatorChamberModal';
 import { TrainingDrawer } from './arena/TrainingDrawer';
 import { drawHitboxOverlay } from '../combat/hitboxOverlay';
@@ -121,18 +123,52 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
   };
   
   // Game states
-  const [isPlaying, setIsPlaying] = useState(() => !!matchData);
-  const [showModeSelector, setShowModeSelector] = useState(() => !matchData);
-  const [dummyBehavior, setDummyBehavior] = useState<string>(() => (matchData as any)?.isTestGame ? 'idle' : 'passive');
+  const [isPlaying, setIsPlaying] = useState(() => true);
+  const [showModeSelector, setShowModeSelector] = useState(() => false);
+  const [dummyBehavior, setDummyBehavior] = useState<string>(() => {
+    if ((matchData as any)?.isTestGame) return 'idle';
+    return (matchData as any)?.dummyBehavior || (matchData as any)?.dummyConfig?.behavior || 'passive';
+  });
   const [dummyM1Speed, setDummyM1Speed] = useState<'slow' | 'medium' | 'fast'>('medium');
   const [dummyFollow, setDummyFollow] = useState<boolean>(false);
-  const [dummyStyleId, setDummyStyleId] = useState<string>('basic');
+  const [dummyStyleId, setDummyStyleId] = useState<string>(() => {
+    return (matchData as any)?.opponent?.styleId || 
+           (matchData as any)?.opponent?.style?.id || 
+           (matchData as any)?.dummyStyleId || 
+           (matchData as any)?.dummyConfig?.styleId || 
+           'basic';
+  });
   const [dummyHeightInInches, setDummyHeightInInches] = useState<number>(70);
-  const [infiniteStamina, setInfiniteStamina] = useState(false);
+  const [infiniteStamina, setInfiniteStamina] = useState<boolean>(() => {
+    return !!((matchData as any)?.infiniteStamina || (matchData as any)?.dummyConfig?.staminaRecovery);
+  });
   const [oneHitKODummy, setOneHitKODummy] = useState(false);
-  const [godMode, setGodMode] = useState<boolean>(false);
+  const [godMode, setGodMode] = useState<boolean>(() => {
+    return !!((matchData as any)?.godMode || (matchData as any)?.dummyConfig?.healthRecovery);
+  });
   const [infiniteAIStamina, setInfiniteAIStamina] = useState<boolean>(false);
-  const [isTrainingHudOpen, setIsTrainingHudOpen] = useState<boolean>(true);
+  const [isTrainingHudOpen, setIsTrainingHudOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return false;
+    }
+    return true;
+  });
+  const [simulationSpeed, setSimulationSpeed] = useState<number>(1.0);
+  const simulationSpeedRef = useRef<number>(1.0);
+
+  const handleGameSpeedChange = (speed: number) => {
+    setSimulationSpeed(speed);
+    simulationSpeedRef.current = speed;
+    if (stateRef.current.player) {
+      spawnFloatingText(
+        stateRef.current.player.x,
+        stateRef.current.player.y - 35,
+        `SPEED: ${speed}x`,
+        speed < 1.0 ? '#f59e0b' : '#38bdf8'
+      );
+    }
+  };
+
   const [totalDamageDealt, setTotalDamageDealt] = useState<number>(0);
   const [totalHitsLanded, setTotalHitsLanded] = useState<number>(0);
   const [showHitboxes, setShowHitboxes] = useState<boolean>(false);
@@ -148,12 +184,20 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
   const [soundEnabled, setSoundEnabled] = useState(soundManager.isEnabled());
   const [streak, setStreak] = useState(0);
   const [isDead, setIsDead] = useState(false);
-  const [showControlsHelp, setShowControlsHelp] = useState(true);
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [showControlsHelp, setShowControlsHelp] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.innerWidth <= 1024;
+  });
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showHudEditor, setShowHudEditor] = useState<boolean>(false);
   const [isLiveHudEditing, setIsLiveHudEditing] = useState<boolean>(() => !!(matchData as any)?.startWithLiveHud);
   const [showFullSettings, setShowFullSettings] = useState<boolean>(false);
+
+  const isOfflineMatch = !matchData?.socket || !!matchData?.isAiMatch || !matchData?.isRealMatch;
+  const isGamePaused = isOfflineMatch && (showMobileMenu || showFullSettings || showHudEditor);
+  const isGamePausedRef = useRef(false);
+  isGamePausedRef.current = isGamePaused;
 
   const isLiveHudEditingRef = useRef(false);
   isLiveHudEditingRef.current = isLiveHudEditing;
@@ -166,8 +210,15 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     const handleResize = () => {
       setIsPortrait(window.innerHeight > window.innerWidth);
     };
+    const handleTouchStart = () => {
+      setIsTouchDevice(true);
+    };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('touchstart', handleTouchStart);
+    };
   }, []);
 
   // AI vs AI Spectator Chamber Controls State
@@ -186,7 +237,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
   const [spectatorReactions, setSpectatorReactions] = useState<Array<{ id: number; text: string; emoji: string; sender: string }>>([]);
 
   // Temporary Practice Player Stats (Does not save to persistent user stats)
-  const [practicePlayerStyleId, setPracticePlayerStyleId] = useState<string>(() => stats.selectedStyleId || 'basic');
+  const [practicePlayerStyleId, setPracticePlayerStyleId] = useState<string>(() => (matchData as any)?.playerStyleId || stats.selectedStyleId || 'basic');
   const [practicePlayerHeightInInches, setPracticePlayerHeightInInches] = useState<number>(() => stats.heightInInches || 68);
   const [practiceModalTab, setPracticeModalTab] = useState<'styles' | 'difficulty' | 'modifiers'>('styles');
   const [trainingHudTab, setTrainingHudTab] = useState<'style' | 'ai' | 'mods' | 'stats'>('style');
@@ -448,6 +499,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       }, 1000);
     } else if (rankedState === 'fighting') {
       interval = setInterval(() => {
+        if (isGamePausedRef.current) return;
         setRoundTimeLeft(prev => {
           if (prev <= 1) {
             clearInterval(interval);
@@ -1860,6 +1912,10 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         return;
       }
 
+      if (isGamePausedRef.current) {
+        return;
+      }
+
       const state = stateRef.current;
       if (state.cinematicZoomActive || state.matchEnded || state.player?.isDead || (state.dummy && state.dummy.isDead)) {
         return;
@@ -2404,13 +2460,17 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       const frameInterval = targetFps === '30' ? 1000 / 30 : (targetFps === '60' ? 1000 / 60 : 0);
 
       if (isPlaying) {
-        // Simulation speed locked at base 1.0x
-        const speedMultiplier = 1.0;
-        // Cap dt to prevent massive jumps when the window is out of focus
-        accumulator += Math.min(100, dt) * speedMultiplier;
+        if (isGamePausedRef.current) {
+          accumulator = 0;
+        } else {
+          // Simulation speed: 1.0x base, with slowdown toggle enabled for Dojo Matrix
+          const isPracticeDojo = !matchData?.isCompetitive && !matchData?.isAiMatch && !matchData?.isAiVsAiSpectator;
+          const speedMultiplier = isPracticeDojo ? simulationSpeedRef.current : 1.0;
+          // Cap dt to prevent massive jumps when the window is out of focus
+          accumulator += Math.min(100, dt) * speedMultiplier;
 
-        if (!isLiveHudEditingRef.current) {
-          while (accumulator >= timestep) {
+          if (!isLiveHudEditingRef.current) {
+            while (accumulator >= timestep) {
             state.gameTime++;
             if (state.cinematicZoomActive) {
               state.cinematicTimer = (state.cinematicTimer || 0) - 1;
@@ -2521,6 +2581,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         } else {
           accumulator = 0;
         }
+      }
 
         // Real-time WebSocket game state packet synchronization (throttled to ~50 FPS = every 20ms for high-fidelity PvP sync)
         const nowMs = performance.now();
@@ -2605,6 +2666,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
 
     const isFlowSprintSway = target.styleId === 'basic' && !!target.flowSprintSwayActive;
     const isFlowS2IFrame = target.styleId === 'basic' && !!target.flowS2HasIFrames && target.fists.some(f => f.isPunching && !f.isHeavy && f.comboStage === 1);
+    const isAikidoSlamming = target.styleId === 'aikido' && !!target.aikiSlamStage;
 
     return !!(
       (isWindupIFrameStyle && (target.heavyWindup || 0) > 0) ||
@@ -2612,7 +2674,8 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       isAshiharaFlowSweep ||
       isCapoeiraS3Dodge ||
       isFlowSprintSway ||
-      isFlowS2IFrame
+      isFlowS2IFrame ||
+      isAikidoSlamming
     );
   };
 
@@ -2636,39 +2699,85 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       return;
     }
 
-    // Aikido Passive: Kinetic Intercept (Clash Counter Slam)
-    // Clashing/intersecting your M1 hitbox with an incoming enemy hitbox has a 30% Chance to automatically trigger Over-Head Counter Slam (10 DMG).
-    // M1 S3 (Tenkan Arm-Cross) is strictly excluded.
-    const activeDefenderM1 = defender.fists.find(f => (f.isPunching || f.punchProgress > 0.05) && !f.isHeavy);
-    const defenderM1Stage = activeDefenderM1 ? (activeDefenderM1.comboStage ?? (defender.comboStage === 0 ? 3 : (defender.comboStage - 1))) : -1;
-    if (defender.styleId === 'aikido' && !isHeavy && activeDefenderM1 && defenderM1Stage !== 2) {
-      if (Math.random() < 0.30) {
-        attacker.parryFlashTime = 18;
-        attacker.stunTime = 30;
-        attacker.heavyWindup = 0;
-        attacker.fists.forEach(f => { f.isPunching = false; f.punchProgress = 0; });
-        soundManager.playParry();
-        spawnFloatingText(defender.x, defender.y - 35, 'KINETIC INTERCEPT! (10 DMG CLASH SLAM)', '#0284c7');
-
-        defender.aikiSlamStage = 'clamp';
-        defender.aikiSlamDamage = 10.0;
-        defender.aikiSlamTimer = 90;
-        defender.aikiSlamFrame = 0;
-        defender.aikiSlamBaseAngle = defender.facingAngle;
-        defender.aikiSlamTarget = attacker;
-        defender.aikiIsFreeSlam = true;
-        defender.aikiSlamUninterruptible = true;
-        attacker.aikiSlamUninterruptible = true;
-        attacker.aikiSlamVictimStage = 'clamp';
-        attacker.aikiOverheadScale = 1.0;
-        defender.vx = 0; defender.vy = 0;
-        attacker.vx = 0; attacker.vy = 0;
-        defender.fists.forEach(f => { f.isPunching = false; f.punchProgress = 0; });
-        attacker.fists.forEach(f => { f.isPunching = false; f.punchProgress = 0; });
-        stateRef.current.hitstopTime = 3;
-        syncCombatStatesToUI();
-        return; // Deflect & Counter Slam!
+    // Aikido: M2 Active Parry Stance (0.30s reaction window intercept)
+    if (defender.styleId === 'aikido' && (defender.aikiM2ActiveWindow || 0) > 0) {
+      if (defender.isPlayer) {
+        matchParriesLandedRef.current += 1;
+        roundParriesLandedRef.current += 1;
+        stateRef.current.totalParries = (stateRef.current.totalParries || 0) + 1;
+        setTotalParries(stateRef.current.totalParries);
+        QuestTracker.trackEvent(userEmail, {
+          type: 'parry',
+          mode: getMatchModeKey()
+        });
       }
+      defender.parryFlashTime = 18; // Flashes light blue
+      defender.damageFlashTime = 0;
+      defender.aikiM2ActiveWindow = 0;
+      defender.aikiM2Guarding = false;
+      defender.heavyCooldown = 600; // 10.0s Hit Cooldown
+
+      // Cancel attacker active attack
+      attacker.heavyWindup = 0;
+      attacker.keysiClinchStage = null;
+      attacker.keysiClinchTarget = null;
+      attacker.fists.forEach(f => { f.isPunching = false; f.punchProgress = 0; });
+      defender.fists.forEach(f => { f.isPunching = false; f.punchProgress = 0; });
+
+      soundManager.playParry();
+      spawnFloatingText(defender.x, defender.y - 35, 'ACTIVE PARRY INTERCEPT! (8.0 SLAM)', '#38bdf8');
+
+      // Grabs & Slams immediately dealing 8.0 HP Flat Slam Damage
+      defender.aikiSlamStage = 'clamp';
+      defender.aikiSlamDamage = 8.0; // 8.0 HP Flat Slam Damage
+      defender.aikiSlamTimer = 90;
+      defender.aikiSlamFrame = 0;
+      defender.aikiSlamBaseAngle = defender.facingAngle;
+      defender.aikiSlamTarget = attacker;
+      defender.aikiIsFreeSlam = true;
+      defender.aikiSlamUninterruptible = true;
+      attacker.aikiSlamUninterruptible = true;
+      attacker.aikiSlamVictimStage = 'clamp';
+      attacker.aikiOverheadScale = 1.0;
+      defender.vx = 0; defender.vy = 0;
+      attacker.vx = 0; attacker.vy = 0;
+      stateRef.current.hitstopTime = 3;
+      syncCombatStatesToUI();
+      return; // Intercept confirmed!
+    }
+
+    // Aikido: Sequence 2 (S2) Built-In Parry (Active Parry for the first 0.30s of startup)
+    const isAikiS2StartupParry = defender.styleId === 'aikido' && defender.fists.some(f => 
+      f.isPunching && !f.isHeavy && (f.comboStage === 1 || (f.comboStage === undefined && (defender.comboStage === 2 || defender.comboStage === 1))) && f.punchProgress < 0.45
+    );
+    if (isAikiS2StartupParry) {
+      if (defender.isPlayer) {
+        matchParriesLandedRef.current += 1;
+        roundParriesLandedRef.current += 1;
+        stateRef.current.totalParries = (stateRef.current.totalParries || 0) + 1;
+        setTotalParries(stateRef.current.totalParries);
+        QuestTracker.trackEvent(userEmail, {
+          type: 'parry',
+          mode: getMatchModeKey()
+        });
+      }
+      defender.parryFlashTime = 18;
+      defender.damageFlashTime = 0;
+      attacker.stunTime = 30;
+      attacker.heavyWindup = 0;
+      attacker.fists.forEach(f => { f.isPunching = false; f.punchProgress = 0; });
+      defender.fists.forEach(f => { f.isPunching = false; f.punchProgress = 0; });
+      soundManager.playParry();
+
+      if ((defender.aikiPassiveSlamCd || 0) <= 0) {
+        defender.aikiSlamReactiveWindow = 30; // Opens 0.5s reaction window!
+        spawnFloatingText(defender.x, defender.y - 35, 'KOTE-GAESHI TRAP! SLAM READY [M1]', '#38bdf8');
+      } else {
+        spawnFloatingText(defender.x, defender.y - 35, 'KOTE-GAESHI TRAP! DEFLECTED', '#38bdf8');
+      }
+      stateRef.current.hitstopTime = 3;
+      syncCombatStatesToUI();
+      return;
     }
 
     if (defender.styleId === 'ashihara' && ((defender.heavyWindup && defender.heavyWindup > 0) || defender.ashiharaM2Stage === 1)) {
@@ -2982,11 +3091,24 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         }
         spawnFloatingText(defender.x, defender.y - 25, 'DEFLECTIVE RESET (-45%)', '#c0c0c0');
       } else if (defender.styleId === 'aikido') {
-        defender.aikiCounterSlamWindow = 12; // 0.2s reaction window
-        spawnFloatingText(defender.x, defender.y - 25, 'TENCHI COUNTER READY! (M1 SLAM)', '#38bdf8');
+        if ((defender.aikiPassiveSlamCd || 0) <= 0) {
+          defender.aikiSlamReactiveWindow = 30; // 0.5s reaction window
+          spawnFloatingText(defender.x, defender.y - 25, 'REACTIVE SLAM READY! [M1]', '#38bdf8');
+        }
+      } else if (defender.styleId === 'street_taekwondo') {
+        // [ Deflective Cadence (Parry Posture Surge) ]: Accelerates Posture Regeneration speed by +30% for 8.0 seconds
+        defender.deflectiveCadenceTimer = 480;
+        spawnFloatingText(defender.x, defender.y - 25, 'DEFLECTIVE CADENCE (+30% POSTURE REGEN 8.0s)', '#FF6B00');
       }
 
-      // Check Street Taekwondo Counter-Bait (0.8s I-Frames if parried during M2 initiation/spin-dash)
+      // Check Street Taekwondo Brazilian Feint Trap
+      if (attacker.styleId === 'street_taekwondo' && attacker.tkdFeintWindowActive) {
+        attacker.tkdFeintTrapped = true;
+        defender.spinOutTimer = 60; // 1.0s Spin-Out
+        defender.tkdConfusionTimer = 180; // 3.0s Confusion
+        spawnFloatingText(defender.x, defender.y - 30, 'FEINT TRAPPED! SPIN-OUT (1.0s) & CONFUSION (3.0s)', '#FFD600');
+        spawnFloatingText(attacker.x, attacker.y - 50, 'FEINT TRAPPED! TRUE KICK EMPOWERED', '#FFD600');
+      }
       // Check if the strike that was parried was a heavy / M2 attack
       const isAttackerHeavyAttack = !!(
         isHeavy ||
@@ -2998,7 +3120,11 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       );
 
       // Cancel attacker's active attack (light/heavy punches, windup, and Keysi clamp/clinch)
-      attacker.heavyWindup = 0;
+      // Note: If attacker is in the 0.20s Street Taekwondo Brazilian Kick feint window,
+      // the opponent just fell for the feint! Do NOT cancel the kick; let it chop down with Neuro-Trauma!
+      if (!(attacker.styleId === 'street_taekwondo' && attacker.tkdFeintWindowActive)) {
+        attacker.heavyWindup = 0;
+      }
       attacker.keysiClinchStage = null;
       attacker.keysiClinchTarget = null;
       attacker.keysiM2Primed = false;
@@ -3258,6 +3384,9 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     if (attacker.styleId === 'basic' && !isHeavy && (attacker.flowStrikerBuffTimer || 0) > 0) {
       attackerDmgMult *= 1.10;
       attacker.flowStrikerBuffTimer = 0;
+    }
+    if (attacker.styleId === 'kickboxing') {
+      attackerDmgMult *= 1.05; // Kickboxing Base Stats: Damage 1.05x
     }
 
     let defenderDmgMult = 1.0;
@@ -3544,17 +3673,38 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         // Aikido 4-Combo Sequence:
         // S1 (Stage 0): Irimi Open-Palm 4.0 HP
         // S2 (Stage 1): Kote-Gaeshi Slap 4.0 HP
-        // S3 (Stage 2): Tenkan Arm-Cross Sweep 0.0 HP (Pure Setup)
-        // S4 (Stage 3): Shomenuchi Flaring Palm Drive 8.0 HP
-        if (comboStage === 0 || comboStage === 1) {
+        // S3 (Stage 2): Left Straight Thrust 4.0 HP (Zero spin-out)
+        // S4 (Stage 3): Irimi Glide-Palm 8.0 HP
+        if (comboStage === 0 || comboStage === 1 || comboStage === 2) {
           rawBaseDamage = 4.0;
           rawChipDamage = 0.8;
-        } else if (comboStage === 2) {
-          rawBaseDamage = 0.0;
-          rawChipDamage = 0.0;
         } else if (comboStage === 3) {
           rawBaseDamage = 8.0;
           rawChipDamage = 1.5;
+        }
+      }
+    } else if (attacker.styleId === 'street_taekwondo') {
+      if (isHeavy) {
+        // M2 Brazilian Kick (Question Mark Kick): 13.0 HP Base, 4.0 Chip
+        // Empowered to 18.0 HP / 6.0 Chip if defender was feint trapped!
+        const isEmpowered = !!attacker.tkdFeintTrapped;
+        rawBaseDamage = isEmpowered ? 18.0 : 13.0;
+        rawChipDamage = isEmpowered ? 6.0 : 4.0;
+      } else {
+        // Street Taekwondo 4-Combo Light Sequence (M1):
+        // S1: 4.8 HP (0.20s DS)
+        // S2: 4.8 HP (0.20s DS)
+        // S3: 6.0 HP (0.10s DS, Spinning Back Kick)
+        // S4: 8.0 HP (0.25s DS, Side Whip Finisher)
+        if (comboStage === 0 || comboStage === 1) {
+          rawBaseDamage = 4.8;
+          rawChipDamage = 1.4;
+        } else if (comboStage === 2) {
+          rawBaseDamage = 6.0;
+          rawChipDamage = 1.8;
+        } else if (comboStage === 3) {
+          rawBaseDamage = 8.0;
+          rawChipDamage = 2.4;
         }
       }
     }
@@ -3659,20 +3809,36 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     // Apply Universal Hit-Stun Steering Lock (0.45s), Movement Lock (0.45s), and Hitstun/Attack Lockout (0.45s) upon taking damage
     applyDamageCombatLocks(defender, isEffectivelyBlocked);
 
-    const isDefenderCqcSuperArmor = defender.styleId === 'cqc' && ((defender.cqcM2Stage === 'windup' && (defender.heavyWindup || 0) <= 75.6) || defender.cqcM2Stage === 'dash' || defender.cqcM2Stage === 'assault');
-    if (!isEffectivelyBlocked && defender.styleId === 'cqc' && !isDefenderCqcSuperArmor) {
+    if (attacker.styleId === 'kickboxing') {
+      // Passive - Chain Reaction: Every landed hit reduces M2 cooldown by 0.2s (12 frames)
+      if (attacker.heavyCooldown && attacker.heavyCooldown > 0) {
+        attacker.heavyCooldown = Math.max(0, attacker.heavyCooldown - 12);
+        spawnFloatingText(attacker.x, attacker.y - 25, 'CHAIN REACTION (-0.2s CD)', '#f59e0b');
+      }
+      if (isHeavy) {
+        const activeFist = attacker.fists.find(f => f.isPunching);
+        const isSeq2 = (activeFist as any)?.kickboxingSeq2 || attacker.kickboxingIsSeq2;
+        if (isSeq2) {
+          attacker.kickboxingS2Hit = true;
+        } else {
+          attacker.kickboxingS1Hit = true;
+        }
+      }
+    }
+
+    const isDefenderCqcVulnerable = defender.styleId === 'cqc' && ((defender.cqcM2Stage === 'windup' && (defender.heavyWindup || 0) > 75.6) || (defender.heavyWindup || 0) > 75.6);
+    const isDefenderCqcSuperArmor = defender.styleId === 'cqc' && !isDefenderCqcVulnerable && (defender.cqcM2Stage === 'dash' || defender.cqcM2Stage === 'assault' || (defender.cqcM2Stage === 'windup' && (defender.heavyWindup || 0) <= 75.6));
+    if (!isEffectivelyBlocked && defender.styleId === 'cqc' && isDefenderCqcVulnerable) {
       defender.cqcM2Stage = null;
       defender.cqcLockedTarget = null;
       defender.cqcRings = undefined;
       defender.isDashing = false;
       defender.dashProgress = 0;
-    }
-    if (attacker.styleId === 'cqc' && (attacker.heavyWindup || 0) > 0) {
-      attacker.cqcM2Stage = null;
-      attacker.cqcLockedTarget = null;
-      attacker.cqcRings = undefined;
-      attacker.isDashing = false;
-      attacker.dashProgress = 0;
+      applyHeavyWhiffPenalty(defender);
+      defender.heavyWindup = 0;
+      defender.stunTime = Math.max(defender.stunTime || 0, 27);
+      defender.strikeCooldown = Math.max(defender.strikeCooldown || 0, 27);
+      spawnFloatingText(defender.x, defender.y - 30, 'CQC INTERRUPTED!', '#ef4444');
     }
 
     if (isEffectivelyBlocked) {
@@ -3914,8 +4080,8 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
           soundManager.playPunch(true);
           stateRef.current.shakeAmount = 14 * settings.screenShake;
           stateRef.current.hitstopTime = 4; // 4-frame impact freeze on S2 Teep
-          attacker.heavyCooldown = 192; // 3.2s cooldown
-          attacker.kickboxingIsSeq2 = false;
+          attacker.kickboxingS2Hit = true;
+          finalizeKickboxingM2Cooldown(attacker);
           spawnFloatingText(defender.x, defender.y - 10, `-${formattedChip} CHIP`, '#f8fafc');
         } else {
           // Sequence 1 (Short Hook on block): Chips 20% max armor (3.6 HP), suppresses Armor Regen for 0.9s (54 frames), micro-dazes, queues S2 in 0.15s
@@ -4003,8 +4169,12 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
             spawnFloatingText(defender.x, defender.y - 30, 'M2 BLOCKED! BONE FRACTURE (3.5s)', '#dc2626');
             soundManager.playRollTick();
           }
-          else if (attacker.styleId === 'kickboxing') baseHeavyCD = 192;
-          else if (attacker.styleId === 'keysi') baseHeavyCD = 720;
+          else if (attacker.styleId === 'kickboxing') baseHeavyCD = 360;
+          else if (attacker.styleId === 'street_taekwondo') baseHeavyCD = 420; // 7.0s (420 frames) Hit Cooldown
+          else if (attacker.styleId === 'keysi') {
+            baseHeavyCD = 720;
+            attacker.keysiHasSuperArmor = false;
+          }
           attacker.heavyCooldown = baseHeavyCD;
         }
       } else {
@@ -4157,6 +4327,25 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         // Lockouts: 0.45s hitstun, 0.45s attack disable (cannot attack when hit), 0.3s block lockout (does NOT reset if active)
         defender.stunTime = Math.max(defender.stunTime || 0, HITSTUN_FRAMES);
         defender.strikeCooldown = Math.max(defender.strikeCooldown || 0, HIT_ATTACK_LOCKOUT_FRAMES);
+
+        // Street Taekwondo S2 Passive: The Lead Stagger Trap
+        // Landing M1 S2 (Chambered Slanted Kick) increases victim's post-hit attack recovery delay by +40%
+        if (attacker.styleId === 'street_taekwondo' && !isHeavy) {
+          if (comboStage === 1) {
+            defender.stunTime = Math.round(defender.stunTime * 1.40);
+            defender.strikeCooldown = Math.round(defender.strikeCooldown * 1.40);
+            defender.tkdLeadStaggerTimer = 30; // 0.5s natural decay if S3 not thrown/whiffs
+            attacker.tkdLeadStaggerActive = true;
+            spawnFloatingText(defender.x, defender.y - 35, 'LEAD STAGGER TRAP (+40% DELAY)', '#06B6D4');
+          } else if (comboStage === 2) {
+            // Purge condition: The moment M1 S3 connects with enemy, this +40% delay penalty is instantly consumed and wiped
+            if (defender.tkdLeadStaggerTimer && defender.tkdLeadStaggerTimer > 0) {
+              defender.tkdLeadStaggerTimer = 0;
+              attacker.tkdLeadStaggerActive = false;
+              spawnFloatingText(attacker.x, attacker.y - 50, 'LEAD STAGGER CONSUMED!', '#FFD600');
+            }
+          }
+        }
         if (attacker.styleId !== 'cqc' || isHeavy) {
           if ((defender.blockLockout || 0) <= 0) {
             defender.blockLockout = 18;
@@ -4281,8 +4470,8 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
             defender.vy = kbY * 18;
             defender.stunTime = Math.max(defender.stunTime || 0, HITSTUN_FRAMES);
             stateRef.current.hitstopTime = 4;
-            attacker.heavyCooldown = 192; // 3.2s
-            attacker.kickboxingIsSeq2 = false;
+            attacker.kickboxingS2Hit = true;
+            finalizeKickboxingM2Cooldown(attacker);
           } else {
             // S1 Short Hook Direct Hit: Micro-daze, 0.9s Armor Regen Lockout, queues S2 in 0.15s
             defender.vx = kbX * 6; // No 20% passive bonus on S1
@@ -4337,6 +4526,49 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
               alpha: 1.0,
               life: 0,
               maxLife: 16,
+              type: 'spark'
+            });
+          }
+        } else if (attacker.styleId === 'street_taekwondo') {
+          // STREET TAEKWONDO HEAVY: BRAZILIAN KICK (QUESTION MARK KICK)
+          defender.vx = kbX * 12;
+          defender.vy = kbY * 12;
+          attacker.heavyCooldown = 420; // 7.0s (420 frames) Hit Cooldown
+          stateRef.current.hitstopTime = 4;
+          stateRef.current.shakeAmount = 14 * settings.screenShake;
+          soundManager.playHeavyImpact();
+
+          // Phase 1: The Spin-Out (1.0s = 60 frames)
+          defender.spinOutTimer = 60;
+          // Phase 2: The Confusion State (3.0s = 180 frames)
+          defender.tkdConfusionTimer = 180;
+          if (defender.isPlayer) {
+            stateRef.current.visionBlurTime = 60;
+          }
+
+          if (attacker.tkdFeintTrapped) {
+            spawnFloatingText(defender.x, defender.y - 35, 'NEURO-TRAUMA: SPIN-OUT (1.0s) & CONFUSION (3.0s)', '#FF6B00');
+            spawnFloatingText(attacker.x, attacker.y - 50, 'FEINT TRAPPED! (+33% DMG)', '#FFD600');
+          } else {
+            spawnFloatingText(defender.x, defender.y - 35, 'BRAZILIAN KICK! SPIN-OUT & CONFUSION', '#FF6B00');
+          }
+          attacker.tkdFeintTrapped = false;
+
+          // Chamber Palette VFX: Orange (#FF6B00) and Electric-Yellow (#FFD600) burst
+          for (let i = 0; i < 16; i++) {
+            const angle = (i / 16) * Math.PI * 2;
+            const speed = Math.random() * 4.5 + 2;
+            stateRef.current.particles.push({
+              id: `tkd_m2_hit_${Math.random()}`,
+              x: (attacker.x + defender.x) / 2,
+              y: (attacker.y + defender.y) / 2,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              radius: Math.random() * 2.5 + 1.5,
+              color: i % 2 === 0 ? '#FF6B00' : '#FFD600',
+              alpha: 1.0,
+              life: 0,
+              maxLife: 22,
               type: 'spark'
             });
           }
@@ -4402,14 +4634,20 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
             spawnFloatingText(attacker.x, attacker.y - 35, 'POSTURE RESET (0.1s)!', '#22c55e');
           }
         } else {
-          // Huge pushback for standard heavy
-          defender.vx = kbX * 14;
-          defender.vy = kbY * 14;
+          // Zero knockback for Street Taekwondo M2; standard pushback for other styles
+          if (attacker.styleId === 'street_taekwondo') {
+            defender.vx = 0;
+            defender.vy = 0;
+          } else {
+            defender.vx = kbX * 14;
+            defender.vy = kbY * 14;
+          }
           stateRef.current.hitstopTime = 4; // Visceral heavy hitstop freeze
           
           let baseHeavyCD = 240;
           if (attacker.styleId === 'ashihara') baseHeavyCD = 270;
           else if (attacker.styleId === 'shotokan') baseHeavyCD = 300;
+          else if (attacker.styleId === 'street_taekwondo') baseHeavyCD = 420; // 7.0s (420 frames) Hit Cooldown
           attacker.heavyCooldown = baseHeavyCD;
         }
 
@@ -4732,218 +4970,49 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
           }
           spawnFloatingText(defender.x, defender.y - 5, `-${formattedDamage} HP`, '#86efac');
         } else if (attacker.styleId === 'aikido') {
-          // Tenkan Aiki Flow - Hit Acceleration: Landing any M1 light attack reduces S3 Free M2 cooldown by 2.0s (120 frames)
-          if (attacker.aikiS3FreeM2CdTimer && attacker.aikiS3FreeM2CdTimer > 0) {
-            attacker.aikiS3FreeM2CdTimer = Math.max(0, attacker.aikiS3FreeM2CdTimer - 120);
-            if (attacker.aikiS3FreeM2CdTimer === 0) {
-              spawnFloatingText(attacker.x, attacker.y - 40, 'TENKAN FLOW READY!', '#38bdf8');
-            }
-          }
-
-          // Passive 5: Resonant Vortex (Stagger Extension)
-          // "If you attack an opponent who is currently suffering from a hitstun/stagger state, the duration is extended to 0.6 seconds."
-          const targetIsStaggered = (defender.stunTime && defender.stunTime > 0) || (defender.superCrippleTimer && defender.superCrippleTimer > 0);
-          if (targetIsStaggered) {
-            defender.stunTime = Math.max(defender.stunTime || 0, 36); // Reapplied and extended to 0.6s (36 frames)
-            defender.isPostureLocked = true;
-            defender.isBlocking = false;
-            spawnFloatingText(defender.x, defender.y - 45, 'RESONANT VORTEX (0.6s)!', '#38bdf8');
-          }
-
           if (stage === 0) {
-            // S1 Irimi Palm: Clean straight hit
-            defender.vx = kbX * 1.5;
-            defender.vy = kbY * 1.5;
+            // S1 Irimi Palm: Clean straight open-palm entry
+            defender.vx = kbX * 2.0;
+            defender.vy = kbY * 2.0;
             stateRef.current.hitstopTime = 2;
             spawnFloatingText(defender.x, defender.y - 5, `-${formattedDamage} HP`, '#38bdf8');
           } else if (stage === 1) {
-            // S2 Kote-Gaeshi Slap: Traps opponent's lead wrist (glove pulled down 10px off-center)
-            defender.vx = kbX * 1.5;
-            defender.vy = kbY * 1.5;
-            defender.aikiKoteGaeshiTrapTimer = 24;
+            // S2 Kote-Gaeshi Slap: Circular open-palm slap
+            defender.vx = kbX * 2.0;
+            defender.vy = kbY * 2.0;
             stateRef.current.hitstopTime = 2;
             spawnFloatingText(defender.x, defender.y - 5, `-${formattedDamage} HP`, '#38bdf8');
-            spawnFloatingText(defender.x, defender.y - 30, 'WRIST TRAP!', '#e2e8f0');
+          } else if (stage === 2) {
+            // S3 Left Straight Thrust: Linear forward thrust, ZERO spin-out effect
+            defender.spinOutTimer = 0;
+            defender.kyokushinSpinOutTimer = 0;
+            defender.vx = kbX * 3.0;
+            defender.vy = kbY * 3.0;
+            stateRef.current.hitstopTime = 2;
+            spawnFloatingText(defender.x, defender.y - 5, `-${formattedDamage} HP`, '#38bdf8');
+          } else if (stage === 3) {
+            // S4 Irimi Glide-Palm: Heavy straight open-palm drive with high pushback
+            defender.vx = kbX * 12.5;
+            defender.vy = kbY * 12.5;
+            stateRef.current.hitstopTime = 3;
+            stateRef.current.shakeAmount = 6 * settings.screenShake;
+            soundManager.playPunch(true);
+            spawnFloatingText(defender.x, defender.y - 5, `-${formattedDamage} HP`, '#38bdf8');
+            spawnFloatingText(defender.x, defender.y - 30, 'GLIDE-PALM DRIVE!', '#0284c7');
 
-            // Silver impact ring particles
             stateRef.current.particles.push({
-              id: `aiki_silver_ring_${Math.random()}`,
+              id: `aiki_glide_shockwave_${Math.random()}`,
               x: defender.x,
               y: defender.y,
               vx: 0,
               vy: 0,
-              radius: 14,
-              color: '#e2e8f0',
+              radius: 24,
+              color: '#38bdf8',
               alpha: 1.0,
               life: 0,
-              maxLife: 16,
+              maxLife: 20,
               type: 'shockwave'
             });
-          } else if (stage === 2) {
-            // S3 Tenkan Arm-Cross Sweep:
-            // - Staggers opponent into 0.3s Off-Balance hitstun (18 frames)
-            // - Tenkan Aiki Flow: Grants Free M2 Stance Boost if off CD (15s baseline CD)
-            defender.vx = 0;
-            defender.vy = 0;
-            stateRef.current.hitstopTime = 2;
-            spawnFloatingText(defender.x, defender.y - 5, '0.0 HP (SETUP)', '#e0f2fe');
-
-            if (!targetIsStaggered) {
-              defender.stunTime = Math.max(defender.stunTime || 0, 18); // 0.3s (18 frames) Stagger
-              defender.isPostureLocked = true;
-              defender.isBlocking = false;
-              spawnFloatingText(defender.x, defender.y - 30, 'OFF-BALANCE STAGGER (0.3s)!', '#38bdf8');
-            }
-
-            // Passive 2: Tenkan Aiki Flow (S3 Free M2 Trigger)
-            // If M2 was used before free M2 in this sequence, will wait for next sequence and doesn't activate free M2
-            if (!attacker.aikiManualM2UsedInSequence && (attacker.aikiS3FreeM2CdTimer || 0) <= 0) {
-              attacker.aikiM2StanceTimer = 300; // 5.0s M2 Stance Boost
-              attacker.aikiM2SuperArmorHits = 2;
-              attacker.aikiFreeM2Active = true;
-              attacker.aikiS3FreeM2CdTimer = 900; // 15.0s baseline CD
-              spawnFloatingText(attacker.x, attacker.y - 50, 'TENKAN AIKI FLOW! (FREE M2 BOOST)', '#38bdf8');
-            }
-
-            // On-Hit Feedback: Two curved, semi-transparent white/cyan wind arcs clash at the center
-            const clashMidX = (attacker.x + defender.x) / 2;
-            const clashMidY = (attacker.y + defender.y) / 2;
-            stateRef.current.particles.push({
-              id: `aiki_wind_arc_1_${Math.random()}`,
-              x: clashMidX,
-              y: clashMidY,
-              vx: 0,
-              vy: 0,
-              radius: 26,
-              color: '#e0f7fa',
-              alpha: 0.9,
-              life: 0,
-              maxLife: 16,
-              type: 'aiki_wind_arc_right'
-            });
-            stateRef.current.particles.push({
-              id: `aiki_wind_arc_2_${Math.random()}`,
-              x: clashMidX,
-              y: clashMidY,
-              vx: 0,
-              vy: 0,
-              radius: 26,
-              color: '#38bdf8',
-              alpha: 0.9,
-              life: 0,
-              maxLife: 16,
-              type: 'aiki_wind_arc_left'
-            });
-          } else if (stage === 3) {
-            // S4 Shomenuchi Flaring Palm Drive:
-            if (attacker.aikiM2StanceTimer && attacker.aikiM2StanceTimer > 0) {
-              // M2 Redirection Stance Active (S4 Enhanced): Uninterruptible Guard-Breaking Slam transition with red shield fracture shards!
-              attacker.aikiSlamStage = 'clamp';
-              attacker.aikiSlamDamage = 22.0;
-              attacker.aikiSlamTimer = 90;
-              attacker.aikiSlamFrame = 0;
-              attacker.aikiSlamBaseAngle = attacker.facingAngle;
-              attacker.aikiSlamTarget = defender;
-              attacker.aikiM2HitLanded = true;
-              attacker.aikiIsFreeSlam = !!attacker.aikiFreeM2Active;
-              attacker.aikiSlamUninterruptible = true;
-              defender.aikiSlamUninterruptible = true;
-              defender.aikiSlamVictimStage = 'clamp';
-              defender.aikiOverheadScale = 1.0;
-              attacker.vx = 0;
-              attacker.vy = 0;
-              defender.vx = 0;
-              defender.vy = 0;
-              attacker.isPostureLocked = false;
-              attacker.postureCd = 0;
-              attacker.lightCooldown = 0;
-              attacker.strikeCooldown = 0;
-              attacker.fists.forEach(f => {
-                f.isPunching = false;
-                f.punchProgress = 0;
-              });
-              defender.fists.forEach(f => {
-                f.isPunching = false;
-                f.punchProgress = 0;
-              });
-              stateRef.current.hitstopTime = 3;
-              soundManager.playParry();
-              spawnFloatingText(attacker.x, attacker.y - 35, 'AIKI OVER-HEAD SLAM!', '#0284c7');
-
-              // Red shield fracture shards
-              for (let i = 0; i < 14; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const speed = Math.random() * 4.5 + 2.0;
-                stateRef.current.particles.push({
-                  id: `aiki_red_shard_${Math.random()}`,
-                  x: defender.x,
-                  y: defender.y,
-                  vx: Math.cos(angle) * speed,
-                  vy: Math.sin(angle) * speed,
-                  radius: Math.random() * 3.5 + 2.0,
-                  color: i % 2 === 0 ? '#ef4444' : '#b91c1c',
-                  alpha: 1.0,
-                  life: 0,
-                  maxLife: 24,
-                  type: 'spark'
-                });
-              }
-            } else if (targetIsStaggered) {
-              // Passive 2: Centrifugal Ejection (Kinetic Palm Amplification)
-              // "Landing your M1 S4 Palm Drive against an opponent who is actively in a stunned/staggered state inflicts 2x Massive Physical Knockback."
-              // "A massive directional shockwave cone erupts forward, launching the spinning victim across the arena with high-speed motion trails. Initiates Posture Cooldown."
-              defender.vx = kbX * 25.0; // 2x Massive Physical Knockback
-              defender.vy = kbY * 25.0;
-              defender.aikiCentrifugalKnockbackTimer = 28; // High-speed motion trails
-              stateRef.current.hitstopTime = 4;
-              stateRef.current.shakeAmount = 10 * settings.screenShake;
-
-              // Initiates Posture Cooldown
-              attacker.isPostureLocked = true;
-              attacker.postureCd = 24; // 0.4s Posture Cooldown
-              attacker.maxPostureCd = 24;
-
-              spawnFloatingText(defender.x, defender.y - 5, `-${formattedDamage} HP`, '#38bdf8');
-              spawnFloatingText(defender.x, defender.y - 30, 'CENTRIFUGAL EJECTION (2x KB)!', '#38bdf8');
-              soundManager.playPunch(true);
-
-              // Directional shockwave cone erupts forward
-              stateRef.current.particles.push({
-                id: `aiki_ejection_cone_${Math.random()}`,
-                x: attacker.x,
-                y: attacker.y,
-                vx: Math.cos(attacker.facingAngle) * 6,
-                vy: Math.sin(attacker.facingAngle) * 6,
-                radius: 36,
-                color: '#38bdf8',
-                alpha: 1.0,
-                life: 0,
-                maxLife: 20,
-                type: 'aiki_ejection_cone',
-                facingAngle: attacker.facingAngle
-              } as any);
-            } else {
-              // S4 Standard: 5px screen shake, radial cyan/white shockwave, target driven backward 25px
-              defender.vx = kbX * 12.5;
-              defender.vy = kbY * 12.5;
-              stateRef.current.hitstopTime = 3;
-              stateRef.current.shakeAmount = 5 * settings.screenShake;
-              spawnFloatingText(defender.x, defender.y - 5, `-${formattedDamage} HP`, '#38bdf8');
-
-              stateRef.current.particles.push({
-                id: `aiki_shomenuchi_shockwave_${Math.random()}`,
-                x: defender.x,
-                y: defender.y,
-                vx: 0,
-                vy: 0,
-                radius: 22,
-                color: '#e0f7fa',
-                alpha: 1.0,
-                life: 0,
-                maxLife: 20,
-                type: 'shockwave'
-              });
-            }
           }
         } else if (!isSlugger && stage === 3) {
           // Knockback moment!
@@ -5268,6 +5337,14 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     const player = state.player;
     if (!player || player.isDead || (state.dummy && state.dummy.isDead) || (player.dashCooldown || 0) > 0 || player.stunTime > 0 || (player.armorBreakTime || 0) > 0 || (player.kyokushinSpinOutTimer || 0) > 0 || (player.shellLockoutTimer || 0) > 0 || player.aikiSlamStage || player.aikiSlamUninterruptible || (player.aikiLockoutTimer && player.aikiLockoutTimer > 0) || (player.aikiSpinDownTimer && player.aikiSpinDownTimer > 0)) return;
 
+    if (!state.infiniteStamina && (player.stamina ?? 100) < 15) {
+      spawnFloatingText(player.x, player.y - 30, 'NO STAMINA!', '#ef4444');
+      return;
+    }
+    if (!state.infiniteStamina) {
+      player.stamina = Math.max(0, (player.stamina ?? 100) - 15);
+    }
+
     // Dodge direction: if WASD or joystick is pressed, calculate dash angle
     const keys = state.keysPressed || {};
     let moveX = 0;
@@ -5310,12 +5387,12 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     player.dashAngle = dashAngle;
     let dashProgress = 18; // 18 frames (~0.30s) of deliberate kinetic stride
     let dashForce = 10.12 * styleSpeed * (playerHeightMods.dashDistanceModifier || 1.0); // Boosted 10% universally
-    let dashCooldown = Math.round(90 * (playerHeightMods.dashCooldownModifier || 1.0));
+    let dashCooldown = Math.round(180 * (playerHeightMods.dashCooldownModifier || 1.0)); // 3.0s standard CD
 
     if (player.styleId === 'capoeira') {
       dashProgress = 15; // Shorter, tighter esquiva dodge progress
       dashForce = 8.58 * (playerHeightMods.dashDistanceModifier || 1.0);   // Compact deliberate velocity matching close-range Ginga
-      dashCooldown = Math.round(58 * (playerHeightMods.dashCooldownModifier || 1.0));
+      dashCooldown = Math.round(120 * (playerHeightMods.dashCooldownModifier || 1.0)); // 2.0s Capoeira CD
     } else if (player.styleId === 'basic') {
       dashProgress = 48;  // 0.8s Pendulum Dash (48 frames @ 60 FPS)
       dashForce = 2.145 * styleSpeed * (playerHeightMods.dashDistanceModifier || 1.0); // Slower, tightly controlled pacing with slightly longer sway
@@ -5410,12 +5487,12 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     fighter.dashAngle = escapeAngle;
     let dashProgress = 18; // 18 frames (~0.30s) of deliberate kinetic stride
     let dashForce = 10.12 * styleSpeed * (fighterHeightMods.dashDistanceModifier || 1.0); // Boosted 10% universally
-    let dashCooldown = Math.round(90 * (fighterHeightMods.dashCooldownModifier || 1.0));
+    let dashCooldown = Math.round(180 * (fighterHeightMods.dashCooldownModifier || 1.0)); // 3.0s standard CD
 
     if (fighter.styleId === 'capoeira') {
       dashProgress = 15;
       dashForce = 8.58 * (fighterHeightMods.dashDistanceModifier || 1.0);
-      dashCooldown = Math.round(58 * (fighterHeightMods.dashCooldownModifier || 1.0));
+      dashCooldown = Math.round(120 * (fighterHeightMods.dashCooldownModifier || 1.0)); // 2.0s Capoeira CD
     } else if (fighter.styleId === 'basic') {
       dashProgress = 48; // 0.8s Pendulum Dash (48 frames @ 60 FPS)
       dashForce = 2.145 * styleSpeed * (fighterHeightMods.dashDistanceModifier || 1.0); // Slower, tightly controlled pacing with slightly longer sway
@@ -5658,11 +5735,19 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     if ((matchData?.isCompetitive || matchData?.isAiMatch) && state.rankedState !== 'fighting') return;
     const player = state.player;
     const dummy = state.dummy;
-    if (!player || player.isDead || (dummy && dummy.isDead) || player.stunTime > 0 || (player.parriedStun || 0) > 0 || (player.strikeCooldown || 0) > 0 || (player.armorBreakTime || 0) > 0 || (player.kyokushinSpinOutTimer || 0) > 0 || (player.cqcAttackLockout || 0) > 0 || player.aikiSlamStage || player.aikiSlamUninterruptible || (player.aikiLockoutTimer && player.aikiLockoutTimer > 0) || (player.aikiSpinDownTimer && player.aikiSpinDownTimer > 0) || (player.superCrippleTimer && player.superCrippleTimer > 0) || (player.sluggerM2WhiffLockoutTimer && player.sluggerM2WhiffLockoutTimer > 0)) {
+    if (!player || player.isDead || (dummy && dummy.isDead) || player.stunTime > 0 || (player.parriedStun || 0) > 0 || (player.strikeCooldown || 0) > 0 || (player.armorBreakTime || 0) > 0 || (player.kyokushinSpinOutTimer || 0) > 0 || (player.cqcAttackLockout || 0) > 0 || player.aikiSlamStage || player.aikiSlamUninterruptible || (player.aikiLockoutTimer && player.aikiLockoutTimer > 0) || (player.aikiSpinDownTimer && player.aikiSpinDownTimer > 0) || (player.superCrippleTimer && player.superCrippleTimer > 0) || (player.sluggerM2WhiffLockoutTimer && player.sluggerM2WhiffLockoutTimer > 0) || (player.styleId === 'aikido' && (player.aikiM2ActiveWindow || 0) > 0 && (!player.aikiSlamReactiveWindow || player.aikiSlamReactiveWindow <= 0))) {
       if (player && player.superCrippleTimer && player.superCrippleTimer > 0) {
         spawnFloatingText(player.x, player.y - 30, 'SUPER CRIPPLED! (ATTACKS DISABLED)', '#dc2626');
       }
       return;
+    }
+
+    // Aikido Parry Attack Lockout: Cannot attack during Aikido parry / block / active M2 parry stance window (0.70s)
+    if (player.styleId === 'aikido') {
+      const isParryingState = player.isBlocking || !!player.aikiParryActive || ((player.aikiM2ActiveWindow || 0) > 0) || ((player.heavyWindup || 0) > 0) || ((player.parryFlashTime || 0) > 0);
+      if (isParryingState && (!player.aikiSlamReactiveWindow || player.aikiSlamReactiveWindow <= 0)) {
+        return;
+      }
     }
 
     // Section 2.8: You cannot attack during dash or for 0.30s (18 frames) after exiting dash
@@ -5683,7 +5768,6 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       } else {
         if ((player.lastBlockDelayTextTimer || 0) <= 0) {
           player.lastBlockDelayTextTimer = 6;
-          spawnFloatingText(player.x, player.y - 30, 'POST-BLOCK DELAY (0.1s)', '#f59e0b');
         }
         return;
       }
@@ -5698,7 +5782,6 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         player.postBlockAttackLockout = 6; // Section 2.8: Dropping active guard imposes 0.10s attack delay
         if ((player.lastBlockDelayTextTimer || 0) <= 0) {
           player.lastBlockDelayTextTimer = 6;
-          spawnFloatingText(player.x, player.y - 30, 'POST-BLOCK DELAY (0.1s)', '#f59e0b');
         }
         return;
       }
@@ -5713,20 +5796,39 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     // True Asynchronous Limbs: Only gate if a punch is actively extending forward (isPunching === true).
     // As soon as a strike reaches peak reach and starts retracting, the next strike launches INSTANTLY on Frame 1!
     const isPunchExtending = player.fists.some(f => f.isPunching) || ((player.shellRetractionHoldTimer || 0) > 0);
-    if (isPunchExtending) return;
+    if (isPunchExtending) {
+      if (player.styleId === 'street_taekwondo') {
+        const rightFist = player.fists.find(f => f.punchType === 'right');
+        if (rightFist && (rightFist.comboStage === 0 || player.comboStage === 1)) {
+          // Double-Tap Buffer: Seamless S1 ➔ S2 queue
+          player.tkdDoubleTapQueued = true;
+        }
+      }
+      return;
+    }
 
     // Check strike cooldown (stun/interruption)
     if (player.strikeCooldown && player.strikeCooldown > 0) return;
     // Check light attack cooldown
-    if (player.lightCooldown && player.lightCooldown > 0) return;
+    if (player.lightCooldown && player.lightCooldown > 0) {
+      if (player.styleId === 'street_taekwondo') {
+        const rightFist = player.fists.find(f => f.punchType === 'right');
+        if (rightFist && (rightFist.comboStage === 0 || player.comboStage === 1)) {
+          player.tkdDoubleTapQueued = true;
+          player.tkdChamberRetracting = true;
+        }
+      }
+      return;
+    }
 
-    // Aikido Tenchi Counter Slam Trigger via M1 during 0.2s parry window
-    if (player.styleId === 'aikido' && player.aikiCounterSlamWindow && player.aikiCounterSlamWindow > 0) {
+    // Aikido Reactive Slam Window Trigger via M1 during 0.5s parry window
+    if (player.styleId === 'aikido' && player.aikiSlamReactiveWindow && player.aikiSlamReactiveWindow > 0) {
+      player.aikiSlamReactiveWindow = 0;
+      player.aikiPassiveSlamCd = 900; // Independent 15.0s Cooldown
       const target = dummy && !dummy.isDead ? dummy : null;
       if (target) {
-        player.aikiCounterSlamWindow = 0;
         player.aikiSlamStage = 'clamp';
-        player.aikiSlamDamage = 10.0;
+        player.aikiSlamDamage = 6.0; // Flat Slam Damage (6.0 HP)
         player.aikiSlamTimer = 90;
         player.aikiSlamFrame = 0;
         player.aikiSlamBaseAngle = player.facingAngle;
@@ -5753,7 +5855,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
           f.punchProgress = 0;
         });
         soundManager.playParry();
-        spawnFloatingText(player.x, player.y - 30, 'AIKI OVER-HEAD SLAM!', '#0284c7');
+        spawnFloatingText(player.x, player.y - 30, 'OVER-HEAD COUNTER SLAM! (6.0 FLAT)', '#38bdf8');
         return;
       }
     }
@@ -5775,6 +5877,14 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     if (player.styleId === 'capoeira' && player.comboResetTimer && player.comboResetTimer <= 40) {
       currentStage = 0;
       spawnFloatingText(player.x, player.y - 30, 'RHYTHM RESET!', '#ca8a04');
+    }
+
+    // Aikido S2 ➔ S3 Retraction Gate:
+    // S3 (Left Thrust) is physically locked from firing until S2 (Kote-Gaeshi Slap) has 100% completed its retraction back to stance (0% extension)
+    if (player.styleId === 'aikido' && (currentStage === 1 || currentStage === 2)) {
+      if (!isS2FullyRetractedToStance(player)) {
+        return; // Input is queued or ignored until S2 arm reaches 0% extension
+      }
     }
 
     stateRef.current.totalSwings = (stateRef.current.totalSwings || 0) + 1;
@@ -5909,17 +6019,22 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         if (rightFist) { rightFist.isPunching = true; rightFist.punchProgress = 0; rightFist.comboStage = currentStage; rightFist.hasHit = false; }
       }
     } else if (player.styleId === 'aikido') {
-      // AIKIDO OPEN-PALM FLOW:
-      // S1 (Stage 0): Lead Right Hand Straight Forward Open-Palm Thrust
-      // S2 (Stage 1): Trailing Left Hand Kote-Gaeshi Circular Slap
-      // S3 (Stage 2): Right Hand Tenkan Pivot Forearm/Palm Thrust
-      // S4 (Stage 3): Right Hand Shomenuchi Palm Drive (Downward Collar Finisher)
-      if (currentStage === 1) {
+      // AIKIDO 4-COMBO LIGHT SEQUENCE:
+      // S1 (Stage 0): Lead Right Hand Irimi Open-Palm (Square Glove)
+      // S2 (Stage 1): Left Hand Kote-Gaeshi Slap (Square Glove, Built-In Parry)
+      // S3 (Stage 2): Left Hand Left Straight Thrust (Square Glove, Zero Spin-Out)
+      // S4 (Stage 3): Right Hand Irimi Glide-Palm (~15px mini-dash glide forward)
+      if (currentStage === 1 || currentStage === 2) {
         const leftFist = player.fists.find(f => f.punchType === 'left');
         if (leftFist) { leftFist.isPunching = true; leftFist.punchProgress = 0; leftFist.comboStage = currentStage; leftFist.hasHit = false; }
       } else {
         const rightFist = player.fists.find(f => f.punchType === 'right');
         if (rightFist) { rightFist.isPunching = true; rightFist.punchProgress = 0; rightFist.comboStage = currentStage; rightFist.hasHit = false; }
+        if (currentStage === 3) {
+          // Mini-dash glide forward (~15px)
+          player.vx += Math.cos(player.facingAngle) * 3.8;
+          player.vy += Math.sin(player.facingAngle) * 3.8;
+        }
       }
     } else if (player.styleId === 'boxing_shell') {
       // SECTION 1.18 - FIX 1: Iron Boxing S4 Chain Lag Elimination
@@ -5960,6 +6075,47 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
           leftFist.hasHit = false;
           leftFist.comboStage = currentStage;
         }
+      }
+    } else if (player.styleId === 'street_taekwondo') {
+      // STREET TAEKWONDO 4-COMBO SEQUENCE:
+      // S1 (Stage 0): Right Slanted Snap Kick
+      // S2 (Stage 1): Repeat Right Slanted Snap Kick
+      // S3 (Stage 2): Spinning Back Kick (Left Leg)
+      // S4 (Stage 3): Side Whip Finisher (Left Leg)
+      if (currentStage === 0 || currentStage === 1) {
+        const leftFist = player.fists.find(f => f.punchType === 'left');
+        if (leftFist) {
+          leftFist.isPunching = false;
+          leftFist.punchProgress = 0;
+          leftFist.isLingerActive = false;
+        }
+        const rightFist = player.fists.find(f => f.punchType === 'right');
+        if (rightFist) {
+          rightFist.isPunching = true;
+          rightFist.comboStage = currentStage;
+          rightFist.hasHit = false;
+          if (currentStage === 1) {
+            // S2: Launches directly forward from ~40% chambered position!
+            rightFist.punchProgress = Math.max(0.40, rightFist.punchProgress);
+          } else {
+            // S1:
+            rightFist.punchProgress = 0;
+            player.tkdDoubleTapQueued = false;
+            player.tkdChamberRetracting = false;
+          }
+        }
+      } else {
+        const rightFist = player.fists.find(f => f.punchType === 'right');
+        if (rightFist) {
+          rightFist.isPunching = false;
+          rightFist.punchProgress = 0;
+          rightFist.isLingerActive = false;
+        }
+        player.tkdInChamber = false;
+        player.tkdChamberRetracting = false;
+        player.tkdDoubleTapQueued = false;
+        const leftFist = player.fists.find(f => f.punchType === 'left');
+        if (leftFist) { leftFist.isPunching = true; leftFist.punchProgress = 0; leftFist.comboStage = currentStage; leftFist.hasHit = false; }
       }
     } else if (player.styleId === 'basic') {
       // FLOW BOXING 4-COMBO SEQUENCE:
@@ -6032,7 +6188,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
 
       // Separate M2 post-S4 usability delay (Heavy Attack recovery lockout after S4 defined per style script)
       const s4HeavyDelay = getStylePostS4HeavyDelay(player.styleId);
-      player.postS4HeavyLockout = Math.round(s4HeavyDelay / playerMods.speedFactor);
+      player.postS4HeavyLockout = player.styleId === 'street_taekwondo' ? 0 : Math.round(s4HeavyDelay / playerMods.speedFactor);
     } else {
       // Sequence 1-3 Cooldown (Between Strikes)
       const betweenCooldown = getStyleM1BetweenCooldown(player.styleId, currentStage);
@@ -6057,11 +6213,21 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     if ((matchData?.isCompetitive || matchData?.isAiMatch) && state.rankedState !== 'fighting') return;
     const player = state.player;
     const dummy = state.dummy;
-    if (!player || player.isDead || (dummy && dummy.isDead) || player.stunTime > 0 || (player.parriedStun || 0) > 0 || (player.strikeCooldown || 0) > 0 || (player.armorBreakTime || 0) > 0 || (player.kyokushinSpinOutTimer || 0) > 0 || (player.cqcAttackLockout || 0) > 0 || (player.shellLockoutTimer || 0) > 0 || (player.keysiVulnerableTimer || 0) > 0 || player.aikiSlamStage || player.aikiSlamUninterruptible || (player.aikiLockoutTimer && player.aikiLockoutTimer > 0) || (player.aikiSpinDownTimer && player.aikiSpinDownTimer > 0) || (player.superCrippleTimer && player.superCrippleTimer > 0) || (player.sluggerM2WhiffLockoutTimer && player.sluggerM2WhiffLockoutTimer > 0)) {
+    const isTkdM1Override = player?.styleId === 'street_taekwondo';
+    const isStrikeCdBlocking = !isTkdM1Override && ((player?.strikeCooldown || 0) > 0);
+    if (!player || player.isDead || (dummy && dummy.isDead) || player.stunTime > 0 || (player.parriedStun || 0) > 0 || isStrikeCdBlocking || (player.armorBreakTime || 0) > 0 || (player.kyokushinSpinOutTimer || 0) > 0 || (player.cqcAttackLockout || 0) > 0 || (player.shellLockoutTimer || 0) > 0 || (player.keysiVulnerableTimer || 0) > 0 || player.aikiSlamStage || player.aikiSlamUninterruptible || (player.aikiLockoutTimer && player.aikiLockoutTimer > 0) || (player.aikiSpinDownTimer && player.aikiSpinDownTimer > 0) || (player.superCrippleTimer && player.superCrippleTimer > 0) || (player.sluggerM2WhiffLockoutTimer && player.sluggerM2WhiffLockoutTimer > 0) || (player.styleId === 'aikido' && (player.aikiM2ActiveWindow || 0) > 0)) {
       if (player && player.superCrippleTimer && player.superCrippleTimer > 0) {
         spawnFloatingText(player.x, player.y - 30, 'SUPER CRIPPLED! (ATTACKS DISABLED)', '#dc2626');
       }
       return;
+    }
+
+    // Aikido Parry Attack Lockout: Cannot attack during Aikido parry / block / active M2 parry stance window
+    if (player.styleId === 'aikido') {
+      const isParryingState = player.isBlocking || !!player.aikiParryActive || ((player.aikiM2ActiveWindow || 0) > 0) || ((player.heavyWindup || 0) > 0) || ((player.parryFlashTime || 0) > 0);
+      if (isParryingState) {
+        return;
+      }
     }
 
     // Section 2.8: You cannot attack during dash or for 0.30s (18 frames) after exiting dash
@@ -6074,9 +6240,18 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       (player.kickboxingSeq2Ready && (player.kickboxingSeq2Window || 0) > 0) ||
       (player.kickboxingAutoSeq2Timer && player.kickboxingAutoSeq2Timer > 0)
     );
-    if (!isKickboxingSeq2Ready && ((player.heavyCooldown || 0) > 0 || (player.strikeCooldown || 0) > 0 || (player.postS4HeavyLockout || 0) > 0 || (player.keysiVulnerableTimer || 0) > 0)) return;
+    const isM1LockoutActive = !isTkdM1Override && ((player.strikeCooldown || 0) > 0 || (player.postS4HeavyLockout || 0) > 0);
+    if (!isKickboxingSeq2Ready && ((player.heavyCooldown || 0) > 0 || isM1LockoutActive || (player.keysiVulnerableTimer || 0) > 0)) return;
     if (player.styleId === 'capoeira' && player.capoeiraExhausted) return;
-    if (player.styleId === 'aikido' && player.aikiM2StanceTimer && player.aikiM2StanceTimer > 0) return;
+    if (player.styleId === 'aikido' && ((player.aikiM2ActiveWindow || 0) > 0 || (player.aikiWhiffSlowTimer || 0) > 0)) return;
+
+    if (!state.infiniteStamina && (player.stamina ?? 100) < 20) {
+      spawnFloatingText(player.x, player.y - 30, 'NO STAMINA!', '#ef4444');
+      return;
+    }
+    if (!state.infiniteStamina) {
+      player.stamina = Math.max(0, (player.stamina ?? 100) - 20);
+    }
 
     // SECTION 1.18 - FIX 3: Global M2 Retraction Override
     // Initiating an M2 Heavy Strike at any point immediately cancels any active M1 retraction or DS timer.
@@ -6093,7 +6268,6 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       } else {
         if ((player.lastBlockDelayTextTimer || 0) <= 0) {
           player.lastBlockDelayTextTimer = 6;
-          spawnFloatingText(player.x, player.y - 30, 'POST-BLOCK DELAY (0.1s)', '#f59e0b');
         }
         return;
       }
@@ -6105,7 +6279,6 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         player.postBlockAttackLockout = 6; // Section 2.8: Dropping active guard imposes 0.10s attack delay
         if ((player.lastBlockDelayTextTimer || 0) <= 0) {
           player.lastBlockDelayTextTimer = 6;
-          spawnFloatingText(player.x, player.y - 30, 'POST-BLOCK DELAY (0.1s)', '#f59e0b');
         }
         return;
       } else {
@@ -6170,7 +6343,11 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       windupFrames = 30; // 0.5s spinning wheel kick windup
     } else if (player.styleId === 'kickboxing') {
       if (isKickboxingSeq2Ready) {
-        windupFrames = 18; // 0.3s (18 Frames) Knee Chamber Teep Front Kick windup
+        let execSpeed = 0.95; // Base Attack Execution: 0.95x
+        if (player.kickboxingCadenceTimer && player.kickboxingCadenceTimer > 0) {
+          execSpeed *= 1.15; // Cadence Opening: +15% Attack Execution
+        }
+        windupFrames = Math.round(18 / execSpeed);
         player.kickboxingIsSeq2 = true;
         player.kickboxingSeq2Ready = false;
         player.kickboxingSeq2Window = 0;
@@ -6183,12 +6360,13 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         });
       } else {
         player.kickboxingIsSeq2 = false;
-        if (player.hasChainReaction) {
-          windupFrames = 15; // 0.25s windup via Chain Reaction
-          player.hasChainReaction = false;
-        } else {
-          windupFrames = 26; // 0.44s windup standard (buffed from 30 frames/0.5s)
+        player.kickboxingS1Hit = false;
+        player.kickboxingS2Hit = false;
+        let execSpeed = 0.95; // Base Attack Execution: 0.95x
+        if (player.kickboxingCadenceTimer && player.kickboxingCadenceTimer > 0) {
+          execSpeed *= 1.15; // Cadence Opening: +15% Attack Execution
         }
+        windupFrames = Math.round(24 / execSpeed);
       }
     } else if (player.styleId === 'keysi') {
       player.isDashing = false;
@@ -6221,13 +6399,22 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     } else if (player.styleId === 'kyokushin') {
       windupFrames = 33; // 0.55s Kinetic Absorption Heavy Strike windup
     } else if (player.styleId === 'aikido') {
-      windupFrames = 9; // 0.15s stance activation
-      player.aikiM2StanceTimer = 300; // 5.0s stance buff duration
-      player.aikiM2SuperArmorHits = 2; // 2-Hit Super Armor
-      player.aikiM2HitLanded = false;
-      player.aikiManualM2UsedInSequence = true;
+      windupFrames = 0;
+      player.heavyWindup = 0;
+      player.aikiM2ActiveWindow = 42; // 0.70s active parry window
+      player.aikiM2Guarding = true;
       soundManager.playParry();
-      spawnFloatingText(player.x, player.y - 30, 'AIKI REDIRECTION STANCE', '#0284c7');
+      spawnFloatingText(player.x, player.y - 30, 'ACTIVE PARRY STANCE (0.7s)', '#38bdf8');
+      syncCombatStatesToUI();
+      return;
+    } else if (player.styleId === 'street_taekwondo') {
+      windupFrames = 21; // 100% standard speed: 0.35s total (9f Phase 1 rear load + 12f Phase 2 feint arc & pull-back)
+      player.maxHeavyWindup = windupFrames;
+      player.tkdFeintWindowActive = false; // Phase 1 is rear coil; Phase 2 activates parry-detect window
+      player.tkdFeintTrapped = false;
+      player.heavyCooldown = 240; // 4.0s (240 frames) whiff base (420 frames / 7.0s on hit)
+      soundManager.playDash();
+      spawnFloatingText(player.x, player.y - 30, 'BRAZILIAN KICK FEINT', '#FFD600');
     }
 
     // Heavy Windup Passives:
@@ -6269,6 +6456,53 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     sendImmediateWsGameState();
   };
 
+  // Kickboxing Base Rework: Dynamic M2 Cooldowns & Cadence Opening
+  // S1 Hit, S2 Whiff: 4s (240f) | S2 Hit, S1 Whiff: 5s (300f) | Both Hit: 6s (360f) | Both Whiff: 8s (480f)
+  const finalizeKickboxingM2Cooldown = (fighter: Fighter) => {
+    const s1 = !!fighter.kickboxingS1Hit;
+    const s2 = !!fighter.kickboxingS2Hit;
+    let cdFrames = 480; // Both Whiff default (8.0s)
+    let outcomeText = '';
+    let textColor = '#ef4444';
+
+    if (s1 && s2) {
+      // Both Hit: 6s (360 frames)
+      cdFrames = 360;
+      outcomeText = 'BOTH HIT (6.0s CD)';
+      textColor = '#22c55e';
+      // Passive - Cadence Opening: Landing both M2 strikes grants +15% Attack Execution and +20% Attack Speed
+      fighter.kickboxingCadenceTimer = 300; // 5.0 seconds @ 60fps
+      spawnFloatingText(fighter.x, fighter.y - 35, 'CADENCE OPENING (+15% EXEC / +20% SPD)', '#22c55e');
+      soundManager.playParry();
+    } else if (s1 && !s2) {
+      // S1 Hit, S2 Whiff: 4s (240 frames)
+      cdFrames = 240;
+      outcomeText = 'S1 HIT / S2 WHIFF (4.0s CD)';
+      textColor = '#38bdf8';
+      spawnFloatingText(fighter.x, fighter.y - 30, outcomeText, textColor);
+    } else if (!s1 && s2) {
+      // S2 Hit, S1 Whiff: 5s (300 frames)
+      cdFrames = 300;
+      outcomeText = 'S2 HIT / S1 WHIFF (5.0s CD)';
+      textColor = '#f59e0b';
+      spawnFloatingText(fighter.x, fighter.y - 30, outcomeText, textColor);
+    } else {
+      // Both Whiff: 8s (480 frames)
+      cdFrames = 480;
+      outcomeText = 'BOTH WHIFF (8.0s CD)';
+      textColor = '#ef4444';
+      spawnFloatingText(fighter.x, fighter.y - 30, outcomeText, textColor);
+    }
+
+    fighter.heavyCooldown = cdFrames;
+    fighter.kickboxingIsSeq2 = false;
+    fighter.kickboxingSeq2Ready = false;
+    fighter.kickboxingSeq2Window = 0;
+    fighter.kickboxingAutoSeq2Timer = 0;
+    fighter.kickboxingS1Hit = false;
+    fighter.kickboxingS2Hit = false;
+  };
+
   // Complete heavy hook action after windup finishes
   const applyHeavyWhiffPenalty = (fighter: Fighter) => {
     const fighterMods = getHeightModifiers(fighter.baseHeight);
@@ -6295,8 +6529,12 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       fighter.keysiClinchTarget = null;
       spawnFloatingText(fighter.x, fighter.y - 30, 'OVER-EXTENDED! (+30% DMG / -60% SPD)', '#ef4444');
     } else if (fighter.styleId === 'aikido') {
-      fighter.heavyCooldown = Math.max(fighter.heavyCooldown || 0, 540); // 9.0s whiff cooldown
-      spawnFloatingText(fighter.x, fighter.y - 30, 'STANCE WHIFF (9.0s CD)', '#ef4444');
+      fighter.heavyCooldown = Math.max(fighter.heavyCooldown || 0, 420); // 7.0s whiff cooldown
+      fighter.aikiWhiffSlowTimer = 60; // -70% slow for 1.0s
+      fighter.strikeCooldown = Math.max(fighter.strikeCooldown || 0, 60); // 1.0s lockout
+      fighter.lightCooldown = Math.max(fighter.lightCooldown || 0, 60);
+      fighter.parryLockoutTimer = Math.max(fighter.parryLockoutTimer || 0, 60);
+      spawnFloatingText(fighter.x, fighter.y - 30, 'M2 WHIFF (-70% SPEED, 7.0s CD)', '#ef4444');
     } else if (fighter.styleId === 'ashihara') {
       fighter.heavyCooldown = Math.max(fighter.heavyCooldown || 0, 300); // 5.0s whiff
       fighter.ashiharaRecoveryTimer = 30; // 0.5s recovery lockout on whiff
@@ -6319,14 +6557,11 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       spawnFloatingText(fighter.x, fighter.y - 30, 'HAYMAKER WHIFF (8.0s)', '#dc2626');
     } else if (fighter.styleId === 'kickboxing') {
       const isSeq2 = !!fighter.kickboxingIsSeq2;
-      fighter.kickboxingSeq2Ready = false;
-      fighter.kickboxingSeq2Window = 0;
-      fighter.heavyCooldown = Math.max(fighter.heavyCooldown || 0, 660); // 11.0s whiff
-      const recoveryFrames = isSeq2 ? 48 : 36;
+      finalizeKickboxingM2Cooldown(fighter);
+      const recoveryFrames = isSeq2 ? 36 : 24;
       fighter.stunTime = Math.max(fighter.stunTime || 0, recoveryFrames);
       fighter.blockLockout = Math.max(fighter.blockLockout || 0, recoveryFrames);
       fighter.strikeCooldown = Math.max(fighter.strikeCooldown || 0, recoveryFrames);
-      spawnFloatingText(fighter.x, fighter.y - 30, 'WHIFF RECOVERY (11.0s)', '#ef4444');
     } else if (fighter.styleId === 'cqc') {
       fighter.heavyCooldown = Math.max(fighter.heavyCooldown || 0, 900); // 15.0s
       fighter.strikeCooldown = Math.max(fighter.strikeCooldown || 0, 36);
@@ -6343,6 +6578,9 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       fighter.streetBoxingM2NextTimer = 0;
       fighter.streetBoxingUnbreakable = false;
       spawnFloatingText(fighter.x, fighter.y - 30, 'WHIFF RECOVERY (8.0s)', '#ef4444');
+    } else if (fighter.styleId === 'street_taekwondo') {
+      fighter.heavyCooldown = Math.max(fighter.heavyCooldown || 0, 240); // 4.0s (240 frames) whiff cooldown
+      spawnFloatingText(fighter.x, fighter.y - 30, 'WHIFF RECOVERY (4.0s)', '#ef4444');
     }
   };
 
@@ -6412,12 +6650,10 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
 
     if (player.styleId === 'aikido') {
       player.heavyWindup = 0;
-      player.aikiM2StanceTimer = 300; // 5.0s stance duration
-      player.aikiM2SuperArmorHits = 2; // 2-hit Super Armor
-      player.aikiM2HitLanded = false;
-      player.heavyCooldown = 780; // 13.0s CD
+      player.aikiM2ActiveWindow = 42; // 0.70s active parry window
+      player.aikiM2Guarding = true;
       soundManager.playParry();
-      spawnFloatingText(player.x, player.y - 30, 'AIKI REDIRECTION STANCE (5.0s)', '#0284c7');
+      spawnFloatingText(player.x, player.y - 30, 'ACTIVE PARRY STANCE (0.7s)', '#38bdf8');
       syncCombatStatesToUI();
       return;
     }
@@ -6557,12 +6793,10 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
 
     if (dummy.styleId === 'aikido') {
       dummy.heavyWindup = 0;
-      dummy.aikiM2StanceTimer = 300; // 5.0s stance duration
-      dummy.aikiM2SuperArmorHits = 2; // 2-hit Super Armor
-      dummy.aikiM2HitLanded = false;
-      dummy.heavyCooldown = 780; // 13.0s CD
+      dummy.aikiM2ActiveWindow = 42; // 0.70s active parry window
+      dummy.aikiM2Guarding = true;
       soundManager.playParry();
-      spawnFloatingText(dummy.x, dummy.y - 30, 'AIKI REDIRECTION STANCE (5.0s)', '#0284c7');
+      spawnFloatingText(dummy.x, dummy.y - 30, 'ACTIVE PARRY STANCE (0.7s)', '#38bdf8');
       syncCombatStatesToUI();
       return;
     }
@@ -6680,7 +6914,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    if (!isPlaying || isDead || stateRef.current.cinematicZoomActive || stateRef.current.matchEnded || stateRef.current.player?.isDead || stateRef.current.dummy?.isDead) return;
+    if (!isPlaying || isDead || isGamePausedRef.current || stateRef.current.cinematicZoomActive || stateRef.current.matchEnded || stateRef.current.player?.isDead || stateRef.current.dummy?.isDead) return;
 
     // In Lock-On mode: dragging aims character left/right along character axis; quick click triggers attack
     if (settings.cameraMode === 'lockon_swipe') {
@@ -6706,7 +6940,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
   };
 
   const handleCanvasTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isPlaying || isDead || stateRef.current.cinematicZoomActive || stateRef.current.matchEnded || stateRef.current.player?.isDead || stateRef.current.dummy?.isDead) return;
+    if (!isPlaying || isDead || isGamePausedRef.current || stateRef.current.cinematicZoomActive || stateRef.current.matchEnded || stateRef.current.player?.isDead || stateRef.current.dummy?.isDead) return;
 
     if (settings.cameraMode === 'lockon_swipe' && e.changedTouches.length > 0) {
       const touch = e.changedTouches[0];
@@ -7015,6 +7249,12 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       // Heavy windup timing
       if (player.heavyWindup && player.heavyWindup > 0) {
         player.heavyWindup--;
+        if (player.styleId === 'street_taekwondo') {
+          const maxW = player.maxHeavyWindup || 21;
+          const wRatio = (maxW - player.heavyWindup) / maxW;
+          // Phase 2: The Right Arc Feint (0.15s – 0.35s / 0.20s Duration)
+          player.tkdFeintWindowActive = wRatio >= 0.4286 && wRatio < 1.0;
+        }
         
         if ((player.styleId === 'kickboxing' && player.kickboxingIsSeq2) || player.styleId === 'basic') {
           // Keep forward momentum during Flow Boxing Sway Sprint M2 or Kickboxing S2 rapid chamber
@@ -7084,7 +7324,17 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         if (!player.isBlocking && canFighterRaiseGuard(player)) {
           // Section 2.8: Attack Animation Block-Cancel (Feinting / Reflex Parries)
           const hadActivePunch = player.fists.some(f => f.isPunching && !f.isHeavy);
-          if (hadActivePunch) {
+          const hadActiveHeavy = (player.heavyWindup && player.heavyWindup > 0) || player.fists.some(f => f.isPunching && f.isHeavy);
+          if (hadActiveHeavy) {
+            applyHeavyWhiffPenalty(player);
+            player.heavyWindup = 0;
+            player.fists.forEach(f => {
+              f.isPunching = false;
+              f.punchProgress = 0;
+              f.isHeavy = false;
+            });
+            spawnFloatingText(player.x, player.y - 30, 'M2 FEINT / CANCELLED', '#ef4444');
+          } else if (hadActivePunch) {
             player.fists.forEach(f => {
               f.isPunching = false;
               f.punchProgress = 0;
@@ -7162,31 +7412,39 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         if (player.kickboxingSeq2Window === 0) {
           player.kickboxingSeq2Ready = false;
           if (player.styleId === 'kickboxing') {
-            player.heavyCooldown = 270;
+            finalizeKickboxingM2Cooldown(player);
           }
         }
       }
 
       // Aikido player updates (Tenkan Aiki Flow, M2 Stance, Counter Slam window, Slam animation)
       if (player.styleId === 'aikido') {
-        if (player.aikiS3FreeM2CdTimer && player.aikiS3FreeM2CdTimer > 0) {
-          player.aikiS3FreeM2CdTimer--;
+        if (player.aikiPassiveSlamCd && player.aikiPassiveSlamCd > 0) {
+          player.aikiPassiveSlamCd--;
         }
-        if (player.aikiM2StanceTimer && player.aikiM2StanceTimer > 0) {
-          player.aikiM2StanceTimer--;
-          if (player.aikiM2StanceTimer === 0) {
-            if (!player.aikiM2HitLanded && !player.aikiFreeM2Active) {
-              player.heavyCooldown = 540; // 9.0s whiff cooldown on manual M2
-              spawnFloatingText(player.x, player.y - 30, 'STANCE EXPIRED (9.0s WHIFF CD)', '#ef4444');
-            }
-            player.aikiM2SuperArmorHits = 0;
-            player.aikiM2HitLanded = false;
-            player.aikiFreeM2Active = false;
+        if (player.aikiSlamReactiveWindow && player.aikiSlamReactiveWindow > 0) {
+          player.aikiSlamReactiveWindow--;
+        }
+        if (player.aikiM2ActiveWindow && player.aikiM2ActiveWindow > 0) {
+          player.aikiM2ActiveWindow--;
+          if (player.aikiM2ActiveWindow === 0) {
+            // M2 Active Parry Whiffed!
+            player.aikiM2Guarding = false;
+            player.heavyCooldown = 420; // 7.0s Whiff CD
+            player.aikiWhiffSlowTimer = 60; // 1.0s -70% movement slow
+            player.strikeCooldown = Math.max(player.strikeCooldown || 0, 60); // 1.0s M1/M2/Parry lockout
+            player.lightCooldown = Math.max(player.lightCooldown || 0, 60);
+            player.parryLockoutTimer = Math.max(player.parryLockoutTimer || 0, 60);
+            spawnFloatingText(player.x, player.y - 30, 'M2 WHIFF (-70% SPEED, 7.0s CD)', '#ef4444');
           }
         }
-        if (player.aikiCounterSlamWindow && player.aikiCounterSlamWindow > 0) {
-          player.aikiCounterSlamWindow--;
+        if (player.aikiWhiffSlowTimer && player.aikiWhiffSlowTimer > 0) {
+          player.aikiWhiffSlowTimer--;
         }
+        if (player.aikiConfusionTimer && player.aikiConfusionTimer > 0) {
+          player.aikiConfusionTimer--;
+        }
+
         // Smooth Aikido S2 chamber curl/uncurl transition
         const pLeftFist = player.fists ? (player.fists.find(f => f.punchType === 'left') || player.fists[0]) : undefined;
         const pRightFist = player.fists ? (player.fists.find(f => f.punchType === 'right') || player.fists[1]) : undefined;
@@ -7240,12 +7498,18 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
                 target.aikiSlamVictimStage = 'downed';
                 target.aikiOverheadScale = 1.0;
 
-                const slamDmg = player.aikiSlamDamage ?? 22.0;
+                // Flat Slam Damage (6.0 HP passive counter or 8.0 HP M2 counter)
+                const slamDmg = player.aikiSlamDamage ?? 6.0;
                 target.health = Math.max(0, target.health - slamDmg);
                 target.damageFlashTime = 14;
+                target.aikiConfusionTimer = 120; // 2.0s Neuro-Disruption (Confusion)
+                if (target.isPlayer) {
+                  stateRef.current.shakyVisionTimer = 120;
+                }
                 soundManager.playPunch(true);
                 stateRef.current.shakeAmount = 14 * settings.screenShake;
-                spawnFloatingText(target.x, target.y - 30, `OVER-HEAD SLAM! (${slamDmg.toFixed(0)} DMG)`, '#0284c7');
+                spawnFloatingText(target.x, target.y - 30, `OVER-HEAD SLAM! (${slamDmg.toFixed(1)} FLAT)`, '#0284c7');
+                spawnFloatingText(target.x, target.y - 50, 'NEURO-DISRUPTION! (2.0s CONFUSION)', '#38bdf8');
 
                 stateRef.current.particles.push({
                   id: `aiki_slam_shockwave_${Math.random()}`,
@@ -7285,9 +7549,6 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
                 target.superCrippleTimer = Math.max(target.superCrippleTimer || 0, 60); // 1.0s Super Cripple (M1/M2 locked & -60% speed)
                 target.aikiLockoutTimer = 60;      // 1.0s M1 and M2 attack lockout
                 target.aikiShakyVisionTimer = 60;  // 1.0s shaky vision disruption
-                if (target.isPlayer) {
-                  stateRef.current.shakyVisionTimer = 60;
-                }
                 target.stunTime = Math.max(target.stunTime || 0, 27);
               } else {
                 // Follow-through downed state (1.05s - 1.50s)
@@ -7309,13 +7570,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
                 target.aikiSlamVictimStage = null;
                 target.aikiOverheadScale = 1.0;
               }
-              const wasFreeSlam = !!(player.aikiFreeM2Active || player.aikiIsFreeSlam);
-              player.aikiM2StanceTimer = 0;
-              player.aikiFreeM2Active = false;
               player.aikiIsFreeSlam = false;
-              if (!wasFreeSlam) {
-                player.heavyCooldown = 300; // 5.0s M2 CD only for manual M2 slam!
-              }
             }
           }
         }
@@ -7413,7 +7668,9 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       if (player.kickboxingAutoSeq2Timer && player.kickboxingAutoSeq2Timer > 0) {
         player.kickboxingAutoSeq2Timer--;
         if (player.kickboxingAutoSeq2Timer === 0) {
-          player.heavyWindup = 9; // 1️⃣ Rapid Chamber (0.15s / 9 Frames)
+          let exec = 0.95;
+          if (player.kickboxingCadenceTimer && player.kickboxingCadenceTimer > 0) exec *= 1.15;
+          player.heavyWindup = Math.round(9 / exec); // Rapid Chamber (scaled by execution speed)
           player.kickboxingIsSeq2 = true;
           player.kickboxingSeq2Ready = false;
           player.kickboxingSeq2Window = 0;
@@ -8567,6 +8824,8 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         const baseSpeed = BASE_MOVEMENT_SPEED * styleSpeed * sprintRes.speedMultiplier;
         let speedMult = 1.0;
         if (player.sluggerM2WhiffLockoutTimer && player.sluggerM2WhiffLockoutTimer > 0) speedMult *= 0.20; // -80% Movement Speed on Slugger M2 Whiff
+        if (player.aikiM2ActiveWindow && player.aikiM2ActiveWindow > 0) speedMult *= 0.10; // -90% Movement Speed on Aikido M2 Active Window (0.10x crawl)
+        if (player.aikiWhiffSlowTimer && player.aikiWhiffSlowTimer > 0) speedMult *= 0.30; // -70% Movement Speed on Aikido M2 Whiff (1.0s)
         if (player.concussTime && player.concussTime > 0) speedMult *= 0.40; // 60% movement speed slowdown
         if (player.crippleTime && player.crippleTime > 0) speedMult *= 0.85;
         if (player.keysiVulnerableTimer && player.keysiVulnerableTimer > 0) speedMult *= 0.40; // -60% speed penalty during Over-Extended
@@ -8625,10 +8884,22 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         player.strikeCooldown--;
       }
       if (player.lightCooldown && player.lightCooldown > 0) {
-        player.lightCooldown--;
+        let dec = 1;
+        if (player.styleId === 'kickboxing' && player.kickboxingCadenceTimer && player.kickboxingCadenceTimer > 0) {
+          // Cadence Opening: +20% Attack Speed (extra recovery tick every 5th frame)
+          if (stateRef.current.gameTime % 5 === 0) dec = 2;
+        }
+        player.lightCooldown = Math.max(0, player.lightCooldown - dec);
+      }
+      if (player.kickboxingCadenceTimer && player.kickboxingCadenceTimer > 0) {
+        player.kickboxingCadenceTimer--;
       }
       if (player.postureCd && player.postureCd > 0) {
-        const decrement = (player.shellPostureBoostTimer && player.shellPostureBoostTimer > 0) ? 2 : 1;
+        let decrement = (player.shellPostureBoostTimer && player.shellPostureBoostTimer > 0) ? 2 : 1;
+        if (player.deflectiveCadenceTimer && player.deflectiveCadenceTimer > 0) {
+          // Deflective Cadence (+30% Posture Regeneration speed for 8.0s)
+          if (stateRef.current.gameTime % 3 === 0) decrement += 1;
+        }
         player.postureCd = Math.max(0, player.postureCd - decrement);
         player.isPostureLocked = player.postureCd > 0;
       } else {
@@ -8649,11 +8920,12 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       }
       // Hold M1 buffered / continuous attack execution:
       if (!isLockedFromMoving && state.isLMBHeld && (!player.lightCooldown || player.lightCooldown <= 0) && (!player.postureCd || player.postureCd <= 0) && !player.isPostureLocked && (!player.strikeCooldown || player.strikeCooldown <= 0) && !player.isBlocking && (player.stunTime || 0) <= 0 && (player.armorBreakTime || 0) <= 0 && !player.capoeiraExhausted && (!player.postBlockAttackLockout || player.postBlockAttackLockout <= 0) && (!player.shellLockoutTimer || player.shellLockoutTimer <= 0)) {
-        const isHeavyPunching = player.fists.some(f => (f.isPunching || f.punchProgress > 0) && f.isHeavy);
+        const isHeavyPunching = player.fists.some(f => (f.isPunching || f.punchProgress > 0.05) && f.isHeavy);
         const isHeavyExecuting = (player.heavyWindup || 0) > 0 || isHeavyPunching || (player.ashiharaM2Stage && player.ashiharaM2Stage > 0) || (player.cqcM2Stage && player.cqcM2Stage !== null) || !!player.keysiClinchStage;
-        const isLightPunching = player.fists.some(f => f.isPunching && !f.isHeavy) && (!player.shellRetractionHoldTimer || player.shellRetractionHoldTimer <= 0);
+        const isLightPunching = player.fists.some(f => (f.isPunching || f.punchProgress > 0.05) && !f.isHeavy) && (!player.shellRetractionHoldTimer || player.shellRetractionHoldTimer <= 0);
         if (!isHeavyExecuting && !isLightPunching) {
           triggerPlayerLightAttack();
+          player.lightCooldown = Math.max(player.lightCooldown || 0, 18);
         }
       }
       if (player.heavyCooldown && player.heavyCooldown > 0) {
@@ -8680,6 +8952,19 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
           player.heavyCooldown = player.keysiQueuedWhiffCd;
           player.keysiQueuedWhiffCd = 0;
         }
+      }
+      if (player.tkdConfusionTimer && player.tkdConfusionTimer > 0) {
+        player.tkdConfusionTimer--;
+        // Intermittent motion blur pulses during Confusion State (3.0s)
+        if (player.tkdConfusionTimer % 45 === 0) {
+          stateRef.current.visionBlurTime = 12;
+        }
+      }
+      if (player.deflectiveCadenceTimer && player.deflectiveCadenceTimer > 0) {
+        player.deflectiveCadenceTimer--;
+      }
+      if (player.tkdLeadStaggerTimer && player.tkdLeadStaggerTimer > 0) {
+        player.tkdLeadStaggerTimer--;
       }
 
       // Apply coordinates displacement
@@ -8735,17 +9020,25 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
           else if (player.styleId === 'keysi') { basePunchSpeed = 0.14; baseReturnSpeed = 0.10; }
           else if (player.styleId === 'kickboxing') {
             const isSeq2 = (fist as any)?.kickboxingSeq2 || player.kickboxingIsSeq2;
+            let execMult = 0.95; // Base Attack Execution: 0.95x
+            if (player.kickboxingCadenceTimer && player.kickboxingCadenceTimer > 0) {
+              execMult *= 1.15; // Cadence Opening: +15% Attack Execution
+            }
             if (isSeq2) {
-              basePunchSpeed = 0.33; // 3 Frames Teep Thrust
-              baseReturnSpeed = 0.10; // 10 Frames over-extension
+              basePunchSpeed = 0.33 * execMult; // Teep Thrust
+              baseReturnSpeed = 0.10 * execMult; // 10 Frames over-extension
             } else {
-              basePunchSpeed = 0.33; // 3 Frames Short Hook Execution
-              baseReturnSpeed = 0.16; // 6 Frames over-swing
+              basePunchSpeed = 0.33 * execMult; // Short Hook Execution
+              baseReturnSpeed = 0.16 * execMult; // 6 Frames over-swing
             }
           }
           else if (player.styleId === 'boxing_shell') {
             basePunchSpeed = 0.22; // Quick shoulder roll turn (~4-5 frames)
             baseReturnSpeed = 0.18; // Quick snap back recovery (~5-6 frames)
+          }
+          else if (player.styleId === 'street_taekwondo') {
+            basePunchSpeed = 0.1667; // 6 Frames (~0.10s) downward snap (100% standard speed)
+            baseReturnSpeed = 0.0333; // 30 Frames (0.50s DS) decelerating recovery (100% standard speed)
           }
           else { basePunchSpeed = 0.08; baseReturnSpeed = 0.06; }
         } else {
@@ -8774,6 +9067,13 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
               basePunchSpeed = m1.punchSpeed; // Iron Boxing: 100.0ms (~6.0 frames)
               baseReturnSpeed = m1.returnSpeed;
             }
+          } else if (player.styleId === 'kickboxing') {
+            let execMult = 0.95; // Base Attack Execution: 0.95x
+            if (player.kickboxingCadenceTimer && player.kickboxingCadenceTimer > 0) {
+              execMult *= 1.15; // Cadence Opening: +15% Attack Execution
+            }
+            basePunchSpeed *= execMult;
+            baseReturnSpeed *= execMult;
           }
         }
 
@@ -8807,13 +9107,56 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
           // SECTION 1.17: Pure Style Execution - Decoupled from height scaling
           const punchSpeed = basePunchSpeed * momentumMultiplier;
           fist.punchProgress += punchSpeed;
+          if (player.styleId === 'street_taekwondo' && fist.isHeavy && fist.isPunching && Math.random() < 0.65) {
+            const legDist = player.radius * 1.85 * (1.35 * Math.sin(fist.punchProgress * Math.PI * 0.5));
+            const chopProg = Math.sin(fist.punchProgress * Math.PI * 0.5);
+            const localChopAngle = 1.57 - chopProg * (1.57 - (-0.26)); // Sweeps from side flank to far and a little further
+            const chopAngle = player.facingAngle + localChopAngle;
+            state.particles.push({
+              id: `tkd_m2_trail_${Math.random()}`,
+              x: player.x + Math.cos(chopAngle) * legDist,
+              y: player.y + Math.sin(chopAngle) * legDist,
+              vx: (Math.random() - 0.5) * 1.5,
+              vy: (Math.random() - 0.5) * 1.5,
+              radius: Math.random() * 2.5 + 1.5,
+              color: '#FFD600',
+              alpha: 0.95,
+              life: 0,
+              maxLife: 16,
+              type: 'spark'
+            });
+          }
           if (fist.punchProgress >= 1.0) {
             fist.punchProgress = 1.0;
             fist.isPunching = false;
             fist.lingerTimer = 0;
             fist.isLingerActive = false;
+            if (player.styleId === 'street_taekwondo' && fist.comboStage === 0 && !fist.isHeavy) {
+              if (player.tkdDoubleTapQueued || state.isLMBHeld) {
+                player.tkdChamberRetracting = true;
+              }
+            }
           }
         } else if (fist.punchProgress > 0) {
+          if (player.styleId === 'street_taekwondo' && fist.comboStage === 0 && !fist.isHeavy && player.tkdChamberRetracting) {
+            // S1 ➔ S2 Quick Chamber Retraction toward ~40% extension
+            const snapRetDelta = Math.max(0.06, baseReturnSpeed * 2.5);
+            fist.punchProgress -= snapRetDelta;
+            if (fist.punchProgress <= 0.40) {
+              fist.punchProgress = 0.40;
+              player.tkdChamberRetracting = false;
+              player.tkdDoubleTapQueued = false;
+              // IMMEDIATE S2 LAUNCH from cocked chamber:
+              fist.isPunching = true;
+              fist.comboStage = 1;
+              fist.hasHit = false;
+              fist.punchTimeSec = 0;
+              player.comboStage = 2; // Next will be S3
+              player.lightCooldown = 0; // Zero input lag
+              soundManager.playDash();
+            }
+            return;
+          }
           if (player.styleId === 'kyokushin' && fist.isHeavy && (player.kyokushinM2PeakHoldTimer || 0) > 0) {
             player.kyokushinM2PeakHoldTimer!--;
             fist.punchProgress = 1.0; // Rigid Lock: Freeze solid at peak! Zero spring-back or rubber-banding
@@ -8958,6 +9301,11 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       // Dummy Heavy Windup timing
       if (dummy.heavyWindup && dummy.heavyWindup > 0) {
         dummy.heavyWindup--;
+        if (dummy.styleId === 'street_taekwondo') {
+          const maxW = dummy.maxHeavyWindup || 21;
+          const wRatio = (maxW - dummy.heavyWindup) / maxW;
+          dummy.tkdFeintWindowActive = wRatio >= 0.4286 && wRatio < 1.0;
+        }
         if ((dummy.styleId === 'kickboxing' && dummy.kickboxingIsSeq2) || dummy.styleId === 'basic') {
           // Allow forward dash momentum
           if (dummy.styleId === 'basic' && dummy.attackLockedAngle !== undefined) {
@@ -9055,26 +9403,34 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
       if (dummy.shellSpinTimer && dummy.shellSpinTimer > 0) dummy.shellSpinTimer--;
       if (dummy.shellPostureBoostTimer && dummy.shellPostureBoostTimer > 0) dummy.shellPostureBoostTimer--;
 
-      // Aikido dummy updates (Tenkan Aiki Flow, M2 Stance, Counter Slam window, Slam animation)
+      // Aikido dummy updates (Revisioned: 15s Reactive Slam Window, Active Parry Stance window, Whiff penalty)
       if (dummy.styleId === 'aikido') {
-        if (dummy.aikiS3FreeM2CdTimer && dummy.aikiS3FreeM2CdTimer > 0) {
-          dummy.aikiS3FreeM2CdTimer--;
+        if (dummy.aikiPassiveSlamCd && dummy.aikiPassiveSlamCd > 0) {
+          dummy.aikiPassiveSlamCd--;
         }
-        if (dummy.aikiM2StanceTimer && dummy.aikiM2StanceTimer > 0) {
-          dummy.aikiM2StanceTimer--;
-          if (dummy.aikiM2StanceTimer === 0) {
-            if (!dummy.aikiM2HitLanded && !dummy.aikiFreeM2Active) {
-              dummy.heavyCooldown = 540; // 9.0s whiff cooldown on manual M2
-              spawnFloatingText(dummy.x, dummy.y - 30, 'STANCE EXPIRED (9.0s WHIFF CD)', '#ef4444');
-            }
-            dummy.aikiM2SuperArmorHits = 0;
-            dummy.aikiM2HitLanded = false;
-            dummy.aikiFreeM2Active = false;
+        if (dummy.aikiSlamReactiveWindow && dummy.aikiSlamReactiveWindow > 0) {
+          dummy.aikiSlamReactiveWindow--;
+        }
+        if (dummy.aikiM2ActiveWindow && dummy.aikiM2ActiveWindow > 0) {
+          dummy.aikiM2ActiveWindow--;
+          if (dummy.aikiM2ActiveWindow === 0) {
+            // M2 Active Parry Whiffed!
+            dummy.aikiM2Guarding = false;
+            dummy.heavyCooldown = 420; // 7.0s Whiff CD
+            dummy.aikiWhiffSlowTimer = 60; // 1.0s -70% movement slow
+            dummy.strikeCooldown = Math.max(dummy.strikeCooldown || 0, 60); // 1.0s M1/M2/Parry lockout
+            dummy.lightCooldown = Math.max(dummy.lightCooldown || 0, 60);
+            dummy.parryLockoutTimer = Math.max(dummy.parryLockoutTimer || 0, 60);
+            spawnFloatingText(dummy.x, dummy.y - 30, 'M2 WHIFF (-70% SPEED, 7.0s CD)', '#ef4444');
           }
         }
-        if (dummy.aikiCounterSlamWindow && dummy.aikiCounterSlamWindow > 0) {
-          dummy.aikiCounterSlamWindow--;
+        if (dummy.aikiWhiffSlowTimer && dummy.aikiWhiffSlowTimer > 0) {
+          dummy.aikiWhiffSlowTimer--;
         }
+        if (dummy.aikiConfusionTimer && dummy.aikiConfusionTimer > 0) {
+          dummy.aikiConfusionTimer--;
+        }
+
         // Smooth Aikido S2 chamber curl/uncurl transition
         const dLeftFist = dummy.fists ? (dummy.fists.find(f => f.punchType === 'left') || dummy.fists[0]) : undefined;
         const dRightFist = dummy.fists ? (dummy.fists.find(f => f.punchType === 'right') || dummy.fists[1]) : undefined;
@@ -9128,12 +9484,18 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
                 target.aikiSlamVictimStage = 'downed';
                 target.aikiOverheadScale = 1.0;
 
-                const slamDmg = dummy.aikiSlamDamage ?? 22.0;
+                // Flat Slam Damage (6.0 HP passive counter or 8.0 HP M2 counter)
+                const slamDmg = dummy.aikiSlamDamage ?? 6.0;
                 target.health = Math.max(0, target.health - slamDmg);
                 target.damageFlashTime = 14;
+                target.aikiConfusionTimer = 120; // 2.0s Neuro-Disruption (Confusion)
+                if (target.isPlayer) {
+                  stateRef.current.shakyVisionTimer = 120;
+                }
                 soundManager.playPunch(true);
                 stateRef.current.shakeAmount = 14 * settings.screenShake;
-                spawnFloatingText(target.x, target.y - 30, `OVER-HEAD SLAM! (${slamDmg.toFixed(0)} DMG)`, '#0284c7');
+                spawnFloatingText(target.x, target.y - 30, `OVER-HEAD SLAM! (${slamDmg.toFixed(1)} FLAT)`, '#0284c7');
+                spawnFloatingText(target.x, target.y - 50, 'NEURO-DISRUPTION! (2.0s CONFUSION)', '#38bdf8');
 
                 stateRef.current.particles.push({
                   id: `aiki_slam_shockwave_${Math.random()}`,
@@ -9173,9 +9535,6 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
                 target.superCrippleTimer = Math.max(target.superCrippleTimer || 0, 60); // 1.0s Super Cripple (M1/M2 locked & -60% speed)
                 target.aikiLockoutTimer = 60;      // 1.0s M1 and M2 attack lockout
                 target.aikiShakyVisionTimer = 60;  // 1.0s shaky vision disruption
-                if (target.isPlayer) {
-                  stateRef.current.shakyVisionTimer = 60;
-                }
                 target.stunTime = Math.max(target.stunTime || 0, 27);
               } else {
                 // Follow-through downed state (1.05s - 1.50s)
@@ -9197,13 +9556,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
                 target.aikiSlamVictimStage = null;
                 target.aikiOverheadScale = 1.0;
               }
-              const wasFreeSlam = !!(dummy.aikiFreeM2Active || dummy.aikiIsFreeSlam);
-              dummy.aikiM2StanceTimer = 0;
-              dummy.aikiFreeM2Active = false;
               dummy.aikiIsFreeSlam = false;
-              if (!wasFreeSlam) {
-                dummy.heavyCooldown = 300; // 5.0s M2 CD only for manual M2 slam!
-              }
             }
           }
         }
@@ -9282,7 +9635,9 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         dummy.kickboxingAutoSeq2Timer--;
         if (dummy.kickboxingAutoSeq2Timer === 0) {
           const dMods = getHeightModifiers(dummy.baseHeight);
-          dummy.heavyWindup = 9; // 1️⃣ Rapid Chamber (0.15s / 9 Frames)
+          let exec = 0.95;
+          if (dummy.kickboxingCadenceTimer && dummy.kickboxingCadenceTimer > 0) exec *= 1.15;
+          dummy.heavyWindup = Math.round(9 / exec); // Rapid Chamber (scaled by execution speed)
           dummy.kickboxingIsSeq2 = true;
           dummy.kickboxingSeq2Ready = false;
           dummy.kickboxingSeq2Window = 0;
@@ -10288,10 +10643,22 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         dummy.strikeCooldown--;
       }
       if (dummy.lightCooldown && dummy.lightCooldown > 0) {
-        dummy.lightCooldown--;
+        let dec = 1;
+        if (dummy.styleId === 'kickboxing' && dummy.kickboxingCadenceTimer && dummy.kickboxingCadenceTimer > 0) {
+          // Cadence Opening: +20% Attack Speed (extra recovery tick every 5th frame)
+          if (stateRef.current.gameTime % 5 === 0) dec = 2;
+        }
+        dummy.lightCooldown = Math.max(0, dummy.lightCooldown - dec);
+      }
+      if (dummy.kickboxingCadenceTimer && dummy.kickboxingCadenceTimer > 0) {
+        dummy.kickboxingCadenceTimer--;
       }
       if (dummy.postureCd && dummy.postureCd > 0) {
-        const decrement = (dummy.shellPostureBoostTimer && dummy.shellPostureBoostTimer > 0) ? 2 : 1;
+        let decrement = (dummy.shellPostureBoostTimer && dummy.shellPostureBoostTimer > 0) ? 2 : 1;
+        if (dummy.deflectiveCadenceTimer && dummy.deflectiveCadenceTimer > 0) {
+          // Deflective Cadence (+30% Posture Regeneration speed for 8.0s)
+          if (stateRef.current.gameTime % 3 === 0) decrement += 1;
+        }
         dummy.postureCd = Math.max(0, dummy.postureCd - decrement);
         dummy.isPostureLocked = dummy.postureCd > 0;
       } else {
@@ -10356,12 +10723,21 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
           dummy.keysiQueuedWhiffCd = 0;
         }
       }
+      if (dummy.tkdConfusionTimer && dummy.tkdConfusionTimer > 0) {
+        dummy.tkdConfusionTimer--;
+      }
+      if (dummy.deflectiveCadenceTimer && dummy.deflectiveCadenceTimer > 0) {
+        dummy.deflectiveCadenceTimer--;
+      }
+      if (dummy.tkdLeadStaggerTimer && dummy.tkdLeadStaggerTimer > 0) {
+        dummy.tkdLeadStaggerTimer--;
+      }
       if (dummy.kickboxingSeq2Window && dummy.kickboxingSeq2Window > 0) {
         dummy.kickboxingSeq2Window--;
         if (dummy.kickboxingSeq2Window === 0) {
           dummy.kickboxingSeq2Ready = false;
           if (dummy.styleId === 'kickboxing') {
-            dummy.heavyCooldown = 270;
+            finalizeKickboxingM2Cooldown(dummy);
           }
         }
       }
@@ -10392,6 +10768,23 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
         if (curSpd > concussedMaxSpeed) {
           dummy.vx = (dummy.vx / curSpd) * concussedMaxSpeed;
           dummy.vy = (dummy.vy / curSpd) * concussedMaxSpeed;
+        }
+      }
+
+      // Aikido M2 Active Parry tactical crawl (0.10x) & Whiff slowdown (0.30x) enforcement
+      if (dummy.aikiM2ActiveWindow && dummy.aikiM2ActiveWindow > 0) {
+        const crawlMaxSpeed = BASE_MOVEMENT_SPEED * 0.10;
+        const curSpd = Math.sqrt(dummy.vx * dummy.vx + dummy.vy * dummy.vy);
+        if (curSpd > crawlMaxSpeed) {
+          dummy.vx = (dummy.vx / curSpd) * crawlMaxSpeed;
+          dummy.vy = (dummy.vy / curSpd) * crawlMaxSpeed;
+        }
+      } else if (dummy.aikiWhiffSlowTimer && dummy.aikiWhiffSlowTimer > 0) {
+        const whiffMaxSpeed = BASE_MOVEMENT_SPEED * 0.30;
+        const curSpd = Math.sqrt(dummy.vx * dummy.vx + dummy.vy * dummy.vy);
+        if (curSpd > whiffMaxSpeed) {
+          dummy.vx = (dummy.vx / curSpd) * whiffMaxSpeed;
+          dummy.vy = (dummy.vy / curSpd) * whiffMaxSpeed;
         }
       }
 
@@ -10444,17 +10837,25 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
           else if (dummy.styleId === 'keysi') { basePunchSpeed = 0.14; baseReturnSpeed = 0.10; }
           else if (dummy.styleId === 'kickboxing') {
             const isSeq2 = (fist as any)?.kickboxingSeq2 || dummy.kickboxingIsSeq2;
+            let execMult = 0.95; // Base Attack Execution: 0.95x
+            if (dummy.kickboxingCadenceTimer && dummy.kickboxingCadenceTimer > 0) {
+              execMult *= 1.15; // Cadence Opening: +15% Attack Execution
+            }
             if (isSeq2) {
-              basePunchSpeed = 0.33; // 3 Frames Teep Thrust
-              baseReturnSpeed = 0.10; // 10 Frames over-extension
+              basePunchSpeed = 0.33 * execMult; // 3 Frames Teep Thrust
+              baseReturnSpeed = 0.10 * execMult; // 10 Frames over-extension
             } else {
-              basePunchSpeed = 0.33; // 3 Frames Short Hook Execution
-              baseReturnSpeed = 0.16; // 6 Frames over-swing
+              basePunchSpeed = 0.33 * execMult; // 3 Frames Short Hook Execution
+              baseReturnSpeed = 0.16 * execMult; // 6 Frames over-swing
             }
           }
           else if (dummy.styleId === 'boxing_shell') {
             basePunchSpeed = 0.22; // Quick shoulder roll turn (~4-5 frames)
             baseReturnSpeed = 0.18; // Quick snap back recovery (~5-6 frames)
+          }
+          else if (dummy.styleId === 'street_taekwondo') {
+            basePunchSpeed = 0.1667; // 6 Frames (~0.10s) downward snap
+            baseReturnSpeed = 0.0333; // 30 Frames (0.50s DS) decelerating recovery
           }
           else { basePunchSpeed = 0.08; baseReturnSpeed = 0.06; }
         } else {
@@ -10483,6 +10884,13 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
               basePunchSpeed = m1.punchSpeed; // Iron Boxing: 100.0ms (~6.0 frames)
               baseReturnSpeed = m1.returnSpeed;
             }
+          } else if (dummy.styleId === 'kickboxing') {
+            let execMult = 0.95; // Base Attack Execution: 0.95x
+            if (dummy.kickboxingCadenceTimer && dummy.kickboxingCadenceTimer > 0) {
+              execMult *= 1.15; // Cadence Opening: +15% Attack Execution
+            }
+            basePunchSpeed *= execMult;
+            baseReturnSpeed *= execMult;
           }
         }
 
@@ -10516,13 +10924,54 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
           // SECTION 1.17: Pure Style Execution - Decoupled from height scaling
           const punchSpeed = basePunchSpeed * momentumMultiplier;
           fist.punchProgress += punchSpeed;
+          if (dummy.styleId === 'street_taekwondo' && fist.isHeavy && fist.isPunching && Math.random() < 0.65) {
+            const legDist = dummy.radius * 1.85 * (1.35 * Math.sin(fist.punchProgress * Math.PI * 0.5));
+            const chopProg = Math.sin(fist.punchProgress * Math.PI * 0.5);
+            const localChopAngle = 1.57 - chopProg * (1.57 - (-0.26)); // Sweeps from side flank to far and a little further
+            const chopAngle = dummy.facingAngle + localChopAngle;
+            state.particles.push({
+              id: `dummy_tkd_m2_trail_${Math.random()}`,
+              x: dummy.x + Math.cos(chopAngle) * legDist,
+              y: dummy.y + Math.sin(chopAngle) * legDist,
+              vx: (Math.random() - 0.5) * 1.5,
+              vy: (Math.random() - 0.5) * 1.5,
+              radius: Math.random() * 2.5 + 1.5,
+              color: '#FFD600',
+              alpha: 0.95,
+              life: 0,
+              maxLife: 16,
+              type: 'spark'
+            });
+          }
           if (fist.punchProgress >= 1.0) {
             fist.punchProgress = 1.0;
             fist.isPunching = false;
             fist.lingerTimer = 0;
             fist.isLingerActive = false;
+            if (dummy.styleId === 'street_taekwondo' && fist.comboStage === 0 && !fist.isHeavy) {
+              if (dummy.tkdDoubleTapQueued) {
+                dummy.tkdChamberRetracting = true;
+              }
+            }
           }
         } else if (fist.punchProgress > 0) {
+          if (dummy.styleId === 'street_taekwondo' && fist.comboStage === 0 && !fist.isHeavy && dummy.tkdChamberRetracting) {
+            const snapRetDelta = Math.max(0.06, baseReturnSpeed * 2.5);
+            fist.punchProgress -= snapRetDelta;
+            if (fist.punchProgress <= 0.40) {
+              fist.punchProgress = 0.40;
+              dummy.tkdChamberRetracting = false;
+              dummy.tkdDoubleTapQueued = false;
+              fist.isPunching = true;
+              fist.comboStage = 1;
+              fist.hasHit = false;
+              fist.punchTimeSec = 0;
+              dummy.comboStage = 2;
+              dummy.lightCooldown = 0;
+              soundManager.playDash();
+            }
+            return;
+          }
           if (dummy.styleId === 'kyokushin' && fist.isHeavy && (dummy.kyokushinM2PeakHoldTimer || 0) > 0) {
             dummy.kyokushinM2PeakHoldTimer!--;
             fist.punchProgress = 1.0; // Rigid Lock: Freeze solid at peak! Zero spring-back or rubber-banding
@@ -10723,7 +11172,7 @@ function checkLineSegmentToCircle(
       if (player.styleId === 'kyokushin' && fist.punchType === 'left' && (fist.isHeavy || (player.heavyWindup && player.heavyWindup > 0) || player.fists.some(f => f.punchType === 'right' && f.isHeavy))) {
         return;
       }
-      if ((fist.isPunching || fist.punchProgress > 0) && !fist.hasHit) {
+      if (fist.isPunching && !fist.hasHit) {
         const hitbox = getStrikeHitboxInfo(player, fist, idleTime, state.gameTime);
         if (!hitbox.isActiveHitWindow) return;
 
@@ -10860,6 +11309,21 @@ function checkLineSegmentToCircle(
           }
         }
 
+        // Street Taekwondo S3 Hit Registration Guarantee:
+        // S3 is a 360° spinning back kick that snaps 90° at the end.
+        // Guarantees reliable hit registration for full rotational arc, 90° snap sweep, and melee range contact:
+        if (!hasOverlap && player.styleId === 'street_taekwondo' && !fist.isHeavy && stage === 2) {
+          const kickReach = player.radius * 2.35;
+          const distToDummy = Math.hypot(dummyCenterX - playerCenterX, dummyCenterY - playerCenterY);
+          if (distToDummy <= player.radius + dummy.radius + kickReach + hitBuffer) {
+            hasOverlap = true;
+            strikePos = {
+              x: playerCenterX + (dummyCenterX - playerCenterX) * 0.65,
+              y: playerCenterY + (dummyCenterY - playerCenterY) * 0.65
+            };
+          }
+        }
+
         // If fist/foot overlaps dummy's radius + buffer
         if (hasOverlap) {
           fist.hasHit = true;
@@ -10875,7 +11339,7 @@ function checkLineSegmentToCircle(
       if (dummy.styleId === 'kyokushin' && fist.punchType === 'left' && (fist.isHeavy || (dummy.heavyWindup && dummy.heavyWindup > 0) || dummy.fists.some(f => f.punchType === 'right' && f.isHeavy))) {
         return;
       }
-      if ((fist.isPunching || fist.punchProgress > 0) && !fist.hasHit) {
+      if (fist.isPunching && !fist.hasHit) {
         const hitbox = getStrikeHitboxInfo(dummy, fist, idleTime, state.gameTime);
         if (!hitbox.isActiveHitWindow) return;
 
@@ -11013,6 +11477,19 @@ function checkLineSegmentToCircle(
           }
         }
 
+        // Street Taekwondo S3 Hit Registration Guarantee (Dummy hitting Player):
+        if (!hasOverlap && dummy.styleId === 'street_taekwondo' && !fist.isHeavy && stage === 2) {
+          const kickReach = dummy.radius * 2.35;
+          const distToPlayer = Math.hypot(playerCenterX - dummyCenterX, playerCenterY - dummyCenterY);
+          if (distToPlayer <= dummy.radius + player.radius + kickReach + hitBuffer) {
+            hasOverlap = true;
+            strikePos = {
+              x: dummyCenterX + (playerCenterX - dummyCenterX) * 0.65,
+              y: dummyCenterY + (playerCenterY - dummyCenterY) * 0.65
+            };
+          }
+        }
+
         if (hasOverlap) {
           fist.hasHit = true;
           applyFighterHit(dummy, player, fist.isHeavy, fist.comboStage ?? dummy.comboStage, strikePos);
@@ -11084,8 +11561,18 @@ function checkLineSegmentToCircle(
       zoomToUse = state.cameraZoom;
     }
 
-    const cx = state.width / 2 - state.cameraX * zoomToUse;
-    const cy = state.height / 2 - state.cameraY * zoomToUse;
+    // Neuro-Trauma & Neuro-Disruption Hallucination: Camera Sway on victim's screen
+    let tkdCameraSwayX = 0;
+    let tkdCameraSwayY = 0;
+    if (player && ((player.tkdConfusionTimer || 0) > 0 || (player.aikiConfusionTimer || 0) > 0)) {
+      const confusionProgress = Math.max((player.tkdConfusionTimer || 0) / 180, (player.aikiConfusionTimer || 0) / 120);
+      const swayIntensity = 12 * confusionProgress;
+      tkdCameraSwayX = Math.sin(state.gameTime * 0.08) * swayIntensity;
+      tkdCameraSwayY = Math.cos(state.gameTime * 0.06) * (swayIntensity * 0.7);
+    }
+
+    const cx = state.width / 2 - (state.cameraX + tkdCameraSwayX) * zoomToUse;
+    const cy = state.height / 2 - (state.cameraY + tkdCameraSwayY) * zoomToUse;
 
     ctx.translate(cx, cy);
     ctx.scale(zoomToUse, zoomToUse);
@@ -11098,6 +11585,39 @@ function checkLineSegmentToCircle(
 
     // Helper to render fighter with targeting indicators
     const renderFighterItem = (f: Fighter, isDummy: boolean) => {
+      // Neuro-Trauma & Neuro-Disruption Hallucination (Confusion State):
+      // Client-Side Isolation Rule: If the local player is the victim suffering from confusion,
+      // render 2 phantom fighter clones flanking the opponent on the left and right, plus motion trail afterimages.
+      const isVictimLocalPlayer = player && ((player.tkdConfusionTimer || 0) > 0 || (player.aikiConfusionTimer || 0) > 0);
+      if (isDummy && isVictimLocalPlayer && !f.isDead) {
+        ctx.save();
+        // Phantom Fighter Clone Left
+        const perpX = -Math.sin(f.facingAngle);
+        const perpY = Math.cos(f.facingAngle);
+        const cloneDist = (f.radius || 26) * 2.2;
+        ctx.save();
+        ctx.globalAlpha = 0.40;
+        ctx.translate(perpX * cloneDist, perpY * cloneDist);
+        drawFighter(ctx, f);
+        ctx.restore();
+
+        // Phantom Fighter Clone Right
+        ctx.save();
+        ctx.globalAlpha = 0.40;
+        ctx.translate(-perpX * cloneDist, -perpY * cloneDist);
+        drawFighter(ctx, f);
+        ctx.restore();
+
+        // Motion trail afterimages
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        const trailOffset = (Math.sin(state.gameTime * 0.2) * 12);
+        ctx.translate(-Math.cos(f.facingAngle) * (18 + trailOffset), -Math.sin(f.facingAngle) * (18 + trailOffset));
+        drawFighter(ctx, f);
+        ctx.restore();
+        ctx.restore();
+      }
+
       drawFighter(ctx, f);
       if (settings.cameraMode === 'lockon_swipe' && !f.isDead) {
         ctx.save();
@@ -11866,6 +12386,8 @@ function checkLineSegmentToCircle(
     setOpponentRematchRequested(false);
     setShowMobileMenu(false);
     setShowModeSelector(false);
+    simulationSpeedRef.current = 1.0;
+    setSimulationSpeed(1.0);
 
     // 4. Return to appropriate menu
     const targetDest = destination || (isTournament ? 'tournament' : 'MENU');
@@ -11901,7 +12423,7 @@ function checkLineSegmentToCircle(
       case 'ashihara': return 'Sabaki Tsukami Counter';
       case 'capoeira': return 'Meia Lua de Compasso';
       case 'kickboxing': return 'Dazing Hook to Teep';
-      case 'street_taekwondo': return 'Undergoing Rework';
+      case 'street_taekwondo': return 'Brazilian Kick';
       case 'kyokushin': return 'Gedan Mawashi Geri';
       case 'keysi': return 'Pensador Drive';
       case 'cqc': return 'Tactical CQC Assault';
@@ -11915,7 +12437,7 @@ function checkLineSegmentToCircle(
     switch (styleId) {
       case 'slugger': return 720;
       case 'basic': return 840;
-      case 'kickboxing': return 660;
+      case 'kickboxing': return 480;
       case 'street_boxing': return 780;
       case 'keysi': return 720;
       case 'muay_thai': return 420;
@@ -11923,7 +12445,7 @@ function checkLineSegmentToCircle(
       case 'shotokan': return 720;
       case 'kyokushin': return 600;
       case 'capoeira': return 480;
-      case 'street_taekwondo': return 312;
+      case 'street_taekwondo': return 420;
       case 'cqc': return 900;
       case 'boxing_shell': return 600;
       case 'aikido': return 780;
@@ -11940,7 +12462,7 @@ function checkLineSegmentToCircle(
       case 'ashihara': return '🛡️';
       case 'capoeira': return '🔄';
       case 'kickboxing': return '🥊';
-      case 'street_taekwondo': return '⚠️';
+      case 'street_taekwondo': return '🥋';
       case 'kyokushin': return '🥋';
       case 'keysi': return '🛡️';
       case 'cqc': return '♟️';
@@ -12113,34 +12635,23 @@ function checkLineSegmentToCircle(
         />
       )}
 
-      {/* PORTAL MODE SELECTOR OVERLAY */}
-      <ModeSelectorOverlay
-        show={showModeSelector}
-        version={version}
-        practiceModalTab={practiceModalTab}
-        setPracticeModalTab={setPracticeModalTab}
-        dummyStyleId={dummyStyleId}
-        setDummyStyleId={setDummyStyleId}
-        practicePlayerStyleId={practicePlayerStyleId}
-        onPracticePlayerStyleChange={handlePracticePlayerStyleChange}
-        dummyBehavior={dummyBehavior}
-        setDummyBehavior={setDummyBehavior}
-        godMode={godMode}
-        setGodMode={setGodMode}
-        infiniteStamina={infiniteStamina}
-        setInfiniteStamina={setInfiniteStamina}
-        infiniteAIStamina={infiniteAIStamina}
-        setInfiniteAIStamina={setInfiniteAIStamina}
-        oneHitKODummy={oneHitKODummy}
-        setOneHitKODummy={setOneHitKODummy}
-        onExitArena={handleExitArena}
-        onInitiateCombat={() => {
-          setShowModeSelector(false);
-          setIsPlaying(true);
-          initGame();
-        }}
-        isNavHidden={isNavHidden}
-      />
+      {/* PRACTICE DOJO HUB OVERLAY (IF RE-OPENED) */}
+      {showModeSelector && (
+        <PracticeDojoView
+          stats={stats}
+          updateStats={updateStats}
+          onLaunchDojo={(data) => {
+            setShowModeSelector(false);
+            setIsPlaying(true);
+            if (data.opponent?.styleId) setDummyStyleId(data.opponent.styleId);
+            if ((data as any).dummyBehavior) setDummyBehavior((data as any).dummyBehavior);
+            if ((data as any).playerStyleId) setPracticePlayerStyleId((data as any).playerStyleId);
+            initGame();
+          }}
+          onClose={() => handleExitArena()}
+          isNavHidden={isNavHidden}
+        />
+      )}
 
       {/* COMBAT HUD OVERLAY PANEL */}
       {isPlaying && !isDead && rankedState !== 'match_over' && !showModeSelector && (
@@ -12402,7 +12913,7 @@ function checkLineSegmentToCircle(
                       left: `${pCardX}%`,
                       transform: `translate(-50%, 0) scale(${pCardScale})`,
                       transformOrigin: 'top center',
-                      width: '270px',
+                      width: isPortrait ? 'min(210px, 42vw)' : '270px',
                       maxWidth: '92vw',
                     }}
                   >
@@ -12684,7 +13195,7 @@ function checkLineSegmentToCircle(
                     left: `${oppCardX}%`,
                     transform: `translate(-50%, 0) scale(${oppCardScale})`,
                     transformOrigin: 'top center',
-                    width: '270px',
+                    width: isPortrait ? 'min(210px, 42vw)' : '270px',
                     maxWidth: '92vw',
                   }}
                 >
@@ -13156,6 +13667,8 @@ function checkLineSegmentToCircle(
         onResetTrainingSession={handleResetTrainingSession}
         onExitArena={handleExitArena}
         getStyleRarityColor={getStyleRarityColor}
+        gameSpeed={simulationSpeed}
+        onGameSpeedChange={handleGameSpeedChange}
       />
 
       {/* BOTTOM RIGHT QUICK HUD CONTROLS */}
@@ -13260,14 +13773,26 @@ function checkLineSegmentToCircle(
                     <span className="text-[9px] font-mono font-bold text-zinc-400 uppercase tracking-wider">
                       Match Session Status
                     </span>
-                    <span className={`text-[8px] font-mono px-1.5 py-0.5 rounded-md font-bold uppercase ${modeInfo.badgeClass}`}>
-                      ACTIVE
+                    <span className={`text-[8px] font-mono px-2 py-0.5 rounded-md font-bold uppercase ${isOfflineMatch ? 'bg-amber-500 text-black shadow-[2px_2px_0px_#000000]' : modeInfo.badgeClass}`}>
+                      {isOfflineMatch ? 'PAUSED' : 'ACTIVE'}
                     </span>
                   </div>
                   <p className="text-[9px] font-mono text-zinc-300 leading-normal">
-                    {modeInfo.desc}
+                    {isOfflineMatch ? 'Match simulation, neural AI actions, and round clock are paused.' : modeInfo.desc}
                   </p>
                 </div>
+
+                {/* PAUSE RESUME ACTION BUTTON */}
+                <button
+                  onClick={() => {
+                    soundManager.playRollTick?.();
+                    setShowMobileMenu(false);
+                  }}
+                  className="w-full py-2.5 px-4 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:brightness-110 text-black font-display font-black italic uppercase text-xs sm:text-sm tracking-wider transition flex items-center justify-center gap-2 cursor-pointer shadow-[3px_3px_0px_#ffffff] -skew-x-6 active:scale-95 border-2 border-black"
+                >
+                  <Play className="w-4 h-4 fill-black text-black" />
+                  <span>{isOfflineMatch ? 'RESUME MATCH' : 'RESUME'}</span>
+                </button>
 
                 {/* NAVIGATION CONTROLS */}
                 <div className="space-y-2">
@@ -13604,7 +14129,7 @@ function checkLineSegmentToCircle(
 
       {/* FULL SETTINGS MODAL */}
       {showFullSettings && (
-        <SettingsModal
+        <SettingsView
           settings={settings}
           updateSettings={updateSettings}
           onClose={() => setShowFullSettings(false)}
