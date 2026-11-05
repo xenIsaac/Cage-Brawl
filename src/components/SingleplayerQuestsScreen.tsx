@@ -279,7 +279,7 @@ export default function SingleplayerQuestsScreen({
   const activeTheme = getTierTheme(activeTierSlide);
 
   return (
-    <div className="fixed inset-0 z-40 bg-zinc-950 text-white flex flex-col select-none overflow-hidden transition-all duration-300">
+    <div className="w-full h-full bg-zinc-950 text-white flex flex-col select-none overflow-hidden">
       {/* BACKGROUND COMIC WATERMARK */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden select-none z-0 opacity-5">
         <div className="absolute -top-12 -right-12 font-display font-black italic text-9xl text-white tracking-tighter -skew-x-12 select-none">
@@ -293,447 +293,351 @@ export default function SingleplayerQuestsScreen({
       {/* ============================================================== */}
       {/* 1. TOP HEADER & TELEMETRY                                      */}
       {/* ============================================================== */}
-      <header className="px-3 sm:px-6 py-2 bg-zinc-950 border-b-2 border-white/20 flex items-center justify-between gap-2 shrink-0 z-20">
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* PERSONA STAMP BADGE */}
-          <div className="bg-red-600 text-black px-2.5 sm:px-3 py-1 font-display font-black italic text-xs sm:text-sm uppercase tracking-wider -skew-x-12 shadow-[3px_3px_0px_#ffffff] transform -rotate-1 flex items-center gap-1.5 shrink-0">
+      {/* ============================================================== */}
+      {/* 1. COMPACT UNIFIED HEADER (ONE SLIM ROW - ZERO SCREEN CLUTTER) */}
+      {/* ============================================================== */}
+      <header className="px-3 sm:px-5 py-2 bg-black border-b-2 sm:border-b-4 border-white flex items-center justify-between gap-2 shrink-0 z-20">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
+          <div className="bg-red-600 text-black px-2.5 py-0.5 font-display font-black italic text-xs uppercase -skew-x-12 shadow-[2px_2px_0px_#ffffff] flex items-center gap-1 shrink-0">
             <Trophy className="w-3.5 h-3.5 text-black" />
-            <span>QUESTS // 06</span>
+            <span className="hidden sm:inline">AI BOUNTY</span>
           </div>
 
-          <div className="flex flex-col">
-            <h1 className="text-xs sm:text-base md:text-lg font-display font-black italic uppercase tracking-tighter text-white -skew-x-12 leading-none">
-              OCTAGON BOUNTY VAULT
-            </h1>
-            <span className="text-[9px] sm:text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider hidden xs:inline">
-              ✦ 5 DEDICATED SLIDES • ZERO SQUISH BOUNTIES ✦
+          {/* TIER CHIP SELECTORS */}
+          <div className="flex items-center gap-1 shrink-0">
+            {tiersList.map(tier => {
+              const isCurrent = activeTierSlide === tier;
+              const readyCount = tierClaimableCounts[tier];
+
+              return (
+                <button
+                  key={tier}
+                  onClick={() => {
+                    soundManager.playRollTick?.();
+                    setActiveTierSlide(tier);
+                    setMobileQuestIndex(0);
+                  }}
+                  className={`px-2 py-0.5 text-xs font-display font-black italic uppercase -skew-x-12 transition flex items-center gap-1 cursor-pointer border ${
+                    isCurrent
+                      ? 'bg-red-600 text-black border-white shadow-[2px_2px_0px_#ffffff]'
+                      : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                  }`}
+                >
+                  <span>T0{tier}</span>
+                  {readyCount > 0 && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ACTIVE TIER & TIMER META */}
+          <div className="hidden md:flex items-center gap-2 text-xs font-mono ml-1">
+            <span className="font-display font-black italic text-white uppercase tracking-wider text-xs">
+              {currentTierConfig.tierTitle}
+            </span>
+            <span className="text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 text-[10px] -skew-x-6">
+              <Clock className="w-3 h-3 inline text-amber-400 mr-1" />
+              {formatTimeLeft(currentTierTimer?.nextRecycleTime || 0)}
             </span>
           </div>
         </div>
 
-        {/* Currency Pill, Keys & Hub Return */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Cash Badge */}
-          <div className="bg-black text-emerald-400 border border-emerald-500 px-2.5 py-1 text-xs font-mono font-black italic -skew-x-12 shadow-[2px_2px_0px_#10b981]">
-            ${stats.cash.toLocaleString()}
-          </div>
-
-          {/* Claim All Button */}
+        {/* ACTION BUTTONS & CAROUSEL CHEVRONS */}
+        <div className="flex items-center gap-1.5 shrink-0">
           {claimableCount > 0 && (
             <button
               onClick={handleClaimAll}
-              className="flex items-center gap-1 px-2.5 sm:px-3 py-1 bg-amber-400 hover:bg-white text-black font-display font-black italic uppercase text-xs -skew-x-12 shadow-[3px_3px_0px_#ef4444] animate-pulse transition cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1 bg-amber-400 hover:bg-white text-black font-display font-black italic uppercase text-xs -skew-x-12 shadow-[2px_2px_0px_#000000] animate-pulse transition cursor-pointer"
             >
               <CheckCheck className="w-3.5 h-3.5" />
               <span>CLAIM ALL ({claimableCount})</span>
             </button>
           )}
 
-          {/* Restart All Quests Button */}
           <button
             onClick={handleRestartQuests}
-            className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs font-display font-black italic uppercase -skew-x-12 border transition cursor-pointer ${
+            className={`flex items-center gap-1 px-2 py-1 text-xs font-mono font-bold uppercase -skew-x-12 border transition cursor-pointer ${
               confirmRestart
                 ? 'bg-red-600 text-white border-white animate-pulse shadow-[2px_2px_0px_#ffffff]'
-                : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white'
+                : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:text-white shadow-[2px_2px_0px_#000000]'
             }`}
-            title={confirmRestart ? 'Click again to confirm quest restart' : 'Restart all player quests to update to latest engine'}
+            title={confirmRestart ? 'Click again to confirm quest restart' : 'Restart rotation'}
           >
             <RotateCcw className={`w-3 h-3 ${confirmRestart ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">
-              {confirmRestart ? 'CONFIRM?' : 'RESET'}
-            </span>
+            <span className="hidden sm:inline">{confirmRestart ? 'CONFIRM?' : 'RESET'}</span>
           </button>
 
-          {/* PROMINENT PERSONA RETURN / EXIT BUTTON */}
-          <button
-            onClick={() => {
-              soundManager.playRollTick?.();
-              onReturnToSingleplayerHub();
-            }}
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase tracking-wider text-xs sm:text-sm -skew-x-12 shadow-[3px_3px_0px_#ffffff] hover:shadow-[3px_3px_0px_#ef4444] transition-all duration-150 cursor-pointer active:scale-95 group shrink-0"
-            title="Return to Menu"
-          >
-            <LogOut className="w-3.5 h-3.5 rotate-180 text-black group-hover:scale-110" />
-            <span className="hidden sm:inline">RETURN // MENU</span>
-            <span className="sm:hidden">EXIT</span>
-          </button>
+          {/* Slide Next / Prev Controls */}
+          <div className="flex items-center gap-0.5 text-zinc-400">
+            <button
+              onClick={handlePrevSlide}
+              className="p-1 bg-zinc-900 hover:bg-white hover:text-black border border-zinc-700 text-zinc-300 -skew-x-12 transition cursor-pointer"
+              title="Previous Tier Slide"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-[11px] font-mono px-1 font-black text-amber-400 -skew-x-6">
+              0{activeTierSlide}/05
+            </span>
+            <button
+              onClick={handleNextSlide}
+              className="p-1 bg-zinc-900 hover:bg-white hover:text-black border border-zinc-700 text-zinc-300 -skew-x-12 transition cursor-pointer"
+              title="Next Tier Slide"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* DEDICATED RETURN BUTTON TO SINGLEPLAYER UI */}
+          {onReturnToSingleplayerHub && (
+            <button
+              onClick={() => {
+                soundManager.playRollTick?.();
+                onReturnToSingleplayerHub();
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase text-xs -skew-x-12 shadow-[2px_2px_0px_#ffffff] transition cursor-pointer active:scale-95 ml-1"
+              title="Return to Singleplayer UI"
+            >
+              <LogOut className="w-3.5 h-3.5 rotate-180 text-black" />
+              <span>RETURN</span>
+            </button>
+          )}
         </div>
       </header>
 
       {/* ============================================================== */}
-      {/* 2. PERSONA CALLING CARD TIER SELECTOR TABS                    */}
+      {/* 2. ACTIVE TIER SLIDE: PROPORTIONALLY SCALED 1-SQUARE CAROUSEL  */}
       {/* ============================================================== */}
-      <div className="px-3 sm:px-6 py-1.5 border-b border-zinc-800 bg-zinc-900 flex items-center justify-between gap-2 shrink-0 overflow-x-auto scrollbar-none z-20">
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {tiersList.map(tier => {
-            const isCurrent = activeTierSlide === tier;
-            const readyCount = tierClaimableCounts[tier];
+      <main className="flex-1 flex flex-col p-2 sm:p-3 bg-zinc-950 relative overflow-hidden select-none justify-between min-h-0">
+        {/* HALPTONE BG ACCENT */}
+        <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px] opacity-10 pointer-events-none" />
 
-            return (
-              <button
-                key={tier}
-                onClick={() => {
-                  soundManager.playRollTick?.();
-                  setActiveTierSlide(tier);
-                  setMobileQuestIndex(0);
-                }}
-                className={`px-3 sm:px-4 py-1 text-xs font-display font-black italic uppercase tracking-wider -skew-x-12 transition flex items-center gap-1.5 cursor-pointer ${
-                  isCurrent
-                    ? 'bg-red-600 text-black shadow-[3px_3px_0px_#ffffff]'
-                    : 'bg-zinc-850 text-zinc-400 border border-zinc-750 hover:text-white'
-                }`}
-              >
-                <span>TIER 0{tier}</span>
-                {readyCount > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                )}
-              </button>
-            );
-          })}
-        </div>
+        {/* 1-SQUARE-HIGH SWIPABLE CAROUSEL STAGE WITH DEPTH SHADOWS */}
+        <div className="flex-1 flex items-center justify-center relative py-1 min-h-0">
+          {/* CAROUSEL DEPTH GHOST CARDS (STRICTLY Z-0, HIDDEN ON COMPACT SCREENS SO BUTTONS NEVER GET HIDDEN) */}
+          <div className="hidden xl:block absolute left-4 lg:left-8 w-60 h-[70%] bg-black/60 border-2 border-zinc-800 -skew-x-6 opacity-20 pointer-events-none scale-90 -translate-x-6 shadow-[-10px_10px_0px_#000000] z-0" />
+          <div className="hidden xl:block absolute right-4 lg:right-8 w-60 h-[70%] bg-black/60 border-2 border-zinc-800 -skew-x-6 opacity-20 pointer-events-none scale-90 translate-x-6 shadow-[10px_10px_0px_#000000] z-0" />
 
-        {/* Slide Next / Prev Controls */}
-        <div className="flex items-center gap-1 text-zinc-400 shrink-0">
-          <button
-            onClick={handlePrevSlide}
-            className="p-1 bg-zinc-800 hover:bg-zinc-750 border border-zinc-700 text-zinc-300 -skew-x-12 transition cursor-pointer"
-            title="Previous Tier Slide"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </button>
-          <span className="text-[10px] font-mono px-1 font-bold text-zinc-300 -skew-x-12">
-            SLIDE 0{activeTierSlide} / 05
-          </span>
-          <button
-            onClick={handleNextSlide}
-            className="p-1 bg-zinc-800 hover:bg-zinc-750 border border-zinc-700 text-zinc-300 -skew-x-12 transition cursor-pointer"
-            title="Next Tier Slide"
-          >
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
+          {currentTierQuests.length === 0 ? (
+            <div className="p-8 text-center text-zinc-400 font-mono text-sm border-2 border-dashed border-zinc-700 -skew-x-6">
+              Generating target bounty poster...
+            </div>
+          ) : (
+            (() => {
+              const safeIndex = mobileQuestIndex % currentTierQuests.length;
+              const quest = currentTierQuests[safeIndex];
+              const p = hubState.progress[quest.id] || { current: 0, completed: false, claimed: false, skipped: false };
+              const currentVal = Math.min(quest.target, p.current);
+              const percent = Math.min(100, Math.round((currentVal / quest.target) * 100));
+              const isClaimed = p.claimed;
+              const isCompleted = p.completed;
+              const canClaim = isCompleted && !isClaimed;
+              const canSkip = !isCompleted && !isClaimed;
 
-      {/* ============================================================== */}
-      {/* 3. ACTIVE VERTICAL SLIDE VIEWPORT                              */}
-      {/* ============================================================== */}
-      <main className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-5 bg-gradient-to-b from-zinc-950 via-zinc-900/30 to-zinc-950">
-        <div className="max-w-4xl mx-auto">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={`tier-slide-${activeTierSlide}`}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-              className={`rounded-3xl border ${activeTheme.border} ${activeTheme.glow} bg-zinc-900/80 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col`}
-            >
-              {/* SLIDE HEADER BANNER */}
-              <div className={`p-4 sm:p-6 border-b border-zinc-800 ${activeTheme.headerBg} flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    {activeTierSlide === 5 ? (
-                      <Crown className="w-5 h-5 text-emerald-400 animate-pulse" />
-                    ) : activeTierSlide === 4 ? (
-                      <Star className="w-5 h-5 text-cyan-300" />
-                    ) : (
-                      <Trophy className={`w-5 h-5 ${activeTheme.accent}`} />
-                    )}
-                    <h2 className="font-display font-black italic uppercase text-base sm:text-xl text-white tracking-wider">
-                      {currentTierConfig.tierTitle}
-                    </h2>
-                    <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full ${activeTheme.badge}`}>
-                      {currentTierConfig.tierBadge}
-                    </span>
-                  </div>
-                  <p className="text-xs font-mono text-zinc-300">
-                    Reward Spectrum: <span className="text-white font-bold">{currentTierConfig.rewardSpectrum}</span>
-                  </p>
-                </div>
+              // Dynamic Tier Color Themes (Bold Persona Calling Card styling)
+              const tierStyles = {
+                1: {
+                  bg: 'bg-gradient-to-br from-[#1c0808] via-black to-[#0c0303]',
+                  border: 'border-red-500',
+                  shadow: 'shadow-[6px_6px_0px_#E60012]',
+                  accent: 'text-red-400',
+                  progress: 'bg-red-600',
+                },
+                2: {
+                  bg: 'bg-gradient-to-br from-[#1a1204] via-black to-[#0e0a02]',
+                  border: 'border-amber-400',
+                  shadow: 'shadow-[6px_6px_0px_#FFD600]',
+                  accent: 'text-amber-400',
+                  progress: 'bg-amber-400',
+                },
+                3: {
+                  bg: 'bg-gradient-to-br from-[#170624] via-black to-[#0b0312]',
+                  border: 'border-purple-500',
+                  shadow: 'shadow-[6px_6px_0px_#A855F7]',
+                  accent: 'text-purple-400',
+                  progress: 'bg-purple-500',
+                },
+                4: {
+                  bg: 'bg-gradient-to-br from-[#041924] via-black to-[#020d12]',
+                  border: 'border-cyan-400',
+                  shadow: 'shadow-[6px_6px_0px_#06B6D4]',
+                  accent: 'text-cyan-400',
+                  progress: 'bg-cyan-400',
+                },
+                5: {
+                  bg: 'bg-gradient-to-br from-[#041f14] via-black to-[#02100a]',
+                  border: 'border-emerald-400',
+                  shadow: 'shadow-[6px_6px_0px_#10B981]',
+                  accent: 'text-emerald-400',
+                  progress: 'bg-emerald-400',
+                },
+              }[quest.tier] || {
+                bg: 'bg-black',
+                border: 'border-white',
+                shadow: 'shadow-[6px_6px_0px_#E60012]',
+                accent: 'text-red-400',
+                progress: 'bg-amber-400',
+              };
 
-                {/* Telemetry Pills: Recycle Timer, Skips Quota & Hyper-Cycle Charges */}
-                <div className="flex flex-wrap items-center gap-2.5 bg-zinc-950/80 px-3.5 py-2 rounded-2xl border border-zinc-800/80">
-                  {/* Recycle Countdown */}
-                  <div className="flex items-center gap-1.5 text-xs font-mono">
-                    <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
-                    <span className="text-zinc-400">Recycle:</span>
-                    <span className="font-bold text-amber-300">
-                      {formatTimeLeft(currentTierTimer?.nextRecycleTime || 0)}
-                    </span>
-                  </div>
+              return (
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={`${activeTierSlide}-${quest.id}`}
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.16 }}
+                    drag="x"
+                    dragConstraints={{ left: 0, right: 0 }}
+                    onDragEnd={(_, info) => {
+                      if (info.offset.x < -35) {
+                        soundManager.playRollTick?.();
+                        setMobileQuestIndex(prev => (prev < currentTierQuests.length - 1 ? prev + 1 : 0));
+                      } else if (info.offset.x > 35) {
+                        soundManager.playRollTick?.();
+                        setMobileQuestIndex(prev => (prev > 0 ? prev - 1 : currentTierQuests.length - 1));
+                      }
+                    }}
+                    className={`w-full max-w-lg lg:max-w-xl ${tierStyles.bg} border-3 sm:border-4 ${tierStyles.border} ${tierStyles.shadow} p-3 sm:p-4.5 flex flex-col justify-between relative z-10 -skew-x-2 select-none cursor-grab active:cursor-grabbing max-h-[300px] sm:max-h-[360px] md:max-h-[400px]`}
+                  >
+                    {/* CARD TOP META */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="bg-red-600 text-black font-display font-black italic text-[11px] uppercase px-2 py-0.5 -skew-x-12 shadow-[2px_2px_0px_#ffffff]">
+                            TARGET 0{safeIndex + 1}
+                          </span>
+                          <span className="text-[9.5px] font-mono font-bold px-1.5 py-0.5 bg-black text-zinc-300 border border-zinc-700 uppercase -skew-x-6">
+                            {quest.scope.replace('_', ' ')}
+                          </span>
+                        </div>
 
-                  <div className="w-px h-4 bg-zinc-800 hidden sm:block" />
-
-                  {/* Skip Limit & Cooldown */}
-                  <div className="flex items-center gap-1.5 text-xs font-mono" title={`Tier ${activeTierSlide} Skip limit: ${currentSkipConfig.maxSkips} skips before 1hr CD`}>
-                    <RefreshCw className={`w-3.5 h-3.5 ${isSkipOnCooldown ? 'text-zinc-600' : 'text-amber-400'}`} />
-                    <span className="text-zinc-400">Skips:</span>
-                    {isSkipOnCooldown ? (
-                      <span className="text-red-400 font-bold text-[11px]">
-                        0/{currentSkipConfig.maxSkips} (CD {formatTimeLeft(currentTierTimer?.nextSkipRechargeTime || 0)})
-                      </span>
-                    ) : (
-                      <span className="text-amber-300 font-bold">
-                        {skipsAvailable}/{currentSkipConfig.maxSkips}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="w-px h-4 bg-zinc-800 hidden sm:block" />
-
-                  {/* Hyper-Cycle Charges or Safety Mode */}
-                  {currentTierConfig.hyperCycleMaxCharges > 0 ? (
-                    <div className="flex items-center gap-1.5 text-xs font-mono text-purple-300" title="Instant replacement charges upon claiming">
-                      <FastForward className="w-4 h-4 text-purple-400" />
-                      <span className="font-bold">
-                        {currentTierTimer?.hyperCycleCharges || 0}/{currentTierConfig.hyperCycleMaxCharges} Hyper
-                      </span>
-                    </div>
-                  ) : currentTierConfig.protectedProgress ? (
-                    <span className="text-[10px] font-mono text-emerald-400 font-bold flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5" /> Protected
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-mono text-red-400 font-bold flex items-center gap-1">
-                      <AlertTriangle className="w-3.5 h-3.5" /> Hard Timer
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* SLIDE QUEST CARDS LIST (PERSONA COMIC COLLAGE BOUNTY DECK) */}
-              <div className="p-3 sm:p-5 flex-1 flex flex-col justify-between">
-                {/* Mobile / Portrait Bounty Slide Navigation (Prevents crumpled layout) */}
-                {!isPcDevice && isPortrait && currentTierQuests.length > 1 && (
-                  <div className="flex items-center justify-between mb-2.5 px-1 shrink-0">
-                    <span className="text-xs font-display font-black italic uppercase text-amber-400 -skew-x-12 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      <span>BOUNTY POSTER {mobileQuestIndex + 1} OF {currentTierQuests.length}</span>
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => {
-                          soundManager.playRollTick?.();
-                          setMobileQuestIndex(prev => (prev > 0 ? prev - 1 : currentTierQuests.length - 1));
-                        }}
-                        className="px-2.5 py-0.5 bg-zinc-800 text-white font-mono font-bold text-xs -skew-x-12 border border-zinc-700 cursor-pointer active:scale-95"
-                      >
-                        ◀ PREV
-                      </button>
-                      <button
-                        onClick={() => {
-                          soundManager.playRollTick?.();
-                          setMobileQuestIndex(prev => (prev < currentTierQuests.length - 1 ? prev + 1 : 0));
-                        }}
-                        className="px-2.5 py-0.5 bg-zinc-800 text-white font-mono font-bold text-xs -skew-x-12 border border-zinc-700 cursor-pointer active:scale-95"
-                      >
-                        NEXT ▶
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {currentTierQuests.length === 0 ? (
-                  <div className="p-8 text-center text-zinc-500 font-mono text-xs border-2 border-dashed border-zinc-800 -skew-x-12">
-                    Rolling replacement bounty poster...
-                  </div>
-                ) : (
-                  <div className={`grid ${(!isPcDevice && isPortrait) ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-3 sm:gap-4`}>
-                    {((!isPcDevice && isPortrait) 
-                      ? [currentTierQuests[mobileQuestIndex % currentTierQuests.length]].filter(Boolean)
-                      : currentTierQuests
-                    ).map(quest => {
-                      const p = hubState.progress[quest.id] || { current: 0, completed: false, claimed: false, skipped: false };
-                      const currentVal = Math.min(quest.target, p.current);
-                      const percent = Math.min(100, Math.round((currentVal / quest.target) * 100));
-                      const isClaimed = p.claimed;
-                      const isCompleted = p.completed;
-                      const canClaim = isCompleted && !isClaimed;
-                      const canSkip = !isCompleted && !isClaimed;
-                      const hasProtectedProgress = currentTierConfig.protectedProgress && p.current > 0 && !isCompleted;
-
-                      return (
-                        <div
-                          key={quest.id}
-                          className={`p-3.5 sm:p-4.5 border-2 transition-all duration-200 flex flex-col justify-between space-y-3 -skew-x-12 ${
-                            isClaimed
-                              ? 'bg-zinc-950/50 border-zinc-850 opacity-60 shadow-[3px_3px_0px_#000000]'
-                              : canClaim
-                              ? 'bg-amber-950/40 border-amber-400 shadow-[4px_4px_0px_#fbbf24] ring-1 ring-amber-400'
-                              : 'bg-zinc-950 border-zinc-800 shadow-[4px_4px_0px_#000000] hover:border-zinc-600'
-                          }`}
-                        >
-                          {/* Top Meta & Scope Badge */}
-                          <div className="flex items-start justify-between gap-2.5">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className={`text-[8.5px] font-mono font-black uppercase px-2 py-0.5 border ${
-                                  canClaim ? 'bg-amber-400 text-black border-white' : 'bg-red-600 text-black border-red-500'
-                                }`}>
-                                  ✦ BOUNTY // TIER 0{activeTierSlide} ✦
-                                </span>
-                                <span className="text-[8.5px] font-mono font-bold px-2 py-0.5 bg-zinc-900 text-zinc-300 border border-zinc-750 uppercase">
-                                  {quest.scope.replace('_', ' ')}
-                                </span>
-                                {hasProtectedProgress && (
-                                  <span className="text-[8px] font-mono font-bold text-emerald-400 bg-emerald-950 border border-emerald-500 px-1.5 py-0.5 flex items-center gap-1">
-                                    <Lock className="w-2.5 h-2.5" /> PROTECTED
-                                  </span>
-                                )}
-                              </div>
-
-                              <h3 className="font-display font-black uppercase text-sm sm:text-base text-white pt-1">
-                                {quest.title}
-                              </h3>
-                              <p className="text-xs font-mono text-zinc-300 leading-relaxed">
-                                {quest.description}
-                              </p>
-                            </div>
-
-                            {/* Reward Badges */}
-                            <div className="text-right font-mono shrink-0 space-y-1">
-                              <span className="text-emerald-400 font-display font-black italic block text-base sm:text-lg">
-                                +${quest.rewardCash.toLocaleString()}
-                              </span>
-                              {quest.rewardKey && (
-                                <span className={`px-2 py-0.5 text-[9px] font-bold inline-block border ${
-                                  quest.rewardKey.tier === 'iron' ? 'bg-zinc-800 text-zinc-200 border-zinc-700' :
-                                  quest.rewardKey.tier === 'gold' ? 'bg-amber-950 text-amber-300 border-amber-500' :
-                                  quest.rewardKey.tier === 'diamond' ? 'bg-cyan-950 text-cyan-300 border-cyan-500' :
-                                  'bg-purple-950 text-purple-300 border-purple-500'
-                                }`}>
-                                  +{quest.rewardKey.label}
-                                </span>
-                              )}
-                            </div>
+                        {/* TARGET STEPPER CHEVRONS */}
+                        {currentTierQuests.length > 1 && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => {
+                                soundManager.playRollTick?.();
+                                setMobileQuestIndex(prev => (prev > 0 ? prev - 1 : currentTierQuests.length - 1));
+                              }}
+                              className="px-1.5 py-0.5 bg-zinc-900 hover:bg-white hover:text-black border border-white text-white font-mono font-bold text-[10px] -skew-x-12 cursor-pointer shadow-[1px_1px_0px_#000000] active:scale-95 transition"
+                            >
+                              ◀
+                            </button>
+                            <span className="text-[10px] font-mono font-black text-amber-400 px-1 -skew-x-6">
+                              0{safeIndex + 1}/0{currentTierQuests.length}
+                            </span>
+                            <button
+                              onClick={() => {
+                                soundManager.playRollTick?.();
+                                setMobileQuestIndex(prev => (prev < currentTierQuests.length - 1 ? prev + 1 : 0));
+                              }}
+                              className="px-1.5 py-0.5 bg-zinc-900 hover:bg-white hover:text-black border border-white text-white font-mono font-bold text-[10px] -skew-x-12 cursor-pointer shadow-[1px_1px_0px_#000000] active:scale-95 transition"
+                            >
+                              ▶
+                            </button>
                           </div>
+                        )}
+                      </div>
 
-                          {/* Progress Bar & Actions */}
-                          <div className="pt-2 border-t border-zinc-800 flex flex-col space-y-2.5">
-                            {quest.id === 'the_unbroken_gauntlet' ? (
-                              /* THE UNBROKEN GAUNTLET PROGRESS */
-                              <div className="space-y-1.5">
-                                <div className="flex items-center justify-between text-[9px] font-mono text-zinc-400">
-                                  <span className="flex items-center gap-1 font-bold text-amber-300">
-                                    <Swords className="w-3.5 h-3.5 text-amber-400" />
-                                    Martial Progression
-                                  </span>
-                                  <span className="font-bold text-zinc-200">{currentVal} / 10 Bots</span>
-                                </div>
+                      <h3 className="font-display font-black italic uppercase text-base sm:text-xl text-white tracking-wide leading-tight">
+                        {quest.title}
+                      </h3>
+                      <p className="text-[11px] sm:text-xs font-mono text-zinc-300 leading-snug line-clamp-2">
+                        {quest.description}
+                      </p>
+                    </div>
 
-                                <div className="grid grid-cols-5 gap-1 p-1 bg-zinc-900 border border-zinc-800">
-                                  {[1, 2, 3, 4, 5].map(segIdx => {
-                                    const gauntletSub: UnbrokenGauntletSubProgress = (p.subProgress as any) || {
-                                      currentSegmentWins: 0,
-                                      currentSegmentStyle: '',
-                                      completedSegments: [],
-                                      styleHistory: [],
-                                    };
-                                    const completedSeg = gauntletSub.completedSegments?.find(s => s.segmentIndex === segIdx);
-                                    const isActiveSeg = !completedSeg && (gauntletSub.completedSegments?.length || 0) === (segIdx - 1);
-                                    const currentSegWins = isActiveSeg ? (gauntletSub.currentSegmentWins || 0) : 0;
-                                    const currentStyleInfo = isActiveSeg && gauntletSub.currentSegmentStyle ? getStyleInfo(gauntletSub.currentSegmentStyle) : null;
+                    {/* CARD REWARD & TELEMETRY */}
+                    <div className="space-y-2 pt-2 border-t-2 border-white/20 mt-2">
+                      {/* PROGRESS METER */}
+                      <div className="space-y-0.5">
+                        <div className="flex justify-between items-center text-[10px] sm:text-xs font-mono text-zinc-300">
+                          <span>OBJECTIVE PROGRESS</span>
+                          <span className="font-bold text-white text-xs sm:text-sm">{currentVal} / {quest.target}</span>
+                        </div>
+                        <div className="w-full h-2 sm:h-2.5 bg-black border-2 border-white p-0.5 overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 ${tierStyles.progress}`}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                      </div>
 
-                                    return (
-                                      <div
-                                        key={segIdx}
-                                        className="flex flex-col space-y-1"
-                                        title={completedSeg ? `Segment ${segIdx}: Done` : `Segment ${segIdx}`}
-                                      >
-                                        <div
-                                          className={`h-4 border flex items-center justify-center relative ${
-                                            completedSeg
-                                              ? 'border-white bg-red-600 shadow-sm'
-                                              : isActiveSeg
-                                              ? 'border-amber-400 bg-zinc-800'
-                                              : 'border-zinc-800 bg-zinc-900 opacity-40'
-                                          }`}
-                                          style={{
-                                            backgroundColor: completedSeg ? completedSeg.styleColor : undefined,
-                                          }}
-                                        >
-                                          {isActiveSeg && currentSegWins === 1 && currentStyleInfo && (
-                                            <div
-                                              className="absolute left-0 top-0 bottom-0 w-1/2"
-                                              style={{ backgroundColor: currentStyleInfo.color }}
-                                            />
-                                          )}
-                                          <span className="text-[7.5px] font-mono font-black uppercase z-10 truncate px-0.5 text-white">
-                                            {completedSeg ? '✓' : isActiveSeg ? `${currentSegWins}/2` : `S${segIdx}`}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            ) : (
-                              /* Standard Progress Meter */
-                              <div className="space-y-1">
-                                <div className="flex justify-between text-[9px] font-mono text-zinc-400">
-                                  <span>Target: {quest.targetUnit}</span>
-                                  <span className="font-bold text-zinc-200">{currentVal} / {quest.target}</span>
-                                </div>
-                                <div className="w-full h-2.5 bg-zinc-900 border border-zinc-800 overflow-hidden">
-                                  <div
-                                    className={`h-full transition-all duration-300 ${
-                                      isCompleted ? 'bg-amber-400' : 'bg-red-600'
-                                    }`}
-                                    style={{ width: `${percent}%` }}
-                                  />
-                                </div>
-                              </div>
+                      {/* PAYOUT ROW & PROPERLY PLACED BUTTONS (NEVER CLIPPED OR HIDDEN) */}
+                      <div className="flex items-center justify-between pt-0.5">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-mono text-zinc-400 uppercase">REWARD</span>
+                          <div className="flex items-center gap-1.5 font-mono font-bold text-xs sm:text-sm">
+                            <span className="text-emerald-400">+${quest.rewardCash.toLocaleString()}</span>
+                            {quest.rewardKey && (
+                              <span className="text-amber-300 font-mono text-[8.5px] px-1 py-0.2 bg-black border border-amber-500 -skew-x-6">
+                                +{quest.rewardKey.label}
+                              </span>
                             )}
-
-                            {/* Action Buttons Row */}
-                            <div className="flex items-center justify-end gap-2 shrink-0 pt-1">
-                              {canSkip && (
-                                isSkipOnCooldown ? (
-                                  <button
-                                    disabled
-                                    className="px-2.5 py-1 bg-zinc-900 border border-zinc-800 text-zinc-500 text-xs font-mono font-bold uppercase cursor-not-allowed flex items-center gap-1"
-                                  >
-                                    <Clock className="w-3.5 h-3.5 text-zinc-600" />
-                                    <span>CD ({formatTimeLeft(currentTierTimer?.nextSkipRechargeTime || 0)})</span>
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => handleSkip(quest)}
-                                    className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white text-xs font-mono font-bold uppercase transition cursor-pointer flex items-center gap-1 active:scale-95"
-                                  >
-                                    <RefreshCw className="w-3 h-3 text-amber-400" />
-                                    <span>SWAP (${quest.skipFee})</span>
-                                  </button>
-                                )
-                              )}
-
-                              {isClaimed ? (
-                                <span className="px-3 py-1 bg-zinc-900 border border-emerald-500 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> CLAIMED
-                                </span>
-                              ) : canClaim ? (
-                                <button
-                                  onClick={() => handleClaim(quest)}
-                                  className="px-4 py-1.5 bg-amber-400 hover:bg-white text-black font-display font-black uppercase text-xs shadow-[3px_3px_0px_#000000] animate-pulse transition cursor-pointer active:scale-95"
-                                >
-                                  CLAIM BOUNTY
-                                </button>
-                              ) : (
-                                <span className="px-3 py-1 bg-zinc-900 border border-zinc-800 text-zinc-500 text-xs font-mono font-bold flex items-center gap-1">
-                                  <Lock className="w-3 h-3" /> IN PROGRESS
-                                </span>
-                              )}
-                            </div>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </AnimatePresence>
+
+                        {/* ACTION BUTTONS */}
+                        <div className="flex items-center gap-1.5">
+                          {canSkip && (
+                            <button
+                              disabled={isSkipOnCooldown}
+                              onClick={() => handleSkip(quest)}
+                              className={`px-2.5 py-1 font-display font-black italic uppercase text-[11px] -skew-x-12 border transition cursor-pointer ${
+                                isSkipOnCooldown
+                                  ? 'bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed'
+                                  : 'bg-zinc-800 hover:bg-white text-white hover:text-black border-zinc-600 shadow-[2px_2px_0px_#000000]'
+                              }`}
+                            >
+                              SWAP (${quest.skipFee})
+                            </button>
+                          )}
+
+                          {isClaimed ? (
+                            <span className="px-3 py-1 bg-black border border-emerald-500 text-emerald-400 text-xs font-mono font-bold uppercase -skew-x-6">
+                              ✓ CLAIMED
+                            </span>
+                          ) : canClaim ? (
+                            <button
+                              onClick={() => handleClaim(quest)}
+                              className="px-4 py-1.5 bg-amber-400 hover:bg-white text-black font-display font-black italic uppercase text-xs sm:text-sm -skew-x-12 shadow-[2px_2px_0px_#000000] animate-pulse cursor-pointer active:scale-95"
+                            >
+                              CLAIM BOUNTY
+                            </button>
+                          ) : (
+                            <span className="px-2.5 py-1 bg-black border border-zinc-800 text-zinc-500 text-[11px] font-mono font-bold uppercase -skew-x-6">
+                              IN PROGRESS
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* CAROUSEL STEPPER DOTS */}
+                    {currentTierQuests.length > 1 && (
+                      <div className="flex items-center justify-center gap-1.5 pt-1">
+                        {currentTierQuests.map((_, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              soundManager.playRollTick?.();
+                              setMobileQuestIndex(idx);
+                            }}
+                            className={`h-1.5 transition-all duration-200 cursor-pointer ${
+                              idx === safeIndex ? 'w-5 bg-red-600' : 'w-1.5 bg-zinc-700 hover:bg-zinc-500'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                </AnimatePresence>
+              );
+            })()
+          )}
         </div>
       </main>
 

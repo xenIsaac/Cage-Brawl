@@ -37,6 +37,8 @@ import { getRollableStyles, FIGHTING_STYLES } from './data/styles';
 import { isMobileDevice as detectIsMobile } from './utils/deviceDetection';
 import { useResponsiveLayout } from './utils/useResponsiveLayout';
 
+import { isMobileDevice } from './utils/deviceDetection';
+
 // Dynamic version number
 const GAME_VERSION = 'v1.7.6 Finale';
 
@@ -77,6 +79,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   disableAuraVfx: false,
   touchThrottling: false,
   mobileSprintMode: 'button_only',
+  graphicsPreset: typeof window !== 'undefined' && isMobileDevice() ? 'medium' : 'normal',
 };
 
 export const getStatsStorageKey = (email?: string, username?: string): string => {

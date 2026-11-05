@@ -84,6 +84,59 @@ export const UPDATE_LOGS_REGISTRY: VersionArchiveEntry[] = [
           'Pre-rasterized countdown numeric assets ("3", "2", "1", "FIGHT!") in off-screen memory buffers during scene loading.',
           'Eliminated dynamic DOM node instantiation during combat start ticks.'
         ]
+      },
+      {
+        id: 'cinematic_persona_countdown',
+        type: 'ui_ux',
+        title: '[+] Cinematic Persona Countdown',
+        summary: 'Reworked the round intro sequence with heavy Persona-styled numbers, a dynamic camera pan showcasing both fighters before the bell, and an angular sliding FIGHT banner.',
+        details: [
+          '4.5s Camera Pipeline: 1.6x zoom on Player 1 ("3"), smooth pan to Opponent ("2"), and pull-back to neutral combat perspective ("1").',
+          'Violent slide-in Persona FIGHT banner with sharp diagonal cut at combat unlock.'
+        ]
+      },
+      {
+        id: 'tiered_graphics_presets',
+        type: 'ui_ux',
+        title: '[+] Tiered Graphics Quality Settings',
+        summary: 'Added three graphics fidelity options in Settings: Barebones (pure black mat with minimal grid lines for maximum FPS), Medium (streamlined visuals with reduced particle overhead), and Normal (full visual fidelity and lighting suite).',
+        details: [
+          'Barebones Tier: Pure black octagon mat with minimal grid lines, unlit solid borders, suppressed non-essential particles, and zero fighter shadows.',
+          'Medium Tier: Streamlined arena mat visuals with 60% particle reduction and static contact shadows.',
+          'Normal Tier: Maximum visual fidelity with multi-layered cage wire fencing, theatrical spotlighting, full particle bursts, and high-precision drop shadows.'
+        ]
+      },
+      {
+        id: 'persona_progression_hub',
+        type: 'ui_ux',
+        title: '[+] Persona Progression Hub',
+        summary: 'Completely overhauled the Quests, Milestones, and Achievements screen into a full-width Persona collage layout with three dedicated category tabs: Singleplayer Quests, Multiplayer Quests, and Achievements & Milestones.',
+        details: [
+          'Full-Width Stage: Purged all legacy left rail margins and cramped side padding for edge-to-edge angular Persona panels.',
+          'Three Left Anchor Tabs: Angled category buttons for [ SINGLEPLAYER QUESTS ], [ MULTIPLAYER QUESTS ], and [ ACHIEVEMENTS & MILESTONES ].',
+          'Dynamic Right Stage: Smooth sliding drawer stage with sharp diagonal cuts, bold border strokes, progress meters, and reward claim blocks.'
+        ]
+      },
+      {
+        id: 'countdown_camera_smoothing',
+        type: 'ui_ux',
+        title: 'Bug Fixed: "Countdown Camera Smoothing"',
+        summary: 'Smoothed out the camera transition on Count 1, eliminating abrupt view snapping with a cinematic, gradual pull-back to full arena perspective before the bell rings.',
+        details: [
+          'Cubic Deceleration: Applied Zoom(t) = 1.0 + 0.6 * (1 - t)^3 formula across the 1.5s Count 1 timeframe.',
+          'Viewport Smooth Glide: Interpolates camera position smoothly from Opponent coordinates to neutral arena center.'
+        ]
+      },
+      {
+        id: 'swipeable_bounty_carousel',
+        type: 'ui_ux',
+        title: '[+] Swipeable Bounty Carousel & Clean Quest UI',
+        summary: 'Rebuilt Multiplayer Quests into a swipeable 1-square-high carousel deck with tier-based dynamic background colors and deep drop shadows while straightening all inner quest card layouts.',
+        details: [
+          '1-Square High Carousel Deck: Interactive swipeable card deck with left/right arrows, drag gestures, and deep drop-shadow depth.',
+          'Dynamic Tier Background Colors: Background gradients dynamically update based on quest difficulty (Tier 1 Common Steel to Tier 5 Legendary Crimson).',
+          'Straight Upright Quest UI: Removed slanted inner card skewing across Singleplayer and Multiplayer quest views for crisp, upright text and telemetry bars.'
+        ]
       }
     ]
   },

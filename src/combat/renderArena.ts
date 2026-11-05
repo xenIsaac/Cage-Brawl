@@ -12,6 +12,65 @@ export const drawArenaFloor = (
   const sides = 8;
   const angleOffset = Math.PI / 8; // Rotated by 22.5 degrees so flat edges align perfectly parallel to screen borders
 
+  const preset = settings.graphicsPreset || 'normal';
+
+  // Tier 1: Barebones (Ultra Performance / Competitive Minimalist)
+  if (preset === 'barebones') {
+    // Flat pitch-black floor surface (#000000)
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    for (let i = 0; i <= sides; i++) {
+      const angle = (i * 2 * Math.PI) / sides + angleOffset;
+      ctx.lineTo(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Simple thin white/grey grid lines (#1F242D)
+    ctx.strokeStyle = '#1F242D';
+    ctx.lineWidth = 1;
+    ctx.save();
+    ctx.beginPath();
+    for (let i = 0; i <= sides; i++) {
+      const angle = (i * 2 * Math.PI) / sides + angleOffset;
+      ctx.lineTo(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
+    }
+    ctx.closePath();
+    ctx.clip();
+
+    const step = 60;
+    for (let x = 0; x < size; x += step) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, size);
+      ctx.stroke();
+    }
+    for (let y = 0; y < size; y += step) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(size, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Octagon boundaries: flat solid unlit border lines (#2D3748) with 0 glow
+    ctx.strokeStyle = '#2D3748';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    for (let i = 0; i <= sides; i++) {
+      const angle = (i * 2 * Math.PI) / sides + angleOffset;
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    return;
+  }
+
+  // Tier 2 (Medium) & Tier 3 (Normal)
   const theme = settings.arenaTheme || 'classic_cage';
 
   let matColor = '#09090b';
@@ -46,29 +105,31 @@ export const drawArenaFloor = (
   ctx.closePath();
   ctx.fill();
 
-  // 1b. Directional Overhead Arena Cage Lighting (High-contrast theatrical spotlight)
-  ctx.save();
-  ctx.beginPath();
-  for (let i = 0; i <= sides; i++) {
-    const angle = (i * 2 * Math.PI) / sides + angleOffset;
-    ctx.lineTo(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
-  }
-  ctx.closePath();
-  ctx.clip();
+  // 1b. Directional Overhead Arena Cage Lighting (High-contrast theatrical spotlight - Normal Tier Only)
+  if (preset === 'normal') {
+    ctx.save();
+    ctx.beginPath();
+    for (let i = 0; i <= sides; i++) {
+      const angle = (i * 2 * Math.PI) / sides + angleOffset;
+      ctx.lineTo(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
+    }
+    ctx.closePath();
+    ctx.clip();
 
-  const spotGradient = ctx.createRadialGradient(centerX, centerY - 20, 10, centerX, centerY, radius * 0.95);
-  spotGradient.addColorStop(0, 'rgba(255, 255, 255, 0.07)');
-  spotGradient.addColorStop(0.4, 'rgba(239, 68, 68, 0.03)');
-  spotGradient.addColorStop(0.85, 'rgba(0, 0, 0, 0.35)');
-  spotGradient.addColorStop(1, 'rgba(0, 0, 0, 0.70)');
-  ctx.fillStyle = spotGradient;
-  ctx.fillRect(0, 0, size, size);
-  ctx.restore();
+    const spotGradient = ctx.createRadialGradient(centerX, centerY - 20, 10, centerX, centerY, radius * 0.95);
+    spotGradient.addColorStop(0, 'rgba(255, 255, 255, 0.07)');
+    spotGradient.addColorStop(0.4, 'rgba(239, 68, 68, 0.03)');
+    spotGradient.addColorStop(0.85, 'rgba(0, 0, 0, 0.35)');
+    spotGradient.addColorStop(1, 'rgba(0, 0, 0, 0.70)');
+    ctx.fillStyle = spotGradient;
+    ctx.fillRect(0, 0, size, size);
+    ctx.restore();
+  }
 
   // 2. Draw cage fence wireframe grid
   ctx.strokeStyle = wireColor; // Sleek wire mesh lines
   ctx.lineWidth = 1;
-  const step = 40;
+  const step = preset === 'medium' ? 60 : 40;
   ctx.save();
   // Clip drawing inside the octagon
   ctx.beginPath();
@@ -93,9 +154,9 @@ export const drawArenaFloor = (
   }
   ctx.restore();
 
-  // 3. Thick Steel Cage Outer Borders (Durable outer chain link framework)
-  ctx.strokeStyle = postColor; // steel posts
-  ctx.lineWidth = 10;
+  // 3. Thick Steel Cage Outer Borders
+  ctx.strokeStyle = postColor;
+  ctx.lineWidth = preset === 'medium' ? 6 : 10;
   ctx.beginPath();
   for (let i = 0; i <= sides; i++) {
     const angle = (i * 2 * Math.PI) / sides + angleOffset;
@@ -107,10 +168,12 @@ export const drawArenaFloor = (
   ctx.closePath();
   ctx.stroke();
 
-  // 4. Inner Neon Warning Tape Line (Crisp Glowing Boundary Line)
+  // 4. Inner Neon Warning Tape Line
   ctx.save();
-  ctx.shadowColor = tapeColor;
-  ctx.shadowBlur = 12;
+  if (preset === 'normal') {
+    ctx.shadowColor = tapeColor;
+    ctx.shadowBlur = 12;
+  }
   ctx.strokeStyle = tapeColor;
   ctx.lineWidth = 3.5;
   ctx.beginPath();
@@ -132,27 +195,29 @@ export const drawArenaFloor = (
     const x = centerX + radius * Math.cos(angle);
     const y = centerY + radius * Math.sin(angle);
 
-    // Determine corner pad color: Red corner, Blue corner, and Neutral white corners!
-    let padColor = '#e4e4e7'; // Neutral white pad
-    if (i === 0) padColor = '#ef4444'; // Red corner
-    else if (i === 4) padColor = '#3b82f6'; // Blue corner opposite the Red corner
+    let padColor = '#e4e4e7';
+    if (i === 0) padColor = '#ef4444';
+    else if (i === 4) padColor = '#3b82f6';
 
-    // Draw shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.beginPath();
-    ctx.arc(x + 2, y + 2, 7, 0, Math.PI * 2);
-    ctx.fill();
+    if (preset === 'normal') {
+      // Draw shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.beginPath();
+      ctx.arc(x + 2, y + 2, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    // Draw pad base
+    // Draw pad base (flat fill for Medium tier)
     ctx.fillStyle = padColor;
     ctx.beginPath();
     ctx.arc(x, y, 7, 0, Math.PI * 2);
     ctx.fill();
 
-    // Highlight stroke
-    ctx.strokeStyle = '#18181b';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    if (preset === 'normal') {
+      ctx.strokeStyle = '#18181b';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
   }
 
   // 6. Center ring decal line graphics
@@ -184,18 +249,19 @@ export const renderParticlesAndTexts = (
   particles: FloatingTextParticle[],
   settings: GameSettings
 ) => {
+  const preset = settings.graphicsPreset || 'normal';
   const particleDensity = settings.particleDensity || 'high';
 
   particles.forEach((p, idx) => {
     if (p.text) {
-      if (settings.damageNumbers === false) return;
+      if (settings.damageNumbers === false || preset === 'barebones') return;
       ctx.save();
       ctx.globalAlpha = Math.max(0, p.alpha);
       ctx.fillStyle = p.color || '#ffffff';
       const isCrit = (p as any).isCrit;
       ctx.font = isCrit ? '900 italic 16px "Plus Jakarta Sans", sans-serif' : '700 13px "Plus Jakarta Sans", sans-serif';
       ctx.textAlign = 'center';
-      if (isCrit) {
+      if (isCrit && preset === 'normal') {
         ctx.shadowColor = p.color || '#ef4444';
         ctx.shadowBlur = 10;
       }
@@ -203,7 +269,9 @@ export const renderParticlesAndTexts = (
       ctx.restore();
       return;
     } else {
+      if (preset === 'barebones') return; // Suppress visual particles in Barebones
       if (particleDensity === 'off') return;
+      if (preset === 'medium' && idx % 3 !== 0) return; // 60% particle reduction in Medium
       if (particleDensity === 'low' && idx % 3 !== 0) return;
       if (particleDensity === 'medium' && idx % 2 !== 0) return;
       if (p.type === 'aura' && settings.disableAuraVfx) return;
@@ -211,13 +279,21 @@ export const renderParticlesAndTexts = (
       ctx.save();
       ctx.globalAlpha = p.alpha;
       if (p.type === 'parry_ring') {
-        if (settings.lowGraphicsMode) { ctx.restore(); return; }
-        const currentRadius = p.radius + (p.life / p.maxLife) * 45;
-        ctx.strokeStyle = p.color;
-        ctx.lineWidth = 3.5 * (1 - p.life / p.maxLife);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, currentRadius, 0, Math.PI * 2);
-        ctx.stroke();
+        if (settings.lowGraphicsMode || preset === 'medium') {
+          const currentRadius = p.radius + (p.life / p.maxLife) * 30;
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = 2.0;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, currentRadius, 0, Math.PI * 2);
+          ctx.stroke();
+        } else {
+          const currentRadius = p.radius + (p.life / p.maxLife) * 45;
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = 3.5 * (1 - p.life / p.maxLife);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, currentRadius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
       } else if (p.type === 'aiki_wind_arc_right' || p.type === 'aiki_wind_arc_left') {
         const progress = Math.min(1.0, p.life / p.maxLife);
         const currentRadius = p.radius * (0.8 + 0.8 * progress);
@@ -226,8 +302,10 @@ export const renderParticlesAndTexts = (
         const baseAngle = isRight ? (-Math.PI * 0.5 + progress * 0.4) : (Math.PI * 0.5 - progress * 0.4);
         ctx.strokeStyle = p.color || '#38bdf8';
         ctx.lineWidth = 3.5 * (1 - progress);
-        ctx.shadowColor = '#38bdf8';
-        ctx.shadowBlur = 8;
+        if (preset === 'normal') {
+          ctx.shadowColor = '#38bdf8';
+          ctx.shadowBlur = 8;
+        }
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.arc(p.x, p.y, currentRadius, baseAngle, baseAngle + arcSpread);
@@ -237,8 +315,10 @@ export const renderParticlesAndTexts = (
         const currentDist = p.radius * (1.0 + 3.0 * progress);
         const coneAngle = (p as any).facingAngle || 0;
         const halfSpread = 0.55;
-        ctx.shadowColor = '#38bdf8';
-        ctx.shadowBlur = 14;
+        if (preset === 'normal') {
+          ctx.shadowColor = '#38bdf8';
+          ctx.shadowBlur = 14;
+        }
         
         // Outer shockwave cone
         ctx.strokeStyle = `rgba(56, 189, 248, ${(1 - progress) * 0.85})`;
@@ -247,41 +327,25 @@ export const renderParticlesAndTexts = (
         ctx.arc(p.x, p.y, currentDist, coneAngle - halfSpread, coneAngle + halfSpread);
         ctx.stroke();
 
-        // Inner bright white shockwave core
-        ctx.strokeStyle = `rgba(255, 255, 255, ${(1 - progress) * 0.95})`;
-        ctx.lineWidth = 2.0 * (1 - progress);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, currentDist * 0.85, coneAngle - halfSpread * 0.8, coneAngle + halfSpread * 0.8);
-        ctx.stroke();
-
-        // Radiating kinetic cone lines
-        const leftX = p.x + Math.cos(coneAngle - halfSpread) * currentDist;
-        const leftY = p.y + Math.sin(coneAngle - halfSpread) * currentDist;
-        const rightX = p.x + Math.cos(coneAngle + halfSpread) * currentDist;
-        const rightY = p.y + Math.sin(coneAngle + halfSpread) * currentDist;
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(leftX, leftY);
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(rightX, rightY);
-        ctx.stroke();
+        if (preset === 'normal') {
+          // Inner bright white shockwave core
+          ctx.strokeStyle = `rgba(255, 255, 255, ${(1 - progress) * 0.95})`;
+          ctx.lineWidth = 2.0 * (1 - progress);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, currentDist * 0.85, coneAngle - halfSpread * 0.8, coneAngle + halfSpread * 0.8);
+          ctx.stroke();
+        }
       } else if (p.type === 'aiki_dual_shockwave') {
         const progress = Math.min(1.0, p.life / p.maxLife);
         const r1 = p.radius * (0.6 + 2.4 * progress);
-        const r2 = p.radius * (0.4 + 1.7 * progress);
-        ctx.shadowColor = '#00E5FF';
-        ctx.shadowBlur = 16;
-        // Outer cyan ring (rgba(0, 229, 255, 0.7))
+        if (preset === 'normal') {
+          ctx.shadowColor = '#00E5FF';
+          ctx.shadowBlur = 16;
+        }
         ctx.strokeStyle = `rgba(0, 229, 255, ${(1 - progress) * 0.70})`;
         ctx.lineWidth = 4.5 * (1 - progress);
         ctx.beginPath();
         ctx.arc(p.x, p.y, r1, 0, Math.PI * 2);
-        ctx.stroke();
-        // Inner white/cyan ring
-        ctx.strokeStyle = `rgba(255, 255, 255, ${(1 - progress) * 0.85})`;
-        ctx.lineWidth = 2.5 * (1 - progress);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, r2, 0, Math.PI * 2);
         ctx.stroke();
       } else if (p.type === 'kyokushin_punch_gust') {
         const progress = Math.min(1.0, p.life / p.maxLife);
@@ -289,49 +353,18 @@ export const renderParticlesAndTexts = (
         const currentDist = p.radius * (0.6 + 2.8 * progress);
         const halfSpread = 0.45;
 
-        ctx.shadowColor = '#38bdf8';
-        ctx.shadowBlur = 14;
+        if (preset === 'normal') {
+          ctx.shadowColor = '#38bdf8';
+          ctx.shadowBlur = 14;
+        }
 
-        // Leading supersonic air shockwave arc
         ctx.strokeStyle = `rgba(255, 255, 255, ${(1 - progress) * 0.95})`;
         ctx.lineWidth = 3.8 * (1 - progress);
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.arc(p.x, p.y, currentDist, coneAngle - halfSpread, coneAngle + halfSpread);
         ctx.stroke();
-
-        // Secondary cyan vapor shockwave
-        ctx.strokeStyle = `rgba(56, 189, 248, ${(1 - progress) * 0.75})`;
-        ctx.lineWidth = 2.2 * (1 - progress);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, currentDist * 0.75, coneAngle - halfSpread * 0.8, coneAngle + halfSpread * 0.8);
-        ctx.stroke();
-
-        // High-velocity punch gust center streamline
-        const tipX = p.x + Math.cos(coneAngle) * (currentDist * 1.35);
-        const tipY = p.y + Math.sin(coneAngle) * (currentDist * 1.35);
-        ctx.strokeStyle = `rgba(255, 255, 255, ${(1 - progress) * 0.90})`;
-        ctx.lineWidth = 2.5 * (1 - progress);
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(tipX, tipY);
-        ctx.stroke();
-
-        // Side gust streamlines
-        const leftX = p.x + Math.cos(coneAngle - halfSpread * 0.55) * (currentDist * 1.15);
-        const leftY = p.y + Math.sin(coneAngle - halfSpread * 0.55) * (currentDist * 1.15);
-        const rightX = p.x + Math.cos(coneAngle + halfSpread * 0.55) * (currentDist * 1.15);
-        const rightY = p.y + Math.sin(coneAngle + halfSpread * 0.55) * (currentDist * 1.15);
-        ctx.strokeStyle = `rgba(56, 189, 248, ${(1 - progress) * 0.65})`;
-        ctx.lineWidth = 1.6 * (1 - progress);
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(leftX, leftY);
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(rightX, rightY);
-        ctx.stroke();
       } else if (p.type === 'afterimage') {
-        // Section 1.21: Legacy 2D flat circle on floor purged in favor of 3D volumetric ghost silhouettes
         ctx.restore();
         return;
       } else if (p.type === 'shockwave') {
@@ -339,8 +372,10 @@ export const renderParticlesAndTexts = (
         const currentRadius = p.radius * (0.8 + 1.4 * progress);
         ctx.strokeStyle = p.color;
         ctx.lineWidth = 3.0 * (1 - progress);
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = 8;
+        if (preset === 'normal') {
+          ctx.shadowColor = p.color;
+          ctx.shadowBlur = 8;
+        }
         ctx.beginPath();
         ctx.arc(p.x, p.y, currentRadius, 0, Math.PI * 2);
         ctx.stroke();

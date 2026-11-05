@@ -258,6 +258,15 @@ export function SettingsView({
     },
     // GRAPHICS
     {
+      id: 'graphicsPreset',
+      title: 'Graphics Quality Preset',
+      category: 'graphics',
+      description: 'Streamlined three-tier rendering pipeline: Barebones (minimal grid, pure black mat for max FPS), Medium (balanced fidelity, capped particles), or Normal (full visual suite & ambient spotlighting).',
+      icon: Gauge,
+      keywords: ['graphics', 'preset', 'quality', 'barebones', 'medium', 'normal', 'fps', 'rendering', 'fidelity'],
+      relatedTo: ['Performance Mode / Low Graphics', 'Particle Density & Blood Splatter', 'Render Resolution Scale']
+    },
+    {
       id: 'particleDensity',
       title: 'Particle Density & Blood Splatter',
       category: 'graphics',
@@ -998,6 +1007,33 @@ export function SettingsView({
                             {c}
                           </button>
                         ))}
+                      </div>
+                    )}
+
+                    {/* GRAPHICS PRESET SELECTOR */}
+                    {def.id === 'graphicsPreset' && (
+                      <div className="grid grid-cols-3 gap-1.5 text-[9px] font-mono">
+                        {(['barebones', 'medium', 'normal'] as const).map(p => {
+                          const activeP = settings.graphicsPreset || (detectIsMobile() ? 'medium' : 'normal');
+                          const labelMap = {
+                            barebones: 'Barebones (Ultra FPS)',
+                            medium: 'Medium (Balanced)',
+                            normal: 'Normal (Full FX)'
+                          };
+                          return (
+                            <button
+                              key={p}
+                              onClick={() => handleUpdate({ graphicsPreset: p })}
+                              className={`py-1.5 px-1 rounded border uppercase font-bold text-center transition cursor-pointer ${
+                                activeP === p
+                                  ? 'bg-amber-600 text-white border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+                                  : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+                              }`}
+                            >
+                              {labelMap[p]}
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
 

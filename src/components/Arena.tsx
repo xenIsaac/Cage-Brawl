@@ -32,7 +32,7 @@ import { CareerMilestoneManager } from '../data/careerMilestones';
 import { isMobileDevice } from '../utils/deviceDetection';
 import { drawArenaFloor as drawArenaFloorModule, renderParticlesAndTexts as renderParticlesAndTextsModule } from '../combat/renderArena';
 import { drawFighter as drawFighterModule, getFighterVisualTransform } from '../combat/renderFighter';
-import { prewarmCountdownBuffers, drawCachedCountdown } from '../utils/countdownBuffer';
+import { prewarmCountdownBuffers, drawCachedCountdownNumeral, drawCachedFightBanner } from '../utils/countdownBuffer';
 import { updateFighterAI as updateFighterAIModule } from '../combat/ai';
 import { getCapoeiraKickEase, getFistRelativePos, getClampedFistPos } from '../combat/fistIK';
 import { checkDirectionalBlock } from '../combat/blockEngine';
@@ -1593,6 +1593,8 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     freezeAI?: boolean;
     dummyFollow?: boolean;
     rankedState?: 'countdown' | 'fighting' | 'round_over' | 'match_over';
+    countdownFrame?: number;
+    fightBannerTimer?: number;
     isLMBHeld?: boolean;
     blockVignetteType?: 'orange' | 'red';
     blockVignetteTimer?: number;
@@ -2407,6 +2409,8 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     stateRef.current.shakeAmount = 0;
     stateRef.current.visionBlurTime = 0;
     stateRef.current.shakyVisionTimer = 0;
+    stateRef.current.countdownFrame = 0;
+    stateRef.current.fightBannerTimer = 0;
     setIsDead(false);
 
     // Initialize Gamemode-specific runtime state
@@ -2529,6 +2533,20 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
                 handleSparringKO(state.cinematicAttacker, state.cinematicDefender);
               }
             } else {
+              if (state.rankedState === 'countdown') {
+                state.countdownFrame = (state.countdownFrame || 0) + 1;
+                const f = state.countdownFrame;
+                if (f === 1 || f === 90 || f === 180) {
+                  soundManager.playRollTick();
+                } else if (f >= 270) {
+                  state.rankedState = 'fighting';
+                  state.fightBannerTimer = 48;
+                  setRankedState('fighting');
+                  setShowFightBanner(true);
+                  soundManager.playFightShout();
+                }
+              }
+
               updatePhysics();
               detectSparringCollisions();
               updateDummyAI();
@@ -11543,6 +11561,51 @@ function checkLineSegmentToCircle(
       state.cinematicCurrentZoom = state.cinematicCurrentZoom || state.cameraZoom;
       state.cinematicCurrentZoom += (3.5 - state.cinematicCurrentZoom) * 0.12;
       zoomToUse = state.cinematicCurrentZoom;
+    } else if (state.rankedState === 'countdown') {
+      const frame = state.countdownFrame || 0;
+
+      if (frame < 90) {
+        // Step 1 (Count 3 / t = 0.0s to 1.5s): 1.6x zoom-in centered on Player 1
+        const targetX = player ? player.x : state.arenaSize / 2;
+        const targetY = player ? player.y : state.arenaSize / 2;
+        const targetZoom = 1.6;
+        state.cameraX += (targetX - state.cameraX) * 0.12;
+        state.cameraY += (targetY - state.cameraY) * 0.12;
+        state.cinematicCurrentZoom = state.cinematicCurrentZoom || state.cameraZoom;
+        state.cinematicCurrentZoom += (targetZoom - state.cinematicCurrentZoom) * 0.10;
+        zoomToUse = state.cinematicCurrentZoom;
+      } else if (frame < 180) {
+        // Step 2 (Count 2 / t = 1.5s to 3.0s): 1.6x zoom centered on Opponent / Dummy
+        const targetX = dummy ? dummy.x : state.arenaSize / 2;
+        const targetY = dummy ? dummy.y : state.arenaSize / 2;
+        const targetZoom = 1.6;
+        state.cameraX += (targetX - state.cameraX) * 0.12;
+        state.cameraY += (targetY - state.cameraY) * 0.12;
+        state.cinematicCurrentZoom = state.cinematicCurrentZoom || state.cameraZoom;
+        state.cinematicCurrentZoom += (targetZoom - state.cinematicCurrentZoom) * 0.10;
+        zoomToUse = state.cinematicCurrentZoom;
+      } else {
+        // Step 3 (Count 1 / t = 3.0s to 4.5s / frames 180 to 270):
+        // SECTION 8.6: Smooth Cubic Deceleration (Cubic Ease-Out Interpolation)
+        // Zoom(t) = 1.0 + (1.6 - 1.0) * (1 - t)^3 where t in [0.0, 1.0]
+        const t = Math.min(1.0, Math.max(0.0, (frame - 180) / 90.0));
+        const oneMinusT = 1.0 - t;
+        const cubicFactor = oneMinusT * oneMinusT * oneMinusT;
+        const targetZoom = 1.0 + 0.6 * cubicFactor;
+
+        // Position Lerp Factor using cubic ease-out: E(t) = 1 - (1 - t)^3
+        const posEaseOut = 1.0 - cubicFactor;
+
+        const startX = dummy ? dummy.x : state.arenaSize / 2;
+        const startY = dummy ? dummy.y : state.arenaSize / 2;
+        const neutralX = (player && dummy) ? (player.x + dummy.x) / 2 : (player ? player.x : state.arenaSize / 2);
+        const neutralY = (player && dummy) ? (player.y + dummy.y) / 2 : (player ? player.y : state.arenaSize / 2);
+
+        state.cameraX = startX + (neutralX - startX) * posEaseOut;
+        state.cameraY = startY + (neutralY - startY) * posEaseOut;
+        state.cinematicCurrentZoom = targetZoom;
+        zoomToUse = targetZoom;
+      }
     } else {
       if (player && dummy) {
         const targetX = (player.x + dummy.x) / 2;
@@ -11941,6 +12004,43 @@ function checkLineSegmentToCircle(
       grad.addColorStop(1, 'rgba(0, 0, 0, 0.75)');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, state.width, state.height);
+    }
+
+    // Persona Cinematic Countdown Overlay & Banner (Section 8.4)
+    if (state.rankedState === 'countdown') {
+      const frame = state.countdownFrame || 0;
+      const screenCenterX = state.width / 2;
+      const screenCenterY = state.height / 2;
+
+      if (frame < 90) {
+        // Step 1: Count "3"
+        const stepProgress = frame / 90;
+        const scale = 1.25 - stepProgress * 0.25;
+        const alpha = Math.min(1.0, (90 - frame) / 12);
+        drawCachedCountdownNumeral(ctx, 3, alpha, screenCenterX, screenCenterY, scale);
+      } else if (frame < 180) {
+        // Step 2: Count "2"
+        const stepFrame = frame - 90;
+        const stepProgress = stepFrame / 90;
+        const scale = 1.25 - stepProgress * 0.25;
+        const alpha = Math.min(1.0, (90 - stepFrame) / 12);
+        drawCachedCountdownNumeral(ctx, 2, alpha, screenCenterX, screenCenterY, scale);
+      } else if (frame < 270) {
+        // Step 3: Count "1"
+        const stepFrame = frame - 180;
+        const stepProgress = stepFrame / 90;
+        const scale = 1.25 - stepProgress * 0.25;
+        const alpha = Math.min(1.0, (90 - stepFrame) / 12);
+        drawCachedCountdownNumeral(ctx, 1, alpha, screenCenterX, screenCenterY, scale);
+      }
+    } else if (state.fightBannerTimer && state.fightBannerTimer > 0) {
+      // Step 4: Persona "FIGHT!" Banner slide-in
+      const maxBannerFrames = 48;
+      const elapsed = maxBannerFrames - state.fightBannerTimer;
+      const slideProgress = Math.min(1.0, elapsed / 10);
+      const alpha = state.fightBannerTimer < 10 ? (state.fightBannerTimer / 10) : 1.0;
+      
+      drawCachedFightBanner(ctx, slideProgress, alpha, state.width / 2, state.height / 2);
     }
 
     // E. Draw Custom Cursor
@@ -12781,80 +12881,7 @@ function checkLineSegmentToCircle(
 
 
           
-          {/* RANKED & AI COUNTDOWN & OVERLAYS */}
-          {(matchData?.isCompetitive || matchData?.isAiMatch) && rankedState === 'countdown' && (
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center pointer-events-auto overflow-hidden select-none">
-              {/* Radial background pulse */}
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.15)_0%,transparent_70%)] animate-pulse" />
-              
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.1 }}
-                className="text-center space-y-4 p-8 max-w-sm w-full bg-zinc-950/95 border-2 border-red-500 rounded-3xl shadow-[0_0_50px_rgba(239,68,68,0.3)] relative"
-              >
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-red-600 text-[10px] font-mono font-black text-white rounded-full tracking-widest uppercase shadow-md">
-                  {matchData?.isCompetitive ? 'RANKED DUEL' : 'AI STANDOFF'}
-                </div>
-                
-                <span className="text-xs font-mono text-zinc-400 uppercase tracking-widest block font-bold mt-2">
-                  ROUND {roundNumber}
-                </span>
 
-                <div className="h-32 flex items-center justify-center relative overflow-visible">
-                  <AnimatePresence mode="popLayout">
-                    <motion.h2
-                      key={rankedCountdown}
-                      initial={{ scale: 0.2, rotate: -15, opacity: 0 }}
-                      animate={{ scale: [1.3, 1.0], rotate: 0, opacity: 1 }}
-                      exit={{ scale: 2.0, rotate: 15, opacity: 0 }}
-                      transition={{ type: "spring", damping: 11, stiffness: 180 }}
-                      className={`text-8xl font-display font-black italic tracking-wider drop-shadow-[0_0_20px_rgba(239,68,68,0.5)] ${
-                        rankedCountdown === 0 ? 'text-yellow-400' : 'text-white'
-                      }`}
-                    >
-                      {rankedCountdown === 0 ? 'FIGHT!' : rankedCountdown}
-                    </motion.h2>
-                  </AnimatePresence>
-                </div>
-
-                <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
-                  {rankedCountdown === 0 ? 'Clash of Styles has Initiated!' : 'Unleash your custom combat style'}
-                </p>
-              </motion.div>
-            </div>
-          )}
-
-          {/* FIGHT! SHOUT BANNER (DISAPPEARS SLOWLY WHILE FIGHTING STARTS IMMEDIATELY) */}
-          <AnimatePresence>
-            {showFightBanner && (
-              <motion.div
-                key="fight-shout-banner"
-                initial={{ opacity: 1, scale: 1.4, y: -10 }}
-                animate={{ opacity: [1, 1, 0.7, 0], scale: [1.4, 1.05, 1.0, 0.95], y: 0 }}
-                transition={{ duration: 1.8, times: [0, 0.35, 0.7, 1.0], ease: "easeOut" }}
-                onAnimationComplete={() => setShowFightBanner(false)}
-                className="absolute inset-0 z-50 flex flex-col items-center justify-center pointer-events-none select-none overflow-hidden"
-              >
-                <div className="flex flex-col items-center justify-center p-6 bg-zinc-950/70 backdrop-blur-sm rounded-3xl border-2 border-amber-500/60 shadow-[0_0_80px_rgba(245,158,11,0.5)]">
-                  <span className="text-[10px] sm:text-xs font-mono font-black text-amber-400 uppercase tracking-widest mb-1 px-3.5 py-1 bg-black/90 rounded-full border border-amber-500/50">
-                    ROUND {roundNumber} • ENGAGE COMBAT
-                  </span>
-                  <motion.h1
-                    initial={{ filter: "drop-shadow(0 0 35px rgba(245, 158, 11, 0.9))" }}
-                    animate={{ filter: "drop-shadow(0 0 10px rgba(245, 158, 11, 0.2))" }}
-                    transition={{ duration: 1.8 }}
-                    className="text-7xl sm:text-9xl font-display font-black italic tracking-widest text-yellow-400 uppercase drop-shadow-[0_0_40px_rgba(245,158,11,0.9)]"
-                  >
-                    FIGHT!
-                  </motion.h1>
-                  <p className="text-[10px] sm:text-xs font-mono font-bold text-red-300 uppercase tracking-wider mt-1 bg-red-950/90 px-4 py-1 rounded-full border border-red-500/60 shadow-lg">
-                    ⚡ CLASH OF STYLES HAS INITIATED!
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* TOP FIGHTERS HUD & CUSTOMIZABLE HUD ELEMENTS */}
           {(() => {

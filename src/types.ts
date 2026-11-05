@@ -650,6 +650,7 @@ export interface GameSettings {
   disableAuraVfx?: boolean; // Disable style aura particles & floor drop shadows
   touchThrottling?: boolean; // Coalesce mobile touch joystick inputs per frame
   mobileSprintMode?: 'button_only' | 'auto_sprint'; // Mobile sprint activation scheme
+  graphicsPreset?: 'barebones' | 'medium' | 'normal'; // Section 8.5 Graphics Quality Preset Pipeline
 }
 
 export interface UserSession {

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Trophy, CheckCheck, Sparkles, Zap, Shield, Flame, ChevronRight, 
-  Key, DollarSign, Lock, Award, CheckCircle2, Bot, TrendingUp, 
-  Star, Swords, ShieldAlert, ArrowLeft, Crown, Check, CheckCircle, RotateCcw
+  DollarSign, Lock, Award, Bot, TrendingUp, 
+  Star, Swords, ShieldAlert, Crown, CheckCircle, RotateCcw
 } from 'lucide-react';
 import { PlayerStats } from '../types';
 import { 
@@ -31,15 +31,13 @@ export default function CareerMilestonesScreen({
   updateStats,
   email = '',
   onReturnToSingleplayerHub,
-  isNavHidden = false,
-  setIsNavHidden,
   onClaimableCountChange,
 }: CareerMilestonesScreenProps) {
-  const { isPortrait, isLandscape, isMobile, isCompactLandscape } = useResponsiveLayout();
+  const { isMobile } = useResponsiveLayout();
   const [milestoneState, setMilestoneState] = useState<MilestoneProgressState>(() => 
     CareerMilestoneManager.syncWithStats(email, stats)
   );
-  const [filterCategory, setFilterCategory] = useState<'all' | 'combat' | 'ranked' | 'defense' | 'tournament_combo'>('all');
+  const [activeTrackIndex, setActiveTrackIndex] = useState<number>(0);
   const [toastNotification, setToastNotification] = useState<{ text: string; type: 'success' | 'reward' | 'info' } | null>(null);
 
   useEffect(() => {
@@ -69,7 +67,6 @@ export default function CareerMilestonesScreen({
     setTimeout(() => setToastNotification(null), 3500);
   };
 
-  // Calculate total claimable stages across all 9 tracks
   const claimableCount = useMemo(() => {
     let count = 0;
     for (const track of CAREER_MILESTONE_TRACKS) {
@@ -122,14 +119,6 @@ export default function CareerMilestonesScreen({
     };
   }, [stats.keys, stats.rolls]);
 
-  const filteredTracks = useMemo(() => {
-    if (filterCategory === 'all') return CAREER_MILESTONE_TRACKS;
-    if (filterCategory === 'combat') return CAREER_MILESTONE_TRACKS.filter(t => t.id === 'bot_slayer' || t.id === 'heavy_impact' || t.id === 'striking_volume');
-    if (filterCategory === 'ranked') return CAREER_MILESTONE_TRACKS.filter(t => t.id === 'ranked_ladder_climber' || t.id === 'flawless_mastery');
-    if (filterCategory === 'defense') return CAREER_MILESTONE_TRACKS.filter(t => t.id === 'iron_wall' || t.id === 'the_bastion');
-    if (filterCategory === 'tournament_combo') return CAREER_MILESTONE_TRACKS.filter(t => t.id === 'tournament_glory' || t.id === 'combo_specialist');
-    return CAREER_MILESTONE_TRACKS;
-  }, [filterCategory]);
 
   const getIcon = (iconName: string) => {
     switch (iconName) {
@@ -147,191 +136,235 @@ export default function CareerMilestonesScreen({
   };
 
   return (
-    <div className={`fixed inset-0 z-40 bg-zinc-950 text-white flex flex-col select-none overflow-hidden transition-all duration-300 ${
-      isNavHidden || isPortrait || isMobile ? 'pl-0' : 'pl-14 sm:pl-16'
-    }`}>
-      {/* ============================================================== */}
-      {/* 1. TOP HEADER & TELEMETRY                                      */}
-      {/* ============================================================== */}
-      <header className="px-4 sm:px-6 py-2.5 sm:py-3 border-b border-zinc-850 bg-gradient-to-r from-zinc-950 via-zinc-900/90 to-zinc-950 flex items-center justify-between gap-3 shrink-0 z-20">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-sm">
-            <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />
+    <div className="w-full h-full bg-zinc-950 text-white flex flex-col select-none overflow-hidden relative font-sans">
+      {/* HALPTONE BG ACCENT */}
+      <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px] opacity-10 pointer-events-none" />
+
+      {/* HEADER & TELEMETRY */}
+      <header className="px-4 sm:px-6 py-3 border-b-4 border-white bg-black flex items-center justify-between gap-3 shrink-0 z-20 shadow-[0_4px_0px_#000000]">
+        <div className="flex items-center gap-2.5">
+          <div className="bg-red-600 text-black px-3 py-1 font-display font-black italic text-xs uppercase -skew-x-12 shadow-[2px_2px_0px_#ffffff] flex items-center gap-1.5">
+            <Trophy className="w-3.5 h-3.5 text-black" />
+            <span>CAREER</span>
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xs sm:text-base font-display font-black italic uppercase text-white tracking-wider">
-                CAREER MILESTONES (PERMANENT TRACKS)
-              </h1>
-              <span className="text-[8px] sm:text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold uppercase">
-                Section 6.4 &bull; 9 Master Tracks
-              </span>
-            </div>
-            <p className="text-[9.5px] sm:text-[10.5px] text-zinc-400 font-mono hidden sm:block">
-              Stages progress consecutively and replace completed ones. Earn Cash, Rare Keys, and Animated Titles.
-            </p>
+            <h1 className="text-sm sm:text-lg font-display font-black italic uppercase text-white tracking-wider">
+              PERMANENT COMBAT MILESTONES
+            </h1>
           </div>
         </div>
 
-        {/* Currency & Actions */}
+        {/* Action Buttons */}
         <div className="flex items-center gap-2">
-          {/* Cash Pill */}
-          <div className="flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono font-bold text-emerald-400 shadow-inner">
-            <DollarSign className="w-3.5 h-3.5" />
-            <span>${stats.cash.toLocaleString()}</span>
-          </div>
-
-          {/* Key Pills */}
-          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-zinc-900 border border-zinc-800 text-[10px] font-mono font-bold shadow-inner">
-            <span className="text-zinc-400">Fe:{keyInventory.iron}</span>
-            <span className="text-amber-400">Au:{keyInventory.gold}</span>
-            <span className="text-cyan-300">Dia:{keyInventory.diamond}</span>
-            <span className="text-purple-300">Obs:{keyInventory.obsidian}</span>
-          </div>
-
-          {/* Claim All Button */}
           {claimableCount > 0 && (
             <button
               onClick={handleClaimAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-display font-black italic uppercase text-xs rounded-xl shadow-lg shadow-amber-500/20 animate-pulse transition cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-400 hover:bg-white text-black font-display font-black italic uppercase text-xs -skew-x-12 shadow-[3px_3px_0px_#000000] animate-pulse transition cursor-pointer"
             >
               <CheckCheck className="w-3.5 h-3.5" />
               <span>CLAIM ALL ({claimableCount})</span>
             </button>
           )}
 
-          {/* Sync & Refresh Button */}
           <button
             onClick={() => {
               soundManager.playRollTick?.();
               refreshState();
-              showToast('Milestones synchronized with career combat data!', 'info');
+              showToast('Milestones synchronized with stats!', 'info');
             }}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-750 text-zinc-300 hover:text-white rounded-xl text-xs font-display font-black italic uppercase tracking-wider transition cursor-pointer"
-            title="Synchronize and refresh career milestones"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-white hover:text-black border-2 border-white text-white rounded-none -skew-x-12 text-xs font-mono font-bold uppercase transition cursor-pointer shadow-[2px_2px_0px_#000000]"
+            title="Refresh state"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">SYNC</span>
-          </button>
-
-          {/* Return Button */}
-          <button
-            onClick={() => {
-              soundManager.playRollTick?.();
-              onReturnToSingleplayerHub();
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-750 text-zinc-300 hover:text-white rounded-xl text-xs font-display font-black italic uppercase tracking-wider transition cursor-pointer"
-          >
-            <span>HUB</span>
-            <ChevronRight className="w-3.5 h-3.5" />
+            <span>SYNC</span>
           </button>
         </div>
       </header>
 
-      {/* ============================================================== */}
-      {/* 2. CATEGORY FILTER TABS                                        */}
-      {/* ============================================================== */}
-      <div className="px-4 sm:px-6 py-2 border-b border-zinc-850 bg-zinc-950/90 flex items-center gap-1.5 sm:gap-2 shrink-0 overflow-x-auto custom-scrollbar">
-        {[
-          { id: 'all', label: 'All 9 Tracks' },
-          { id: 'combat', label: 'Combat & Knockouts' },
-          { id: 'ranked', label: 'Ranked Ladder' },
-          { id: 'defense', label: 'Parry & Bastion' },
-          { id: 'tournament_combo', label: 'Tournament & Combos' },
-        ].map(cat => (
-          <button
-            key={cat.id}
-            onClick={() => {
-              setFilterCategory(cat.id as any);
-              soundManager.playRollTick?.();
-            }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-display font-bold uppercase tracking-wider transition border cursor-pointer ${
-              filterCategory === cat.id
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500 shadow-sm'
-                : 'bg-zinc-900/80 text-zinc-400 border-zinc-800 hover:text-zinc-200'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ============================================================== */}
-      {/* 3. 9 MASTER MILESTONE TRACKS (STAGE REPLACES PREVIOUS AFTER)   */}
-      {/* ============================================================== */}
-      <main className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-5 bg-gradient-to-b from-zinc-950 via-zinc-900/30 to-zinc-950">
-        <div className="max-w-6xl mx-auto space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {filteredTracks.map(track => {
-              const currentVal = milestoneState.counts[track.statKey] || 0;
-              const claimedList = milestoneState.claimedStages[track.id] || [];
-              const highestStage = track.stages[track.stages.length - 1];
-              const displayVal = track.ceilingCap ? Math.min(track.ceilingCap, currentVal) : currentVal;
-              const maxTarget = highestStage.target;
-              const trackPercent = Math.min(100, Math.round((displayVal / maxTarget) * 100));
-
-              // Find active stage that replaces previous after completion:
-              // 1. First look for the lowest un-claimed stage that is reached (ready to claim)
-              // 2. Or the lowest un-claimed stage that is currently in progress
-              const activeStage = 
-                track.stages.find(s => currentVal >= s.target && !claimedList.includes(s.stageNumber)) ||
-                track.stages.find(s => !claimedList.includes(s.stageNumber)) ||
-                null;
-
-              const isAllCompleted = claimedList.length >= track.stages.length;
+      {/* MILESTONE TRACKS: PERSONA TROPHY CALLING CARD CAROUSEL (ZERO SCROLLING) */}
+      <main className="flex-1 flex flex-col p-2 sm:p-3 bg-zinc-950 relative overflow-hidden select-none justify-between min-h-0">
+        {/* TOP TRACK SELECTOR STRIP */}
+        <div className="flex items-center justify-between pb-1.5 border-b-2 border-white/20 shrink-0 relative z-10 px-1 sm:px-2">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+            {CAREER_MILESTONE_TRACKS.map((t, idx) => {
+              const isCurrent = activeTrackIndex === idx;
+              const currentVal = milestoneState.counts[t.statKey] || 0;
+              const claimedList = milestoneState.claimedStages[t.id] || [];
+              const hasClaimable = t.stages.some(s => currentVal >= s.target && !claimedList.includes(s.stageNumber));
+              const isMastered = claimedList.length >= t.stages.length;
 
               return (
-                <div
-                  key={track.id}
-                  className={`rounded-2xl border ${track.borderColor} bg-gradient-to-b ${track.bgGradient} p-4 sm:p-5 shadow-xl flex flex-col justify-between space-y-3.5 relative overflow-hidden`}
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    soundManager.playRollTick?.();
+                    setActiveTrackIndex(idx);
+                  }}
+                  className={`px-2 py-0.5 text-[11px] font-display font-black italic uppercase -skew-x-12 cursor-pointer transition border flex items-center gap-1 shrink-0 ${
+                    isCurrent
+                      ? 'bg-red-600 text-black border-white shadow-[2px_2px_0px_#ffffff]'
+                      : isMastered
+                      ? 'bg-zinc-900 text-emerald-400 border-emerald-500/50'
+                      : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                  }`}
                 >
-                  {/* Track Header */}
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-zinc-950/80 border border-zinc-700 flex items-center justify-center text-white shadow">
-                          {getIcon(track.iconName)}
-                        </div>
-                        <h2 className="font-display font-black italic uppercase text-sm sm:text-base text-white tracking-wide">
-                          {track.categoryName}
-                        </h2>
+                  <span>0{idx + 1}</span>
+                  {hasClaimable && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Carousel Next / Prev Controls */}
+          <div className="flex items-center gap-1 shrink-0 pl-1">
+            <button
+              onClick={() => {
+                soundManager.playRollTick?.();
+                setActiveTrackIndex(prev => (prev > 0 ? prev - 1 : CAREER_MILESTONE_TRACKS.length - 1));
+              }}
+              className="px-1.5 py-0.5 bg-zinc-900 hover:bg-white hover:text-black border border-white text-white font-mono font-bold text-[10px] -skew-x-12 cursor-pointer shadow-[1px_1px_0px_#000000] active:scale-95 transition"
+              title="Previous Track"
+            >
+              ◀
+            </button>
+            <span className="text-[10px] font-mono font-black text-amber-400 px-0.5 -skew-x-6">
+              0{activeTrackIndex + 1}/0{CAREER_MILESTONE_TRACKS.length}
+            </span>
+            <button
+              onClick={() => {
+                soundManager.playRollTick?.();
+                setActiveTrackIndex(prev => (prev < CAREER_MILESTONE_TRACKS.length - 1 ? prev + 1 : 0));
+              }}
+              className="px-1.5 py-0.5 bg-zinc-900 hover:bg-white hover:text-black border border-white text-white font-mono font-bold text-[10px] -skew-x-12 cursor-pointer shadow-[1px_1px_0px_#000000] active:scale-95 transition"
+              title="Next Track"
+            >
+              ▶
+            </button>
+          </div>
+        </div>
+
+        {/* 1-SQUARE-HIGH PERSONA TROPHY CARD WITH CAROUSEL DEPTH SHADOWS */}
+        <div className="flex-1 flex items-center justify-center relative py-1 min-h-0">
+          {/* CAROUSEL DEPTH GHOST CARDS (STRICTLY Z-0, HIDDEN ON COMPACT LANDSCAPE SO NEVER COVERS BUTTONS) */}
+          <div className="hidden xl:block absolute left-4 lg:left-8 w-60 h-[70%] bg-black/60 border-2 border-zinc-800 -skew-x-6 opacity-20 pointer-events-none scale-90 -translate-x-6 shadow-[-10px_10px_0px_#000000] z-0" />
+          <div className="hidden xl:block absolute right-4 lg:right-8 w-60 h-[70%] bg-black/60 border-2 border-zinc-800 -skew-x-6 opacity-20 pointer-events-none scale-90 translate-x-6 shadow-[10px_10px_0px_#000000] z-0" />
+
+          {(() => {
+            const track = CAREER_MILESTONE_TRACKS[activeTrackIndex % CAREER_MILESTONE_TRACKS.length];
+            const currentVal = milestoneState.counts[track.statKey] || 0;
+            const claimedList = milestoneState.claimedStages[track.id] || [];
+            const highestStage = track.stages[track.stages.length - 1];
+            const displayVal = track.ceilingCap ? Math.min(track.ceilingCap, currentVal) : currentVal;
+            const maxTarget = highestStage.target;
+            const trackPercent = Math.min(100, Math.round((displayVal / maxTarget) * 100));
+
+            const activeStage = 
+              track.stages.find(s => currentVal >= s.target && !claimedList.includes(s.stageNumber)) ||
+              track.stages.find(s => !claimedList.includes(s.stageNumber)) ||
+              null;
+
+            const isAllCompleted = claimedList.length >= track.stages.length;
+            const canClaimStage = activeStage && currentVal >= activeStage.target;
+
+            return (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={track.id}
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.16 }}
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  onDragEnd={(_, info) => {
+                    if (info.offset.x < -35) {
+                      soundManager.playRollTick?.();
+                      setActiveTrackIndex(prev => (prev < CAREER_MILESTONE_TRACKS.length - 1 ? prev + 1 : 0));
+                    } else if (info.offset.x > 35) {
+                      soundManager.playRollTick?.();
+                      setActiveTrackIndex(prev => (prev > 0 ? prev - 1 : CAREER_MILESTONE_TRACKS.length - 1));
+                    }
+                  }}
+                  className="w-full max-w-lg lg:max-w-xl bg-black border-3 sm:border-4 border-white shadow-[6px_6px_0px_#E60012] p-3 sm:p-4.5 flex flex-col justify-between relative z-10 -skew-x-2 select-none cursor-grab active:cursor-grabbing max-h-[300px] sm:max-h-[360px] md:max-h-[400px]"
+                >
+                  {/* CARD TOP META */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="bg-red-600 text-black font-display font-black italic text-[11px] uppercase px-2 py-0.5 -skew-x-12 shadow-[2px_2px_0px_#ffffff]">
+                          TRACK 0{activeTrackIndex + 1}
+                        </span>
+                        <span className="text-[9.5px] font-mono font-bold px-1.5 py-0.5 bg-zinc-900 text-amber-400 border border-zinc-700 uppercase -skew-x-6">
+                          {isAllCompleted ? 'MASTERED' : `STAGE 0${activeStage?.stageNumber || 1} / 0${track.stages.length}`}
+                        </span>
                       </div>
 
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg bg-zinc-950/80 border border-zinc-800 text-zinc-300">
-                        {displayVal} / {maxTarget} {track.ceilingCap ? '(Capped)' : ''}
-                      </span>
+                      {isAllCompleted ? (
+                        <span className="text-[11px] font-mono font-black text-black bg-emerald-400 px-2.5 py-0.5 -skew-x-6 shadow-[2px_2px_0px_#ffffff]">
+                          ★ MASTERED ★
+                        </span>
+                      ) : canClaimStage ? (
+                        <span className="text-[11px] font-mono font-black text-black bg-amber-400 px-2.5 py-0.5 -skew-x-6 animate-pulse shadow-[2px_2px_0px_#ffffff]">
+                          ★ STAGE READY ★
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-mono font-bold text-zinc-300 bg-zinc-900 border border-zinc-700 px-2 py-0.5 -skew-x-6">
+                          IN PROGRESS
+                        </span>
+                      )}
                     </div>
 
-                    <p className="text-[10px] font-mono text-zinc-400 mb-2.5">
-                      {track.description}
-                    </p>
+                    {/* Track Title with Icon */}
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 bg-red-600 border-2 border-white flex items-center justify-center text-black -skew-x-12 shadow-[2px_2px_0px_#ffffff] shrink-0">
+                        {getIcon(track.iconName)}
+                      </div>
+                      <div>
+                        <h2 className="font-display font-black italic uppercase text-base sm:text-xl text-white tracking-wide leading-tight">
+                          {track.categoryName}
+                        </h2>
+                        {activeStage && (
+                          <p className="text-[11px] sm:text-xs font-mono text-zinc-300 pt-0.5 leading-snug line-clamp-1">
+                            Goal: {activeStage.targetLabel}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-                    {/* Master Progress Bar */}
-                    <div className="w-full h-2 bg-zinc-950 rounded-full overflow-hidden border border-zinc-850 p-0.5 mb-3">
-                      <div
-                        className="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-amber-500 to-yellow-400 shadow-[0_0_8px_rgba(245,158,11,0.7)]"
-                        style={{ width: `${trackPercent}%` }}
-                      />
+                  {/* CARD REWARD & TELEMETRY */}
+                  <div className="space-y-2 pt-2 border-t-2 border-white/20 mt-2">
+                    {/* OVERALL TRACK PROGRESS */}
+                    <div className="space-y-0.5">
+                      <div className="flex justify-between items-center text-[10px] sm:text-xs font-mono text-zinc-300">
+                        <span>LIFETIME STAT</span>
+                        <span className="font-bold text-white text-xs sm:text-sm">{displayVal} / {maxTarget}</span>
+                      </div>
+                      <div className="w-full h-2 sm:h-2.5 bg-black border-2 border-white p-0.5 overflow-hidden">
+                        <div
+                          className="h-full transition-all duration-300 bg-amber-400"
+                          style={{ width: `${trackPercent}%` }}
+                        />
+                      </div>
                     </div>
 
-                    {/* Stage Progress Stepper Dots */}
-                    <div className="flex items-center justify-between gap-1 mb-3 px-1">
-                      <span className="text-[8.5px] font-mono font-bold text-zinc-400 uppercase">
-                        {isAllCompleted ? 'All Stages Mastered' : `Stage ${activeStage?.stageNumber || 1} of ${track.stages.length}`}
+                    {/* STAGE DOTS STEPPER */}
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[8.5px] font-mono text-zinc-400 uppercase">
+                        STAGES ({claimedList.length}/{track.stages.length})
                       </span>
-
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
                         {track.stages.map(s => {
                           const isClaimed = claimedList.includes(s.stageNumber);
                           const isCurrent = activeStage?.stageNumber === s.stageNumber;
                           return (
                             <div
                               key={s.stageNumber}
-                              className={`h-1.5 rounded-full transition-all duration-300 ${
+                              className={`h-1.5 border border-white transition-all duration-200 ${
                                 isClaimed
-                                  ? 'w-3 bg-emerald-400'
+                                  ? 'w-3.5 bg-emerald-400'
                                   : isCurrent
-                                  ? 'w-5 bg-amber-400 animate-pulse'
+                                  ? 'w-4 bg-amber-400 animate-pulse'
                                   : 'w-1.5 bg-zinc-800'
                               }`}
                               title={`Stage ${s.stageNumber}: ${s.name}`}
@@ -341,144 +374,80 @@ export default function CareerMilestonesScreen({
                       </div>
                     </div>
 
-                    {/* CURRENT ACTIVE STAGE (REPLACES PREVIOUS AFTER COMPLETION) */}
-                    <AnimatePresence mode="wait">
-                      {isAllCompleted ? (
-                        <motion.div
-                          key="completed-deck"
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.95 }}
-                          className="p-3.5 rounded-xl border border-emerald-500/50 bg-gradient-to-r from-emerald-950/40 via-zinc-900 to-emerald-950/40 flex items-center justify-between gap-3 shadow-lg"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-                              <CheckCircle className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[8.5px] font-mono font-black uppercase text-emerald-300 bg-emerald-950 border border-emerald-500/40 px-1.5 py-0.2 rounded">
-                                  MASTERED
-                                </span>
-                                <h3 className="font-display font-black uppercase text-xs text-white">
-                                  Track Fully Conquered
-                                </h3>
-                              </div>
-                              <span className="text-[9.5px] font-mono text-zinc-400 block pt-0.5">
-                                All {track.stages.length} milestone tiers completed and rewards claimed!
-                              </span>
-                            </div>
+                    {/* PAYOUT ROW & PROPERLY PLACED BUTTON */}
+                    <div className="flex items-center justify-between pt-0.5">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-mono text-zinc-400 uppercase">
+                          {isAllCompleted ? 'TITLE' : 'YIELD'}
+                        </span>
+                        {isAllCompleted ? (
+                          <div className="flex items-center gap-1 pt-0.5">
+                            <Crown className="w-3.5 h-3.5 text-amber-400" />
+                            <span className="text-[10px] font-mono font-black text-amber-300 bg-black border border-amber-500 px-1.5 py-0.2 -skew-x-6">
+                              « {highestStage.rewardTitle || 'LEGEND'} »
+                            </span>
                           </div>
-
-                          {highestStage.rewardTitle && (
-                            <div className="shrink-0 flex items-center gap-1">
-                              <Crown className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                              <span className={`text-[8.5px] font-mono font-bold px-2 py-0.5 rounded ${highestStage.titleGlowClass || 'bg-amber-950 text-amber-300 border border-amber-500'}`}>
-                                « {highestStage.rewardTitle} »
+                        ) : activeStage ? (
+                          <div className="flex items-center gap-1.5 font-mono font-bold text-xs sm:text-sm">
+                            <span className="text-emerald-400">+${activeStage.rewardCash.toLocaleString()}</span>
+                            {activeStage.rewardKey && (
+                              <span className="text-amber-300 font-mono text-[8.5px] px-1 py-0.2 bg-black border border-amber-500 -skew-x-6">
+                                +{activeStage.rewardKey.label}
                               </span>
-                            </div>
-                          )}
-                        </motion.div>
-                      ) : activeStage ? (
-                        <motion.div
-                          key={`stage-${activeStage.stageNumber}`}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          transition={{ duration: 0.2 }}
-                          className={`p-3 sm:p-3.5 rounded-xl border transition-all duration-200 flex flex-col justify-between space-y-2.5 ${
-                            currentVal >= activeStage.target
-                              ? 'bg-amber-950/40 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.25)] ring-1 ring-amber-400/50'
-                              : 'bg-zinc-950/80 border-zinc-800'
-                          }`}
-                        >
-                          {/* Top: Active Stage Info */}
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[8px] font-mono font-black uppercase px-2 py-0.5 rounded bg-zinc-800 text-amber-300 border border-zinc-700">
-                                  ACTIVE STAGE {activeStage.stageNumber}
-                                </span>
-                                <h3 className="font-display font-black uppercase text-xs sm:text-sm text-white">
-                                  {activeStage.name}
-                                </h3>
-                              </div>
-                              <span className="text-[10px] font-mono text-zinc-300 block pt-0.5">
-                                Requirement: {activeStage.targetLabel}
-                              </span>
-
-                              {/* Title Unlock Badge */}
-                              {activeStage.rewardTitle && (
-                                <div className="pt-1.5 flex items-center gap-1.5">
-                                  <Crown className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                                  <span className={`text-[8.5px] font-mono font-bold px-2 py-0.5 rounded ${activeStage.titleGlowClass || 'bg-amber-950 text-amber-300 border border-amber-500'}`}>
-                                    Unlocks Title: « {activeStage.rewardTitle} »
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Reward Yield Badge */}
-                            <div className="text-right font-mono text-[9px] shrink-0">
-                              <span className="text-emerald-400 font-bold block text-[11px]">
-                                +${activeStage.rewardCash.toLocaleString()}
-                              </span>
-                              {activeStage.rewardKey && (
-                                <span className={`px-1.5 py-0.2 rounded text-[8px] font-bold mt-0.5 inline-block ${
-                                  activeStage.rewardKey.tier === 'iron' ? 'bg-zinc-800 text-zinc-300 border border-zinc-700' :
-                                  activeStage.rewardKey.tier === 'gold' ? 'bg-amber-950 text-amber-300 border border-amber-600/80' :
-                                  activeStage.rewardKey.tier === 'diamond' ? 'bg-cyan-950 text-cyan-300 border border-cyan-600/80' :
-                                  'bg-purple-950 text-purple-300 border border-purple-600/80'
-                                }`}>
-                                  +{activeStage.rewardKey.label}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Stage Progress Bar & Action Button */}
-                          <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between gap-3">
-                            <div className="flex-1 space-y-1">
-                              <div className="flex justify-between text-[8px] font-mono text-zinc-400">
-                                <span>Progress</span>
-                                <span>{Math.min(activeStage.target, currentVal)} / {activeStage.target}</span>
-                              </div>
-                              <div className="w-full h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-300 ${
-                                    currentVal >= activeStage.target ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-amber-500'
-                                  }`}
-                                  style={{ width: `${Math.min(100, Math.round((currentVal / activeStage.target) * 100))}%` }}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Claim Action */}
-                            {currentVal >= activeStage.target ? (
-                              <button
-                                onClick={() => handleClaimStage(track, activeStage)}
-                                className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-display font-black uppercase text-[10px] rounded-lg shadow-md animate-pulse transition cursor-pointer active:scale-95 shrink-0"
-                              >
-                                CLAIM STAGE
-                              </button>
-                            ) : (
-                              <span className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 text-[8.5px] font-mono font-bold flex items-center gap-1 shrink-0">
-                                <Lock className="w-2.5 h-2.5" /> IN PROGRESS
+                            )}
+                            {activeStage.rewardTitle && (
+                              <span className="text-amber-300 font-mono text-[8.5px] px-1 py-0.2 bg-black border border-amber-500 -skew-x-6 hidden sm:inline">
+                                «{activeStage.rewardTitle}»
                               </span>
                             )}
                           </div>
-                        </motion.div>
-                      ) : null}
-                    </AnimatePresence>
+                        ) : null}
+                      </div>
+
+                      {/* ACTION BUTTON (NEVER HIDDEN BEHIND CAROUSEL) */}
+                      <div>
+                        {isAllCompleted ? (
+                          <span className="px-3 py-1 bg-black border border-emerald-500 text-emerald-400 text-xs font-mono font-bold uppercase -skew-x-6">
+                            ✓ COMPLETED
+                          </span>
+                        ) : canClaimStage && activeStage ? (
+                          <button
+                            onClick={() => handleClaimStage(track, activeStage)}
+                            className="px-4 py-1.5 bg-amber-400 hover:bg-white text-black font-display font-black italic uppercase text-xs sm:text-sm -skew-x-12 shadow-[2px_2px_0px_#000000] animate-pulse cursor-pointer active:scale-95"
+                          >
+                            CLAIM STAGE
+                          </button>
+                        ) : (
+                          <span className="px-2.5 py-1 bg-black border border-zinc-800 text-zinc-500 text-[11px] font-mono font-bold uppercase -skew-x-6">
+                            {currentVal} / {activeStage?.target || 0}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+
+                  {/* CAROUSEL STEPPER DOTS */}
+                  <div className="flex items-center justify-center gap-1 pt-1">
+                    {CAREER_MILESTONE_TRACKS.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          soundManager.playRollTick?.();
+                          setActiveTrackIndex(idx);
+                        }}
+                        className={`h-1.5 transition-all duration-200 cursor-pointer ${
+                          idx === activeTrackIndex ? 'w-4 bg-red-600' : 'w-1 bg-zinc-700 hover:bg-zinc-500'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            );
+          })()}
         </div>
       </main>
 
-      {/* Toast Notification */}
       <AnimatePresence>
         {toastNotification && (
           <motion.div

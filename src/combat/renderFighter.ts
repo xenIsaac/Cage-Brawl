@@ -1120,13 +1120,26 @@ export const drawFighter = (
     ctx.stroke();
   }
 
-  // Directional Overhead Cage Ground Shadow (High-contrast theatrical grounded shadow)
-  ctx.save();
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-  ctx.beginPath();
-  ctx.ellipse(4, 9, fighter.radius * 1.2, fighter.radius * 0.7, Math.PI / 8, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  // Fighter Ground Shadow Pipeline (Section 8.5)
+  if (settings?.graphicsPreset === 'barebones') {
+    // Disabled in Barebones mode
+  } else if (settings?.graphicsPreset === 'medium') {
+    // Simple static circular contact shadow for Medium mode
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.40)';
+    ctx.beginPath();
+    ctx.arc(0, 0, fighter.radius * 0.95, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  } else {
+    // High-precision real-time drop shadow for Normal mode
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.beginPath();
+    ctx.ellipse(4, 9, fighter.radius * 1.2, fighter.radius * 0.7, Math.PI / 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
   // Persistent Cripple Speed Debuff Ring (Pulsing at 1.0 Hz in dark purple)
   if (fighter.crippleTime && fighter.crippleTime > 0) {
