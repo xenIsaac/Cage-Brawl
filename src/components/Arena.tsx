@@ -12,6 +12,9 @@ import { FIGHTING_STYLES } from '../data/styles';
 import { soundManager } from './SoundManager';
 import { getRankInfo, calculateWinEloGain, calculateLossEloLoss, calculateRankedAiEloBreakdown, evaluateRoundGrade } from '../utils/elo';
 import MobileControls from './MobileControls';
+import { CombatHUD } from './combat/CombatHUD';
+import { MatchOverlays } from './combat/MatchOverlays';
+import { FighterHealthBars } from './combat/FighterHealthBars';
 import HudEditorModal from './HudEditorModal';
 import LiveHudEditor from './LiveHudEditor';
 import { StatusBar, ActiveStatusItem, extractFighterStatuses } from './StatusBar';
@@ -12625,91 +12628,97 @@ function checkLineSegmentToCircle(
         </div>
       )}
 
-      {/* MOBILE TOUCH VIRTUAL CONTROLS OVERLAY (Only rendered in Virtual Controls mode) */}
-      {isPlaying && !isDead && rankedState !== 'match_over' && !showModeSelector && !matchData?.isAiVsAiSpectator && !matchData?.isSpectator && ((settings.touchControlMode ?? 'virtual') === 'virtual') && (settings.showVirtualControls === 'always' || (settings.showVirtualControls === 'auto' && isTouchDevice)) && !isLiveHudEditing && (
-        <MobileControls
-          settings={settings}
-          stateRef={stateRef}
-          onLightAttack={triggerPlayerLightAttack}
-          onLightHoldStart={() => {
-            stateRef.current.isLMBHeld = true;
-          }}
-          onLightHoldEnd={() => {
-            stateRef.current.isLMBHeld = false;
-          }}
-          onHeavyAttack={triggerPlayerHeavyAttack}
-          onBlockStart={() => {
-            const state = stateRef.current;
-            state.isBlockInputHeld = true;
-            const player = state.player;
-            if (player) {
-              player.isBlockInputHeld = true;
-              if (player.blockLockout && player.blockLockout > 0) {
-                player.isBlocking = false;
-                player.blockLockout = 18;
-                setIsPlayerBlocking(false);
-                return;
-              }
-
-              if (!player.blockRefreshThreshold) {
-                player.blockRefreshThreshold = Math.floor(Math.random() * 2) + 2;
-              }
-              player.blockUseCount = (player.blockUseCount || 0) + 1;
-              player.blockUseResetTimer = 120;
-
-              // Even if spamming mid-way through blocking, immediately cancels out block for 0.3s after 2-3 times!
-              if (player.blockUseCount >= player.blockRefreshThreshold) {
-                player.isBlocking = false;
-                player.blockTimer = 0;
-                player.blockLockout = 18; // Universal 0.3s refresh lockout (18 frames)
-                player.blockUseCount = 0;
-                player.blockRefreshThreshold = Math.floor(Math.random() * 2) + 2;
-                setIsPlayerBlocking(false);
-              } else if (canFighterRaiseGuard(player)) {
-                // Section 2.8: Attack Animation Block-Cancel (Feinting / Reflex Parries)
-                const hadActivePunch = player.fists.some(f => f.isPunching && !f.isHeavy);
-                if (hadActivePunch) {
-                  player.fists.forEach(f => {
-                    f.isPunching = false;
-                    f.punchProgress = 0;
-                    f.lingerTimer = 0;
-                    f.isLingerActive = false;
-                    f.hasHit = false;
-                  });
-                  spawnFloatingText(player.x, player.y - 30, 'FEINT / CANCEL', '#38bdf8');
-                }
-                if (!player.isBlocking) {
-                  player.isBlocking = true;
-                  player.blockTimer = 0;
-                }
-                setIsPlayerBlocking(true);
-              }
-            }
-          }}
-          onBlockEnd={() => {
-            const state = stateRef.current;
-            state.isBlockInputHeld = false;
-            const player = state.player;
-            if (player) {
-              player.isBlockInputHeld = false;
-              if (player.isBlocking) {
-                player.isBlocking = false;
-                player.kyokushinBlockHitsTaken = 0;
-                player.blockLockout = Math.max(player.blockLockout || 0, BLOCK_COOLDOWN_FRAMES);
-                const isAfterParry = (player.afterParryGraceTimer || 0) > 0 || (player.parryFlashTime || 0) > 0 || (player.parryBlockGraceTimer || 0) > 0;
-                if (player.styleId === 'capoeira' || isAfterParry) {
-                  player.postBlockAttackLockout = 0;
-                } else {
-                  player.postBlockAttackLockout = 6; // Section 2.8: 0.10s Post-Block Action Delay
-                }
-              }
+      {/* MOBILE TOUCH VIRTUAL CONTROLS OVERLAY (Extracted to CombatHUD) */}
+      <CombatHUD
+        settings={settings}
+        stateRef={stateRef}
+        isPlaying={isPlaying}
+        isDead={isDead}
+        rankedState={rankedState}
+        showModeSelector={showModeSelector}
+        matchData={matchData}
+        isLiveHudEditing={isLiveHudEditing}
+        isTouchDevice={isTouchDevice}
+        isPortrait={isPortrait}
+        onLightAttack={triggerPlayerLightAttack}
+        onLightHoldStart={() => {
+          stateRef.current.isLMBHeld = true;
+        }}
+        onLightHoldEnd={() => {
+          stateRef.current.isLMBHeld = false;
+        }}
+        onHeavyAttack={triggerPlayerHeavyAttack}
+        onBlockStart={() => {
+          const state = stateRef.current;
+          state.isBlockInputHeld = true;
+          const player = state.player;
+          if (player) {
+            player.isBlockInputHeld = true;
+            if (player.blockLockout && player.blockLockout > 0) {
+              player.isBlocking = false;
+              player.blockLockout = 18;
               setIsPlayerBlocking(false);
+              return;
             }
-          }}
-          onDash={triggerPlayerDash}
-          onTargetSwitch={handleTargetSwitch}
-        />
-      )}
+
+            if (!player.blockRefreshThreshold) {
+              player.blockRefreshThreshold = Math.floor(Math.random() * 2) + 2;
+            }
+            player.blockUseCount = (player.blockUseCount || 0) + 1;
+            player.blockUseResetTimer = 120;
+
+            // Even if spamming mid-way through blocking, immediately cancels out block for 0.3s after 2-3 times!
+            if (player.blockUseCount >= player.blockRefreshThreshold) {
+              player.isBlocking = false;
+              player.blockTimer = 0;
+              player.blockLockout = 18; // Universal 0.3s refresh lockout (18 frames)
+              player.blockUseCount = 0;
+              player.blockRefreshThreshold = Math.floor(Math.random() * 2) + 2;
+              setIsPlayerBlocking(false);
+            } else if (canFighterRaiseGuard(player)) {
+              // Section 2.8: Attack Animation Block-Cancel (Feinting / Reflex Parries)
+              const hadActivePunch = player.fists.some(f => f.isPunching && !f.isHeavy);
+              if (hadActivePunch) {
+                player.fists.forEach(f => {
+                  f.isPunching = false;
+                  f.punchProgress = 0;
+                  f.lingerTimer = 0;
+                  f.isLingerActive = false;
+                  f.hasHit = false;
+                });
+                spawnFloatingText(player.x, player.y - 30, 'FEINT / CANCEL', '#38bdf8');
+              }
+              if (!player.isBlocking) {
+                player.isBlocking = true;
+                player.blockTimer = 0;
+              }
+              setIsPlayerBlocking(true);
+            }
+          }
+        }}
+        onBlockEnd={() => {
+          const state = stateRef.current;
+          state.isBlockInputHeld = false;
+          const player = state.player;
+          if (player) {
+            player.isBlockInputHeld = false;
+            if (player.isBlocking) {
+              player.isBlocking = false;
+              player.kyokushinBlockHitsTaken = 0;
+              player.blockLockout = Math.max(player.blockLockout || 0, BLOCK_COOLDOWN_FRAMES);
+              const isAfterParry = (player.afterParryGraceTimer || 0) > 0 || (player.parryFlashTime || 0) > 0 || (player.parryBlockGraceTimer || 0) > 0;
+              if (player.styleId === 'capoeira' || isAfterParry) {
+                player.postBlockAttackLockout = 0;
+              } else {
+                player.postBlockAttackLockout = 6; // Section 2.8: 0.10s Post-Block Action Delay
+              }
+            }
+            setIsPlayerBlocking(false);
+          }
+        }}
+        onDash={triggerPlayerDash}
+        onTargetSwitch={handleTargetSwitch}
+      />
 
       {/* LIVE IN-GAME HUD CUSTOMIZER (DIRECT ACTIVE SCREEN CONTROL MOVER & SCALER) */}
       {isLiveHudEditing && (
@@ -12757,42 +12766,34 @@ function checkLineSegmentToCircle(
       {isPlaying && !isDead && rankedState !== 'match_over' && !showModeSelector && (
         <div className="absolute inset-0 pointer-events-none z-10 p-1 sm:p-2 flex flex-col justify-between overflow-hidden">
           
-          {/* SPECTATOR MODE WATCH-ONLY TOP HUD */}
-          {(matchData?.isAiVsAiSpectator || matchData?.isSpectator) && (
-            <>
-              {/* TOP CENTER SPECTATOR BANNER */}
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 pointer-events-auto flex items-center gap-2 sm:gap-3 bg-zinc-950/95 border border-purple-500/80 px-4 py-2 rounded-2xl shadow-[0_0_30px_rgba(168,85,247,0.3)] backdrop-blur-md">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse" />
-                  <div>
-                    <span className="text-xs font-display font-black italic uppercase text-purple-200 tracking-wider flex items-center gap-2">
-                      SPECTATOR MODE
-                    </span>
-                    <span className="text-[9px] font-mono text-purple-300 block">
-                      {matchData.isAiVsAiSpectator 
-                        ? `${matchData.opponent?.name || matchData.bot1Name || 'BOT 1'} vs ${matchData.spectatorFighter2?.name || matchData.bot2Name || 'BOT 2'}`
-                        : `${matchData.player1?.name || 'P1'} vs ${matchData.player2?.name || 'P2'}`
-                      }
-                    </span>
-                  </div>
-                </div>
-
-                <div className="h-6 w-[1px] bg-zinc-800" />
-
-                <button
-                  onClick={() => handleExitArena('tournament')}
-                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white border border-red-400 rounded-xl font-mono font-bold text-[10px] uppercase tracking-wider transition cursor-pointer shadow-md flex items-center gap-1.5"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>EXIT SPECTATING</span>
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* AI VS AI POST-MATCH / SPECTATOR EDIT MODAL */}
-          <SpectatorChamberModal
-            isOpen={!!(matchData?.isAiVsAiSpectator && spectatorModalOpen)}
+          {/* IN-MATCH OVERLAYS & MODALS (Extracted to MatchOverlays) */}
+          <MatchOverlays
+            isPlaying={isPlaying}
+            isDead={isDead}
+            rankedState={rankedState}
+            showModeSelector={showModeSelector}
+            matchData={matchData}
+            settings={settings}
+            updateSettings={updateSettings}
+            isTouchDevice={isTouchDevice}
+            soundEnabled={soundEnabled}
+            toggleSound={toggleSound}
+            streak={streak}
+            initGame={initGame}
+            handleExitArena={handleExitArena}
+            onBackToMenu={onBackToMenu}
+            handleMatchDefeat={handleMatchDefeat}
+            isOfflineMatch={isOfflineMatch}
+            showMobileMenu={showMobileMenu}
+            setShowMobileMenu={setShowMobileMenu}
+            setShowFullSettings={setShowFullSettings}
+            setIsLiveHudEditing={setIsLiveHudEditing}
+            setShowHudEditor={setShowHudEditor}
+            stateRef={stateRef}
+            syncCombatStatesToUI={syncCombatStatesToUI}
+            dummyBehavior={dummyBehavior}
+            spectatorModalOpen={spectatorModalOpen}
+            setSpectatorModalOpen={setSpectatorModalOpen}
             dummyHP={dummyHP}
             playerHP={playerHP}
             specBot1Style={specBot1Style}
@@ -12807,680 +12808,59 @@ function checkLineSegmentToCircle(
             setSpecBot2Diff={setSpecBot2Diff}
             specBot2Height={specBot2Height}
             setSpecBot2Height={setSpecBot2Height}
-            onRestart={() => {
-              if (matchData) {
-                matchData.bot1StyleId = specBot1Style;
-                matchData.bot1Difficulty = specBot1Diff as any;
-                matchData.bot1HeightInInches = specBot1Height;
-                matchData.bot2StyleId = specBot2Style;
-                matchData.bot2Difficulty = specBot2Diff as any;
-                matchData.bot2HeightInInches = specBot2Height;
-              }
-              setSpectatorModalOpen(false);
-              initGame();
-            }}
-            onBackToMenu={onBackToMenu}
+            practicePlayerStyleId={practicePlayerStyleId}
+            handleDevStyleChange={handleDevStyleChange}
           />
-
-          {/* CASUAL VS AI HEADER BANNER */}
-          {!matchData?.isCompetitive && matchData?.isAiMatch && !matchData?.isAiVsAiSpectator && !(matchData as any)?.isTestGame && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 pointer-events-none flex flex-col items-center bg-zinc-950/90 border border-amber-500/40 px-3 py-1.5 rounded-xl shadow-xl backdrop-blur-md">
-              <span className="text-xs font-display font-black italic uppercase text-amber-400 tracking-wider">
-                CASUAL VS AI • {(matchData.aiDifficulty || dummyBehavior).toUpperCase()}
-              </span>
-              <span className="text-[8px] font-mono text-zinc-400">UNRANKED SPARRING • PRACTICE FIGHT</span>
-            </div>
-          )}
-
-          {/* TEST GAME (NO AI) LIVE BANNER */}
-          {Boolean((matchData as any)?.isTestGame) && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 pointer-events-auto flex items-center gap-2.5 bg-zinc-950/95 border-2 border-cyan-500/80 px-3.5 py-1.5 rounded-2xl shadow-2xl backdrop-blur-md">
-              <div className="flex items-center gap-1.5 text-cyan-400 font-mono text-xs font-black uppercase tracking-wider">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                <span>Test Game (No AI)</span>
-              </div>
-              <div className="h-3.5 w-px bg-zinc-700" />
-              <button
-                onClick={() => {
-                  soundManager.playRollTick();
-                  setShowHudEditor(true);
-                }}
-                className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-[10px] font-mono font-bold uppercase transition flex items-center gap-1 cursor-pointer shadow active:scale-95"
-                title="Reopen HUD & Controls Customizer"
-              >
-                <Move className="w-3 h-3" />
-                <span>HUD Editor</span>
-              </button>
-              <button
-                onClick={() => {
-                  soundManager.playKO();
-                  handleExitArena();
-                }}
-                className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[10px] font-mono font-bold uppercase transition flex items-center gap-1 cursor-pointer shadow active:scale-95"
-                title="Exit Test Game and return to Main Menu"
-              >
-                <LogOut className="w-3 h-3" />
-                <span>Exit Test Game</span>
-              </button>
-            </div>
-          )}
-
-          {/* MOBILE FULLSCREEN RE-LOCK PROTECTION BADGE */}
-          {isTouchDevice && !document.fullscreenElement && rankedState === 'fighting' && (
-            <button
-              onClick={() => {
-                document.documentElement.requestFullscreen().catch(() => {});
-                soundManager.playRollTick();
-              }}
-              className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-amber-500 hover:bg-amber-400 text-black font-mono font-black text-[10px] uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-[0_0_20px_rgba(245,158,11,0.6)] flex items-center gap-1.5 animate-pulse cursor-pointer pointer-events-auto"
-            >
-              <Maximize2 className="w-3.5 h-3.5" />
-              <span>TAP TO LOCK FULLSCREEN 🔒</span>
-            </button>
-          )}
 
 
           
 
 
-          {/* TOP FIGHTERS HUD & CUSTOMIZABLE HUD ELEMENTS */}
-          {(() => {
-            const activeLayout = isPortrait 
-              ? (settings.mobileControlsLayoutPortrait || DEFAULT_PORTRAIT_LAYOUT)
-              : (settings.mobileControlsLayoutLandscape || settings.mobileControlsLayout || DEFAULT_LANDSCAPE_LAYOUT);
-
-            const playerCardItem = activeLayout?.find(i => i.id === 'player_card');
-            const opponentCardItem = activeLayout?.find(i => i.id === 'opponent_card');
-            const legacyCardsItem = activeLayout?.find(i => i.id === 'char_cards');
-            const m2Item = activeLayout?.find(i => i.id === 'm2_cooldown');
-            const menuItem = activeLayout?.find(i => i.id === 'menu_settings');
-            const statusBarItem = activeLayout?.find(i => i.id === 'status_bar');
-
-            const baseHudScale = settings.hudScale !== undefined ? settings.hudScale : 0.85;
-            const uiScaleMultiplier = baseHudScale / 0.85;
-            const portraitWidthScale = isPortrait && typeof window !== 'undefined' ? Math.min(1.0, Math.max(0.55, window.innerWidth / 500)) : 1.0;
-
-            const pCardX = playerCardItem ? playerCardItem.x : (legacyCardsItem ? Math.max(12, legacyCardsItem.x - 28) : (isPortrait ? 25 : 22));
-            const pCardY = playerCardItem ? playerCardItem.y : (legacyCardsItem ? legacyCardsItem.y : (isPortrait ? 7 : 6));
-            const pCardItemScale = playerCardItem?.scale ?? legacyCardsItem?.scale ?? 0.85;
-            const pCardScale = pCardItemScale * uiScaleMultiplier * portraitWidthScale;
-            const pCardOpacity = playerCardItem?.opacity ?? legacyCardsItem?.opacity ?? (settings.hudOpacity ?? 0.85);
-
-            const oppCardX = opponentCardItem ? opponentCardItem.x : (legacyCardsItem ? Math.min(88, legacyCardsItem.x + 28) : (isPortrait ? 75 : 78));
-            const oppCardY = opponentCardItem ? opponentCardItem.y : (legacyCardsItem ? legacyCardsItem.y : (isPortrait ? 7 : 6));
-            const oppCardItemScale = opponentCardItem?.scale ?? legacyCardsItem?.scale ?? 0.85;
-            const oppCardScale = oppCardItemScale * uiScaleMultiplier * portraitWidthScale;
-            const oppCardOpacity = opponentCardItem?.opacity ?? legacyCardsItem?.opacity ?? (settings.hudOpacity ?? 0.85);
-
-            const statusX = statusBarItem ? statusBarItem.x : pCardX;
-            const statusY = statusBarItem ? statusBarItem.y : (isPortrait ? (pCardY + 9.5) : (pCardY + 10.5));
-            const oppStatusY = statusBarItem ? statusBarItem.y : (isPortrait ? (oppCardY + 9.5) : (oppCardY + 10.5));
-            const statusScale = (statusBarItem?.scale ?? pCardItemScale) * uiScaleMultiplier * 0.75;
-            const oppStatusScale = (statusBarItem?.scale ?? oppCardItemScale) * uiScaleMultiplier * 0.75;
-            const statusOpacity = statusBarItem?.opacity ?? (settings.hudOpacity ?? 0.95);
-
-            const m2X = m2Item ? m2Item.x : 10;
-            const m2Y = m2Item ? m2Item.y : 40;
-            const m2Scale = m2Item?.scale ?? 1.0;
-            const m2Opacity = m2Item?.opacity ?? 0.95;
-
-            const menuX = menuItem ? menuItem.x : (isPortrait ? 90 : 94);
-            const menuY = menuItem ? menuItem.y : 5;
-            const menuScale = (menuItem?.scale ?? 1.0) * uiScaleMultiplier;
-            const menuOpacity = menuItem?.opacity ?? 0.95;
-
-            return (
-              <>
-                {/* LOCAL PLAYER CARD & DEDICATED STATUS BAR */}
-                {!isLiveHudEditing && (
-                  <div 
-                    className="absolute z-20 pointer-events-none transition-all duration-75 flex flex-col items-start gap-1"
-                    style={{
-                      top: `${pCardY}%`,
-                      left: `${pCardX}%`,
-                      transform: `translate(-50%, 0) scale(${pCardScale})`,
-                      transformOrigin: 'top center',
-                      width: isPortrait ? 'min(210px, 42vw)' : '270px',
-                      maxWidth: '92vw',
-                    }}
-                  >
-                  <div 
-                    className="w-full bg-zinc-950/85 backdrop-blur-md border border-zinc-800/80 p-1.5 sm:p-2.5 pointer-events-auto flex gap-1.5 sm:gap-2.5 shadow-2xl relative rounded-xl transition-all"
-                    style={{
-                      opacity: pCardOpacity,
-                    }}
-                  >
-                  {/* PORTRAIT */}
-                  <div 
-                    className="w-7 h-7 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-zinc-900 border flex flex-col items-center justify-center relative shrink-0 overflow-hidden rounded-lg shadow-inner"
-                    style={{ borderColor: activeStyle.secondaryColor || '#ef4444' }}
-                  >
-                    <span className="font-display font-black text-xs sm:text-base italic" style={{ color: activeStyle.color || '#ffffff' }}>
-                      {getStyleInitials(activeStyle.id)}
-                    </span>
-                  </div>
-
-                  {/* CARD DETAILS */}
-                  <div className="flex-1 flex flex-col gap-0.5 sm:gap-1 min-w-0">
-                    {/* Header info */}
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-white font-display font-black italic uppercase tracking-wide text-[9px] sm:text-xs flex items-center gap-1 truncate">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping shrink-0" />
-                        <span className="truncate">
-                          {matchData?.isAiVsAiSpectator ? (matchData.opponent?.name || matchData.bot1Name || 'BOT 1') : 'YOU'}
-                        </span>
-                      </span>
-                      <span className="text-[6px] sm:text-[8px] font-mono font-bold uppercase tracking-widest px-1.5 py-0.5 border shrink-0 text-zinc-300 border-zinc-700 bg-zinc-900/80 rounded">
-                        {activeStyle.name}
-                      </span>
-                    </div>
-
-                    {/* Main Health Bar */}
-                    <div className="space-y-0.5">
-                      <div className="flex justify-between text-[8px] sm:text-[9px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-                        <span>HP</span>
-                        <span className="text-red-400">{Math.floor(playerHP)}/{playerMaxHP}</span>
-                      </div>
-                      <div className="w-full bg-zinc-900 h-1.5 sm:h-2 border border-zinc-800 overflow-hidden rounded-full relative shadow-inner">
-                        {settings.damageBarDegradingEnabled !== false && playerRedHP > playerHP + 0.05 && (
-                          <div 
-                            className="absolute top-0 left-0 bottom-0 bg-gradient-to-r from-red-950 via-rose-950 to-amber-700/90 border-r-2 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9),0_0_12px_rgba(239,68,68,0.8)] z-0 transition-none overflow-hidden"
-                            style={{ width: `${Math.max(0, Math.min(100, (playerRedHP / playerMaxHP) * 100))}%` }}
-                          >
-                            <div className="w-full h-full bg-[linear-gradient(90deg,transparent_0%,rgba(245,158,11,0.35)_100%)] animate-pulse" />
-                          </div>
-                        )}
-                        <div 
-                          className="relative z-10 bg-gradient-to-r from-red-600 to-rose-500 h-full transition-all duration-75 shadow-[0_0_8px_rgba(239,68,68,0.4)]"
-                          style={{ width: `${Math.max(0, Math.min(100, (playerHP / playerMaxHP) * 100))}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Guard or Dodge Indicator */}
-                    {activeStyle.id === 'capoeira' ? (
-                      <div className="space-y-0.5">
-                        <div className="flex justify-between text-[8px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-                          <span className="flex items-center gap-1">
-                            <Shield className={`w-2.5 h-2.5 ${playerCapoeiraExhausted ? 'text-red-500 animate-pulse' : 'text-amber-500'}`} />
-                            {playerCapoeiraExhausted ? 'EXHAUSTED' : 'ESQUIVA'}
-                          </span>
-                          <span className={playerCapoeiraExhausted ? 'text-red-500 font-bold' : 'text-amber-500 font-bold'}>
-                            {playerCapoeiraStacks}/3
-                          </span>
-                        </div>
-                        <div className="flex gap-1 h-1">
-                          {[0, 1, 2].map((idx) => (
-                            <div 
-                              key={idx} 
-                              className={`flex-1 h-full border transition-all duration-150 ${
-                                playerCapoeiraExhausted 
-                                  ? 'bg-red-950/60 border-red-800' 
-                                  : idx < playerCapoeiraStacks 
-                                    ? 'bg-amber-500 border-amber-600 shadow-[0_0_10px_rgba(245,158,11,0.6)]' 
-                                    : 'bg-zinc-900 border-zinc-800/50'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ) : activeStyle.id === 'kyokushin' ? (
-                      <div className="space-y-0.5">
-                        <div className="flex justify-between text-[8px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-                          <span className="flex items-center gap-1">
-                            <Shield className="w-2.5 h-2.5 text-orange-500" />
-                            CONDITIONING
-                          </span>
-                          <span className="text-orange-400 font-bold">
-                            DIRECT HP
-                          </span>
-                        </div>
-                        <div className="w-full bg-zinc-900 h-1 sm:h-1.5 border border-zinc-800 overflow-hidden rounded-full">
-                          <div 
-                            className="h-full bg-gradient-to-r from-amber-600 to-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)] w-full"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-0.5">
-                        <div className="flex justify-between text-[8px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-                          <span className="flex items-center gap-1">
-                            <Shield className={`w-2.5 h-2.5 ${playerArmorBreakTime > 0 ? 'text-red-500 animate-pulse' : 'text-cyan-400'}`} />
-                            {playerArmorBreakTime > 0 ? 'BROKEN' : 'GUARD'}
-                          </span>
-                          <span className={playerArmorBreakTime > 0 ? 'text-red-500 font-bold' : 'text-cyan-400 font-bold'}>
-                            {playerArmorBreakTime > 0 ? '0 AP' : `${Math.round(playerArmor)} AP`}
-                          </span>
-                        </div>
-                        <div className="w-full bg-zinc-900 h-1 sm:h-1.5 border border-zinc-800 overflow-hidden rounded-full">
-                          <div 
-                            className={`h-full transition-all duration-75 ${playerArmorBreakTime > 0 ? 'bg-red-600/20' : 'bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.5)]'}`}
-                            style={{ width: `${playerArmorBreakTime > 0 ? 0 : (playerArmor / 18) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Stamina Engine & Sprint Bar */}
-                    <div className="space-y-0.5">
-                      <div className="flex justify-between text-[8px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-                        <span className="flex items-center gap-1">
-                          <Flame className={`w-2.5 h-2.5 ${playerIsSprinting ? 'text-amber-400 animate-pulse' : 'text-amber-500'}`} />
-                          {playerIsSprinting ? 'SPRINTING' : 'STAMINA'}
-                          {playerSprintStrikerBuffer > 0 && (
-                            <span className="text-[7px] text-emerald-400 font-extrabold bg-emerald-950/80 px-1 border border-emerald-500/40 rounded animate-pulse">
-                              STRIKER BUFF ({(playerSprintStrikerBuffer / 60).toFixed(1)}s)
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-amber-400 font-bold">
-                          {Math.round(playerStamina)}/100
-                        </span>
-                      </div>
-                      <div className="w-full bg-zinc-900 h-1 sm:h-1.5 border border-zinc-800 overflow-hidden rounded-full">
-                        <div 
-                          className={`h-full transition-all duration-75 ${playerIsSprinting ? 'bg-gradient-to-r from-amber-500 to-yellow-300 shadow-[0_0_8px_rgba(245,158,11,0.8)]' : 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.4)]'}`}
-                          style={{ width: `${Math.max(0, Math.min(100, playerStamina))}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Dash / Dodge Cooldown */}
-                    <div className="space-y-0.5">
-                      <div className="flex justify-between text-[8px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-                        <span className="flex items-center gap-1">
-                          <Zap className={`w-2.5 h-2.5 ${playerDashCooldown > 0 ? 'text-zinc-600' : 'text-fuchsia-400'}`} />
-                          Dodge (E)
-                        </span>
-                        <span className={playerDashCooldown > 0 ? 'text-zinc-400' : 'text-fuchsia-400 font-bold'}>
-                          {playerDashCooldown > 0 ? `${(playerDashCooldown / 60).toFixed(1)}s` : 'READY'}
-                        </span>
-                      </div>
-                      <div className="w-full bg-zinc-900 h-1 border border-zinc-800 overflow-hidden rounded-full">
-                        {(() => {
-                          const maxDashCd = stateRef.current.player?.styleId === 'capoeira' ? 58 : 90;
-                          return (
-                            <div 
-                              className={`h-full transition-all duration-75 ${playerDashCooldown > 0 ? 'bg-zinc-700' : 'bg-fuchsia-500 shadow-[0_0_8px_rgba(217,70,239,0.5)]'}`}
-                              style={{ width: `${playerDashCooldown > 0 ? Math.max(0, ((maxDashCd - playerDashCooldown) / maxDashCd) * 100) : 100}%` }}
-                            />
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    {/* Status effects decoupled to Dedicated Combat Status Bar beneath gauge cluster */}
-                  </div>
-                  </div>
-
-                  {/* DEDICATED PLAYER STATUS BAR (Anchored cleanly beneath gauge cluster) */}
-                  <div className="w-full flex justify-start pl-8 sm:pl-12 pointer-events-auto">
-                    <StatusBar 
-                      statuses={playerActiveStatuses}
-                      align="left"
-                      label={activeStyle?.name ? `${activeStyle.name.toUpperCase()}` : undefined}
-                      fighterName={matchData?.isAiVsAiSpectator ? (matchData.opponent?.name || matchData.bot1Name || 'BOT 1') : 'YOU'}
-                    />
-                  </div>
-                </div>
-                )}
-
-                {/* CENTER VS BADGE AND FOV / MENU CONTROLS */}
-                <div 
-                  className="absolute top-1.5 z-20 pointer-events-none flex flex-col items-center justify-center transition-all duration-150 gap-1"
-                  style={{ 
-                    left: '50%',
-                    transform: `translate(-50%, 0) scale(${Math.min(pCardScale, oppCardScale)})`,
-                    transformOrigin: 'top center',
-                  }}
-                >
-                  {(matchData?.isCompetitive || matchData?.isAiMatch || matchData?.isRealMatch) && (
-                    <div className="flex flex-col items-center gap-1">
-                      <div className={`px-2.5 py-1 text-center rounded-xl pointer-events-auto flex items-center gap-2.5 font-mono text-[10px] sm:text-xs shadow-2xl transition-all duration-300 ${
-                        rankedState === 'round_over'
-                          ? 'bg-zinc-950 border-2 border-yellow-500 shadow-[0_0_25px_rgba(234,179,8,0.35)] scale-105'
-                          : 'bg-zinc-950/90 border border-zinc-800'
-                      }`}>
-                        {/* Fighter 1 / Player Score Badge */}
-                        <div className="flex items-center gap-1.5 text-blue-400">
-                          <span className="font-bold text-[9px] sm:text-[10px] tracking-wider truncate max-w-[60px] sm:max-w-[80px]">
-                            {matchData?.isAiVsAiSpectator ? (matchData.opponent?.name || matchData.bot1Name || 'BOT 1') : 'YOU'}
-                          </span>
-                          <motion.span 
-                            key={`p-score-${playerScore}`}
-                            initial={{ scale: 1.4, color: '#60a5fa' }}
-                            animate={{ scale: 1, color: '#ffffff' }}
-                            className="px-2 py-0.5 bg-blue-950 border border-blue-700 text-white rounded-md font-black text-xs sm:text-sm shadow-inner"
-                          >
-                            {playerScore}
-                          </motion.span>
-                        </div>
-
-                        {/* Integrated Round & Timer / Break Countdown */}
-                        <div className="flex flex-col items-center min-w-[65px] sm:min-w-[80px]">
-                          <span className="text-[8px] sm:text-[9px] text-yellow-400 font-black uppercase tracking-widest">
-                            {rankedState === 'round_over' ? 'NEXT ROUND' : `ROUND ${roundNumber}`}
-                          </span>
-                          <span className={`text-xs sm:text-sm font-black font-display tracking-wide ${
-                            rankedState === 'round_over' ? 'text-yellow-400 font-mono text-sm sm:text-base animate-pulse' : 'text-red-400'
-                          }`}>
-                            {rankedState === 'round_over'
-                              ? `${rankedCountdown}s`
-                              : `${Math.floor(roundTimeLeft / 60)}:${String(roundTimeLeft % 60).padStart(2, '0')}`
-                            }
-                          </span>
-                          <span className="text-[7px] text-zinc-500 font-mono font-bold tracking-tighter">
-                            FIRST TO {matchData?.targetScore || (matchData?.isAiVsAiSpectator ? 2 : 3)}
-                          </span>
-                        </div>
-
-                        {/* Fighter 2 / Opponent Score Badge */}
-                        <div className="flex items-center gap-1.5 text-red-400">
-                          <motion.span 
-                            key={`opp-score-${opponentScore}`}
-                            initial={{ scale: 1.4, color: '#f87171' }}
-                            animate={{ scale: 1, color: '#ffffff' }}
-                            className="px-2 py-0.5 bg-red-950 border border-red-700 text-white rounded-md font-black text-xs sm:text-sm shadow-inner"
-                          >
-                            {opponentScore}
-                          </motion.span>
-                          <span className="font-bold text-[9px] sm:text-[10px] tracking-wider truncate max-w-[60px] sm:max-w-[80px]">
-                            {matchData?.isAiVsAiSpectator ? (matchData.spectatorFighter2?.name || matchData.bot2Name || 'BOT 2') : 'OPP'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Gamemode Live Trackers */}
-                      {matchData?.gamemode === 'sustain_attack' && (
-                        <div className="flex items-center gap-2 px-2 py-0.5 bg-zinc-950/90 border border-cyan-500/40 rounded-md font-mono text-[8px] sm:text-[9px] text-cyan-400 shadow-lg">
-                          <span className="font-black text-cyan-300">SUSTAIN:</span>
-                          <span className="text-blue-300 font-bold">YOU: {Math.round(sustainPlayerDamage)}</span>
-                          <span className="text-zinc-600">|</span>
-                          <span className="text-red-300 font-bold">OPP: {Math.round(sustainOpponentDamage)}</span>
-                        </div>
-                      )}
-
-                      {matchData?.gamemode === 'hot_potato' && (
-                        <div className={`flex items-center gap-1.5 px-2 py-0.5 bg-zinc-950/90 border rounded-md font-mono text-[8px] sm:text-[9px] shadow-lg ${
-                          potatoHolderState === 'player' ? 'border-red-500 text-red-400 animate-pulse' : 'border-amber-500 text-amber-400'
-                        }`}>
-                          <span>🥔</span>
-                          <span className="font-black">HOLDER: {potatoHolderState === 'player' ? 'YOU (HIT ENEMY!)' : 'OPPONENT'}</span>
-                          <span className="px-1 py-0.2 bg-black text-white rounded font-black text-[9px]">{potatoFuseLeft}s</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* ENEMY SPARRING PARTNER CARD & DEDICATED STATUS BAR */}
-                {!isLiveHudEditing && (
-                <div 
-                  className="absolute z-20 pointer-events-none transition-all duration-75 flex flex-col items-end gap-1"
-                  style={{
-                    top: `${oppCardY}%`,
-                    left: `${oppCardX}%`,
-                    transform: `translate(-50%, 0) scale(${oppCardScale})`,
-                    transformOrigin: 'top center',
-                    width: isPortrait ? 'min(210px, 42vw)' : '270px',
-                    maxWidth: '92vw',
-                  }}
-                >
-                  <div 
-                    className="w-full bg-zinc-950/85 backdrop-blur-md border border-zinc-800/80 p-1.5 sm:p-2.5 pointer-events-auto flex gap-1.5 sm:gap-2.5 shadow-2xl relative rounded-xl transition-all"
-                    style={{
-                      opacity: oppCardOpacity,
-                    }}
-                  >
-                  {/* OPPONENT PORTRAIT */}
-                  <div 
-                    className="w-7 h-7 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-zinc-900 border flex flex-col items-center justify-center relative shrink-0 overflow-hidden rounded-lg order-last shadow-inner"
-                    style={{ borderColor: dummyStyle?.secondaryColor || '#ef4444' }}
-                  >
-                    <span className="font-display font-black text-xs sm:text-base italic" style={{ color: dummyStyle?.color || '#ffffff' }}>
-                      {getStyleInitials(dummyStyle?.id || 'basic')}
-                    </span>
-                  </div>
-                  {/* CARD DETAILS */}
-                  <div className="flex-1 flex flex-col gap-0.5 sm:gap-1 min-w-0">
-                    {/* Header info */}
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-[6px] sm:text-[8px] font-mono font-bold uppercase tracking-widest px-1.5 py-0.5 border shrink-0 text-zinc-300 border-zinc-700 bg-zinc-900/80 rounded">
-                        {dummyStyle?.name || 'Flow Boxing'}
-                      </span>
-                      <span className="text-zinc-400 font-display font-black italic uppercase tracking-wide text-[9px] sm:text-xs flex items-center gap-1 truncate justify-end">
-                        <span className="truncate">
-                          {matchData?.isAiVsAiSpectator 
-                            ? (matchData.spectatorFighter2?.name || matchData.bot2Name || 'BOT 2') 
-                            : matchData && matchData.isCompetitive 
-                              ? `@${matchData.opponent.name}` 
-                              : dummyBehavior === 'test_ai' 
-                                ? 'TEST AI (INFINITE HP)' 
-                                : 'ENEMY'}
-                        </span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-ping shrink-0" />
-                      </span>
-                    </div>
-
-                    {/* Main Health Bar */}
-                    <div className="space-y-0.5">
-                      <div className="flex justify-between text-[8px] sm:text-[9px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-                        <span className={dummyBehavior === 'test_ai' ? 'text-emerald-400 font-black' : 'text-red-400'}>
-                          {dummyBehavior === 'test_ai' ? '∞ / ∞' : `${Math.floor(dummyHP)}/${dummyMaxHP}`}
-                        </span>
-                        <span>{dummyBehavior === 'test_ai' ? 'INFINITE HP' : 'HP'}</span>
-                      </div>
-                      <div className="w-full bg-zinc-900 h-1.5 sm:h-2 border border-zinc-800 overflow-hidden rounded-full relative shadow-inner">
-                        {settings.damageBarDegradingEnabled !== false && dummyRedHP > dummyHP + 0.05 && dummyBehavior !== 'test_ai' && (
-                          <div 
-                            className="absolute top-0 left-0 bottom-0 bg-gradient-to-r from-red-950 via-rose-950 to-amber-700/90 border-r-2 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9),0_0_12px_rgba(239,68,68,0.8)] z-0 transition-none overflow-hidden"
-                            style={{ width: `${Math.max(0, Math.min(100, (dummyRedHP / dummyMaxHP) * 100))}%` }}
-                          >
-                            <div className="w-full h-full bg-[linear-gradient(90deg,transparent_0%,rgba(245,158,11,0.35)_100%)] animate-pulse" />
-                          </div>
-                        )}
-                        <div 
-                          className={`relative z-10 h-full transition-all duration-75 ${
-                            dummyBehavior === 'test_ai'
-                              ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
-                              : 'bg-gradient-to-r from-red-600 to-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]'
-                          }`}
-                          style={{ width: dummyBehavior === 'test_ai' ? '100%' : `${Math.max(0, Math.min(100, (dummyHP / dummyMaxHP) * 100))}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Guard or Dodge Indicator */}
-                    {dummyStyle?.id === 'capoeira' ? (
-                      <div className="space-y-0.5">
-                        <div className="flex justify-between text-[8px] sm:text-[9px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-                          <span className={dummyCapoeiraExhausted ? 'text-red-500 font-bold' : 'text-amber-500 font-bold'}>
-                            {dummyCapoeiraStacks}/3
-                          </span>
-                          <span className="flex items-center gap-1 justify-end">
-                            {dummyCapoeiraExhausted ? 'EXHAUSTED' : 'ESQUIVA'}
-                            <Shield className={`w-2.5 h-2.5 ${dummyCapoeiraExhausted ? 'text-red-500 animate-pulse' : 'text-amber-500'}`} />
-                          </span>
-                        </div>
-                        <div className="flex gap-1 h-1">
-                          {[0, 1, 2].map((idx) => (
-                            <div 
-                              key={idx} 
-                              className={`flex-1 h-full border transition-all duration-150 ${
-                                dummyCapoeiraExhausted 
-                                  ? 'bg-red-950/60 border-red-800' 
-                                  : idx < dummyCapoeiraStacks 
-                                    ? 'bg-amber-500 border-amber-600 shadow-[0_0_10px_rgba(245,158,11,0.6)]' 
-                                    : 'bg-zinc-900 border-zinc-800/50'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ) : dummyStyle?.id === 'kyokushin' ? (
-                      <div className="space-y-0.5">
-                        <div className="flex justify-between text-[8px] sm:text-[9px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-                          <span className="text-orange-400 font-bold">
-                            DIRECT HP
-                          </span>
-                          <span className="flex items-center gap-1 justify-end">
-                            CONDITIONING
-                            <Shield className="w-2.5 h-2.5 text-orange-500" />
-                          </span>
-                        </div>
-                        <div className="w-full bg-zinc-900 h-1 sm:h-1.5 border border-zinc-800 overflow-hidden rounded-full">
-                          <div 
-                            className="h-full bg-gradient-to-r from-amber-600 to-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)] w-full"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-0.5">
-                        <div className="flex justify-between text-[8px] sm:text-[9px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-                          <span className={dummyArmorBreakTime > 0 ? 'text-red-500 font-bold' : 'text-yellow-500 font-bold'}>
-                            {dummyArmorBreakTime > 0 ? '0 AP' : `${Math.round(dummyArmor)} AP`}
-                          </span>
-                          <span className="flex items-center gap-1 justify-end">
-                            {dummyArmorBreakTime > 0 ? 'BROKEN' : 'GUARD'}
-                            <Shield className={`w-2.5 h-2.5 ${dummyArmorBreakTime > 0 ? 'text-red-500 animate-pulse' : 'text-yellow-500'}`} />
-                          </span>
-                        </div>
-                        <div className="w-full bg-zinc-900 h-1 sm:h-1.5 border border-zinc-800 overflow-hidden rounded-full">
-                          <div 
-                            className={`h-full transition-all duration-75 ${dummyArmorBreakTime > 0 ? 'bg-red-600/20' : 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]'}`}
-                            style={{ width: `${dummyArmorBreakTime > 0 ? 0 : (dummyArmor / 18) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Enemy Stamina Bar */}
-                    <div className="space-y-0.5">
-                      <div className="flex justify-between text-[8px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-                        <span className="text-amber-400 font-bold">
-                          {Math.round(dummyStamina)}/100
-                        </span>
-                        <span className="flex items-center gap-1 justify-end">
-                          {dummyIsSprinting ? 'SPRINTING' : 'STAMINA'}
-                          <Flame className={`w-2.5 h-2.5 ${dummyIsSprinting ? 'text-amber-400 animate-pulse' : 'text-amber-500'}`} />
-                        </span>
-                      </div>
-                      <div className="w-full bg-zinc-900 h-1 sm:h-1.5 border border-zinc-800 overflow-hidden rounded-full">
-                        <div 
-                          className={`h-full transition-all duration-75 ${dummyIsSprinting ? 'bg-gradient-to-r from-amber-500 to-yellow-300 shadow-[0_0_8px_rgba(245,158,11,0.8)]' : 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.4)]'}`}
-                          style={{ width: `${Math.max(0, Math.min(100, dummyStamina))}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Dummy Status effects decoupled to Dedicated Combat Status Bar beneath gauge cluster */}
-                  </div>
-                </div>
-
-                {/* DEDICATED OPPONENT STATUS BAR (Anchored cleanly beneath gauge cluster) */}
-                <div className="w-full flex justify-end pr-8 sm:pr-12 pointer-events-auto">
-                  <StatusBar 
-                    statuses={dummyActiveStatuses}
-                    align="right"
-                    label={dummyStyle?.name ? `${dummyStyle.name.toUpperCase()}` : undefined}
-                    fighterName={matchData?.isAiVsAiSpectator ? (matchData.spectatorFighter2?.name || matchData.bot2Name || 'BOT 2') : matchData?.isCompetitive ? `@${matchData.opponent.name}` : 'ENEMY'}
-                  />
-                </div>
-              </div>
-              )}
-
-                {/* MIDDLE-LEFT SKILL BAR (Only shown when local player heavy skill on cooldown - repositionable via HUD Editor) */}
-                <div 
-                  className="absolute flex flex-col items-start gap-4 z-20 pointer-events-none transition-all duration-75"
-                  style={{
-                    left: `${m2X}%`,
-                    top: `${m2Y}%`,
-                    transform: `translate(-50%, -50%) scale(${m2Scale})`,
-                    opacity: m2Opacity,
-                  }}
-                >
-            <AnimatePresence>
-              {playerHeavyCooldown > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, x: -50, scale: 0.9 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, x: -50, scale: 0.9 }}
-                  transition={{ type: 'spring', damping: 20, stiffness: 120 }}
-                  className="bg-zinc-950/95 border-2 border-red-500 p-3.5 flex items-center gap-3.5 shadow-[0_0_25px_rgba(239,68,68,0.35)] rounded-none pointer-events-auto"
-                >
-                  <div className="relative w-12 h-12 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 overflow-hidden select-none">
-                    <div 
-                      className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-red-600/40 to-rose-500/10 origin-bottom transition-all duration-75"
-                      style={{ height: `${(playerHeavyCooldown / getMaxHeavyCooldown(activeStyle.id)) * 100}%` }}
-                    />
-                    <span className="relative z-10 text-xl font-bold">
-                      {getHeavySkillIcon(activeStyle.id)}
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-widest font-black leading-none">HEAVY (M2) CD</span>
-                    <span className="text-xs font-display font-black text-white italic uppercase leading-none mt-1.5">
-                      {getHeavySkillName(activeStyle.id)}
-                    </span>
-                    <span className="text-xs font-mono text-red-400 font-black mt-1">
-                      {(playerHeavyCooldown / 60).toFixed(1)}s
-                    </span>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* IN-GAME MENU BUTTON (PUSHED TO TOP RIGHT) */}
-          {!isLiveHudEditing && (
-            <div 
-              className="absolute z-30 pointer-events-auto transition-all duration-75"
-              style={{
-                top: `${menuY}%`,
-                left: `${menuX}%`,
-                transform: `translate(-50%, -50%) scale(${menuScale})`,
-                opacity: menuOpacity,
-              }}
-            >
-              <button
-                onClick={() => {
-                  setShowMobileMenu(true);
-                  soundManager.playRollTick();
-                }}
-                className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-zinc-950/90 hover:bg-zinc-900 border border-zinc-800 hover:border-red-500 text-[9px] sm:text-[10px] font-mono text-zinc-300 hover:text-white uppercase tracking-wider font-bold shrink-0 flex items-center gap-1.5 active:scale-95 transition-all rounded-lg shadow-xl cursor-pointer backdrop-blur-md"
-                title="Open In-Game Menu (Settings & HUD Editor)"
-              >
-                <Settings className="w-3.5 h-3.5 text-red-500" />
-                <span>MENU</span>
-              </button>
-            </div>
-          )}
-        </>
-      );
-    })()}
-
-          {/* DYNAMIC COMBAT ALERT STATS BAR (Shield alert on break / Stamina low warning) */}
-          {playerArmorBreakTime > 0 ? (
-            <div className="mt-4 bg-red-600/20 border border-red-500 px-6 py-2 rounded-none flex items-center gap-2 animate-bounce pointer-events-auto">
-              <ShieldAlert className="w-4 h-4 text-red-500 animate-spin" />
-              <span className="text-red-500 text-xs font-mono uppercase font-black tracking-widest">STAGGERED! GUARD SHIELD BROKEN</span>
-            </div>
-          ) : settings.staminaWarning && playerCapoeiraExhausted ? (
-            <div className="mt-4 bg-amber-600/20 border border-amber-500 px-4 py-1.5 rounded-none flex items-center gap-2 animate-pulse pointer-events-auto">
-              <Zap className="w-3.5 h-3.5 text-amber-500 animate-spin" />
-              <span className="text-amber-500 text-xs font-mono uppercase font-black tracking-widest">ESQUIVA EXHAUSTION (LOW STAMINA)</span>
-            </div>
-          ) : null}
-
-          {/* SHOW FPS OVERLAY (If enabled in settings) */}
-          {settings.showFps && (
-            <div className="absolute top-2 right-2 px-2 py-1 bg-zinc-950/80 border border-zinc-800 rounded font-mono text-[9px] text-emerald-400 font-bold tracking-wider pointer-events-none z-30 flex items-center gap-1.5 shadow">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-              <span>60 FPS</span>
-              <span className="text-zinc-500">|</span>
-              <span className="text-zinc-400">16ms</span>
-            </div>
-          )}
+          {/* TOP FIGHTERS HUD & CUSTOMIZABLE HUD ELEMENTS (Extracted to FighterHealthBars) */}
+          <FighterHealthBars
+            settings={settings}
+            isPortrait={isPortrait}
+            isLiveHudEditing={isLiveHudEditing}
+            matchData={matchData}
+            activeStyle={activeStyle}
+            dummyStyle={dummyStyle}
+            playerHP={playerHP}
+            playerMaxHP={playerMaxHP}
+            playerRedHP={playerRedHP}
+            playerArmor={playerArmor}
+            playerArmorBreakTime={playerArmorBreakTime}
+            playerStamina={playerStamina}
+            playerIsSprinting={playerIsSprinting}
+            playerSprintStrikerBuffer={playerSprintStrikerBuffer}
+            playerDashCooldown={playerDashCooldown}
+            playerCapoeiraStacks={playerCapoeiraStacks}
+            playerCapoeiraExhausted={playerCapoeiraExhausted}
+            playerActiveStatuses={playerActiveStatuses}
+            dummyHP={dummyHP}
+            dummyMaxHP={dummyMaxHP}
+            dummyRedHP={dummyRedHP}
+            dummyArmor={dummyArmor}
+            dummyArmorBreakTime={dummyArmorBreakTime}
+            dummyStamina={dummyStamina}
+            dummyIsSprinting={dummyIsSprinting}
+            dummyCapoeiraStacks={dummyCapoeiraStacks}
+            dummyCapoeiraExhausted={dummyCapoeiraExhausted}
+            dummyBehavior={dummyBehavior}
+            dummyActiveStatuses={dummyActiveStatuses}
+            playerScore={playerScore}
+            opponentScore={opponentScore}
+            roundNumber={roundNumber}
+            roundTimeLeft={roundTimeLeft}
+            rankedCountdown={rankedCountdown}
+            rankedState={rankedState}
+            sustainPlayerDamage={sustainPlayerDamage}
+            sustainOpponentDamage={sustainOpponentDamage}
+            potatoHolderState={potatoHolderState}
+            potatoFuseLeft={potatoFuseLeft}
+            playerHeavyCooldown={playerHeavyCooldown}
+            stateRef={stateRef}
+            setShowMobileMenu={setShowMobileMenu}
+          />
 
         </div>
       )}
@@ -13698,462 +13078,6 @@ function checkLineSegmentToCircle(
         onGameSpeedChange={handleGameSpeedChange}
       />
 
-      {/* BOTTOM RIGHT QUICK HUD CONTROLS */}
-      {isPlaying && !isDead && !showModeSelector && (
-        <div className="absolute right-3 bottom-3 z-20 pointer-events-auto flex items-center gap-2">
-          <button
-            onClick={toggleSound}
-            className="p-2.5 bg-zinc-950/90 border border-zinc-800 text-zinc-400 hover:text-white transition shadow-xl rounded-lg cursor-pointer"
-            title="Toggle Sound"
-          >
-            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-          </button>
-        </div>
-      )}
-
-      {/* YOU GOT KO'D PANEL MODAL */}
-      <AnimatePresence>
-        {isDead && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/90 backdrop-blur-sm flex flex-col justify-center items-center z-50 p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="w-full max-w-sm border border-red-500/30 bg-zinc-900/90 p-8 text-center shadow-2xl flex flex-col items-center"
-            >
-              <div className="w-14 h-14 bg-red-600/10 border border-red-500 rounded-full flex items-center justify-center mb-4">
-                <Skull className="w-7 h-7 text-red-500 animate-bounce" />
-              </div>
-
-              <h2 className="font-display font-black text-2xl italic text-red-500 uppercase tracking-tighter">
-                MATCH OVER - YOU GOT KO&apos;D!
-              </h2>
-              <p className="text-zinc-500 text-xs mt-1.5 leading-relaxed">
-                Sparring Dummy landing sequences are precise brawler tactics. Study opponent guard behavior and strike on counter punches.
-              </p>
-
-              <div className="bg-zinc-950 border border-zinc-850 px-4 py-2 mt-4 text-[10px] font-mono text-zinc-400 flex justify-between w-full">
-                <span>Streak Achieved:</span>
-                <span className="text-yellow-400 font-bold">{streak} KOs</span>
-              </div>
-
-              <div className="w-full space-y-2 mt-6">
-                <button
-                  onClick={initGame}
-                  className="w-full py-3 bg-white text-black font-display font-black italic uppercase text-xs tracking-wider border border-white hover:bg-zinc-200 active:scale-95 transition shadow-lg"
-                >
-                  Restart Sparring Match
-                </button>
-                <button
-                  onClick={() => handleExitArena()}
-                  className="w-full py-3 bg-zinc-950 text-zinc-400 font-mono text-[10px] uppercase tracking-widest border border-zinc-850 hover:text-white transition"
-                >
-                  [ Return to Gym ]
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* MOBILE / IN-GAME MENU OVERLAY (NAVIGATION & SETTINGS) */}
-      <AnimatePresence>
-        {showMobileMenu && (() => {
-          const modeInfo = getActiveSettingsMode();
-          return (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/85 backdrop-blur-md flex flex-col justify-center items-center z-[99] p-3 sm:p-4 pointer-events-auto select-none"
-            >
-              <motion.div
-                initial={{ scale: 0.94, y: 15 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.94, y: 15 }}
-                className={`w-full max-w-sm border ${modeInfo.borderClass} ${modeInfo.bgClass} p-4 sm:p-5 rounded-2xl shadow-2xl flex flex-col gap-3 relative max-h-[90vh] overflow-y-auto`}
-              >
-                <div className="flex justify-between items-center border-b border-zinc-800 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    {modeInfo.icon}
-                    <h3 className="font-display font-black text-xs sm:text-sm italic text-white uppercase tracking-wider">
-                      {modeInfo.title}
-                    </h3>
-                  </div>
-                  <button 
-                    onClick={() => setShowMobileMenu(false)}
-                    className="text-zinc-400 hover:text-white font-mono text-[9px] font-bold uppercase tracking-wider px-2 py-1 bg-zinc-950 border border-zinc-800 rounded-lg hover:border-zinc-700 transition cursor-pointer flex items-center gap-1"
-                  >
-                    <X className="w-3.5 h-3.5 text-red-400" />
-                    <span>CLOSE</span>
-                  </button>
-                </div>
-
-                {/* MODE DESCRIPTION BADGE */}
-                <div className="p-3 bg-zinc-950/80 border border-zinc-850 rounded-xl space-y-1.5 text-left">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-mono font-bold text-zinc-400 uppercase tracking-wider">
-                      Match Session Status
-                    </span>
-                    <span className={`text-[8px] font-mono px-2 py-0.5 rounded-md font-bold uppercase ${isOfflineMatch ? 'bg-amber-500 text-black shadow-[2px_2px_0px_#000000]' : modeInfo.badgeClass}`}>
-                      {isOfflineMatch ? 'PAUSED' : 'ACTIVE'}
-                    </span>
-                  </div>
-                  <p className="text-[9px] font-mono text-zinc-300 leading-normal">
-                    {isOfflineMatch ? 'Match simulation, neural AI actions, and round clock are paused.' : modeInfo.desc}
-                  </p>
-                </div>
-
-                {/* PAUSE RESUME ACTION BUTTON */}
-                <button
-                  onClick={() => {
-                    soundManager.playRollTick?.();
-                    setShowMobileMenu(false);
-                  }}
-                  className="w-full py-2.5 px-4 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:brightness-110 text-black font-display font-black italic uppercase text-xs sm:text-sm tracking-wider transition flex items-center justify-center gap-2 cursor-pointer shadow-[3px_3px_0px_#ffffff] -skew-x-6 active:scale-95 border-2 border-black"
-                >
-                  <Play className="w-4 h-4 fill-black text-black" />
-                  <span>{isOfflineMatch ? 'RESUME MATCH' : 'RESUME'}</span>
-                </button>
-
-                {/* NAVIGATION CONTROLS */}
-                <div className="space-y-2">
-                  {modeInfo.id === 'practice_ai' ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => {
-                          const state = stateRef.current;
-                          if (state.player && state.dummy) {
-                            const pMods = getHeightModifiers(state.player.baseHeight);
-                            const dMods = getHeightModifiers(state.dummy.baseHeight);
-                            state.player.health = pMods.maxHealth;
-                            state.dummy.health = dMods.maxHealth;
-                            state.player.armorHP = 18;
-                            state.dummy.armorHP = 18;
-                            state.player.x = (state.arenaSize / 2) - 180;
-                            state.player.y = state.arenaSize / 2;
-                            state.dummy.x = (state.arenaSize / 2) + 180;
-                            state.dummy.y = state.arenaSize / 2;
-                            syncCombatStatesToUI();
-                          }
-                          setShowMobileMenu(false);
-                        }}
-                        className="py-2 bg-zinc-950 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-mono text-[9px] uppercase font-bold tracking-wider transition rounded-lg"
-                      >
-                        Reset Positions
-                      </button>
-
-                      <button
-                        onClick={() => handleExitArena()}
-                        className="py-2 bg-red-600/90 text-white font-display font-black italic uppercase text-[10px] tracking-wider hover:bg-red-500 transition flex items-center justify-center rounded-lg cursor-pointer"
-                      >
-                        Leave Practice AI
-                      </button>
-                    </div>
-                  ) : modeInfo.id === 'ranked_match' ? (
-                    <button
-                      onClick={() => {
-                        soundManager.playKO();
-                        if (matchData?.socket && matchData.socket.readyState === WebSocket.OPEN) {
-                          matchData.socket.send(JSON.stringify({ type: 'surrender' }));
-                        }
-                        handleMatchDefeat('SURRENDERED!');
-                      }}
-                      className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-display font-black italic uppercase text-xs tracking-wider border border-red-400 shadow-lg transition flex items-center justify-center gap-2 cursor-pointer rounded-lg"
-                    >
-                      <Flag className="w-4 h-4 animate-pulse" />
-                      SURRENDER RANKED DUEL
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleExitArena()}
-                      className="w-full py-2.5 bg-red-600/90 hover:bg-red-500 text-white font-display font-black italic uppercase text-xs tracking-wider transition flex items-center justify-center gap-2 cursor-pointer rounded-lg"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      FORFEIT MATCH & LEAVE
-                    </button>
-                  )}
-                </div>
-
-                {/* HUD & TOUCH PREFERENCES */}
-                <div className="space-y-2.5 pt-2 border-t border-zinc-850">
-                  <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-widest font-black block">Configuration Preferences</span>
-                  
-                  {/* Master Volume Slider */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center text-[9px] font-mono text-zinc-400 uppercase">
-                      <span>Master Volume</span>
-                      <span className="text-emerald-400 font-bold">{Math.round((settings.masterVolume ?? 1.0) * 100)}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={settings.masterVolume ?? 1.0}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        updateSettings({ masterVolume: val });
-                        soundManager.setVolumes(val, settings.sfxVolume ?? 1.0);
-                      }}
-                      className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-zinc-950 rounded border border-zinc-800"
-                    />
-                  </div>
-
-                  {/* SFX / Impact Volume Slider */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center text-[9px] font-mono text-zinc-400 uppercase">
-                      <span>Combat SFX & Impacts</span>
-                      <span className="text-cyan-400 font-bold">{Math.round((settings.sfxVolume ?? 1.0) * 100)}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={settings.sfxVolume ?? 1.0}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        updateSettings({ sfxVolume: val });
-                        soundManager.setVolumes(settings.masterVolume ?? 1.0, val);
-                      }}
-                      className="w-full accent-cyan-500 cursor-pointer h-1.5 bg-zinc-950 rounded border border-zinc-800"
-                    />
-                  </div>
-                  
-                  {/* Dedicated Lock-On & Aim Mode Toggle */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center text-[9px] font-mono text-zinc-400 uppercase">
-                      <span>Combat Aim & Lock</span>
-                      <span className={(settings.cameraMode || 'standard') === 'standard' ? 'text-cyan-400 font-bold' : 'text-purple-400 font-bold'}>
-                        {(settings.cameraMode || 'standard') === 'standard' ? 'STANDARD' : 'LOCK-ON (SWIPE)'}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1">
-                      <button
-                        onClick={() => { updateSettings({ cameraMode: 'standard' }); soundManager.playRollTick(); }}
-                        className={`py-1.5 text-[9px] font-mono font-bold uppercase rounded border transition cursor-pointer ${
-                          (settings.cameraMode || 'standard') === 'standard'
-                            ? 'bg-cyan-600 border-cyan-400 text-white shadow font-black'
-                            : 'bg-zinc-950 border-zinc-850 text-zinc-400 hover:text-white'
-                        }`}
-                      >
-                        Standard
-                      </button>
-                      <button
-                        onClick={() => { updateSettings({ cameraMode: 'lockon_swipe' }); soundManager.playRollTick(); }}
-                        className={`py-1.5 text-[9px] font-mono font-bold uppercase rounded border transition cursor-pointer ${
-                          (settings.cameraMode || 'standard') === 'lockon_swipe'
-                            ? 'bg-purple-600 border-purple-400 text-white shadow font-black'
-                            : 'bg-zinc-950 border-zinc-850 text-zinc-400 hover:text-white'
-                        }`}
-                      >
-                        Character Lock
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Virtual Controls Display Mode */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center text-[9px] font-mono text-zinc-400 uppercase">
-                      <span>Virtual Touch Controls</span>
-                      <span className="text-cyan-400 font-bold">{(settings.showVirtualControls || 'auto').toUpperCase()}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-1">
-                      {(['auto', 'always', 'never'] as const).map(mode => (
-                        <button
-                          key={mode}
-                          onClick={() => { updateSettings({ showVirtualControls: mode }); soundManager.playRollTick(); }}
-                          className={`py-1 text-[9px] font-mono font-bold uppercase rounded border transition ${
-                            (settings.showVirtualControls || 'auto') === mode ? 'bg-cyan-600 border-cyan-500 text-white shadow' : 'bg-zinc-950 border-zinc-850 text-zinc-400 hover:text-white'
-                          }`}
-                        >
-                          {mode}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Mobile Camera Field Of View (FOV) */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center text-[9px] font-mono text-zinc-400 uppercase">
-                      <span className="flex items-center gap-1"><Maximize2 className="w-3 h-3 text-cyan-400" /> Camera FOV</span>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => {
-                            updateSettings({ lockFov: !settings.lockFov });
-                            soundManager.playRollTick();
-                          }}
-                          className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase transition flex items-center gap-0.5 ${
-                            settings.lockFov ? 'bg-red-950 border border-red-500/50 text-red-400' : 'bg-zinc-950 border border-zinc-800 text-zinc-500'
-                          }`}
-                        >
-                          {settings.lockFov ? '🔒 Locked' : '🔓 Unlocked'}
-                        </button>
-                        <span className="text-cyan-400 font-bold">{(settings.mobileFov || 1.3).toFixed(1)}x</span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-5 gap-1">
-                      {[1.0, 1.2, 1.4, 1.6, 1.8].map(fov => {
-                        const isDisabled = settings.lockFov;
-                        return (
-                          <button
-                            key={fov}
-                            disabled={isDisabled}
-                            onClick={() => { updateSettings({ mobileFov: fov }); soundManager.playRollTick(); }}
-                            className={`py-1 text-[8px] sm:text-[9px] font-mono font-bold uppercase rounded border transition ${
-                              isDisabled
-                                ? 'bg-zinc-950 border-zinc-900 text-zinc-700 cursor-not-allowed opacity-55'
-                                : Math.abs((settings.mobileFov || 1.3) - fov) < 0.05
-                                  ? 'bg-cyan-600 border-cyan-500 text-white shadow'
-                                  : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
-                            }`}
-                          >
-                            {fov === 1.0 ? '1.0x' : `${fov}x`}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Mobile Pinch to Zoom Gesture Toggle */}
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[9px] font-mono text-zinc-400 uppercase">Pinch-to-Zoom Gesture</span>
-                    <button
-                      onClick={() => {
-                        updateSettings({ pinchToZoomEnabled: settings.pinchToZoomEnabled === false ? true : false });
-                        soundManager.playRollTick();
-                      }}
-                      className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase transition ${
-                        settings.pinchToZoomEnabled !== false ? 'bg-cyan-600 text-white shadow' : 'bg-zinc-950 border border-zinc-800 text-zinc-400'
-                      }`}
-                    >
-                      {settings.pinchToZoomEnabled !== false ? 'ON' : 'OFF'}
-                    </button>
-                  </div>
-
-                  {/* Screen Shake Intensity */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center text-[9px] font-mono text-zinc-400 uppercase">
-                      <span>Screen Shake Recoil</span>
-                      <span className="text-amber-400 font-bold">{Math.round((settings.screenShake || 1.0) * 100)}%</span>
-                    </div>
-                    <div className="grid grid-cols-4 gap-1">
-                      {[0, 0.5, 1.0, 1.5].map(val => (
-                        <button
-                          key={val}
-                          onClick={() => { updateSettings({ screenShake: val }); soundManager.playRollTick(); }}
-                          className={`py-1 text-[9px] font-mono font-bold uppercase rounded border transition ${
-                            (settings.screenShake ?? 1.0) === val ? 'bg-amber-600 border-amber-500 text-white shadow' : 'bg-zinc-950 border-zinc-850 text-zinc-400 hover:text-white'
-                          }`}
-                        >
-                          {val === 0 ? 'Off' : `${val * 100}%`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Cursor Type */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center text-[9px] font-mono text-zinc-400 uppercase">
-                      <span>Combat Reticle / Cursor</span>
-                      <span className="text-blue-400 font-bold">{(settings.cursorType || 'crosshair').toUpperCase()}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-1">
-                      {(['crosshair', 'dot', 'circle'] as const).map(c => (
-                        <button
-                          key={c}
-                          onClick={() => { updateSettings({ cursorType: c }); soundManager.playRollTick(); }}
-                          className={`py-1 text-[9px] font-mono font-bold uppercase rounded border transition ${
-                            (settings.cursorType || 'crosshair') === c ? 'bg-blue-600 border-blue-500 text-white shadow' : 'bg-zinc-950 border-zinc-850 text-zinc-400 hover:text-white'
-                          }`}
-                        >
-                          {c}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* HUD SCALE */}
-                <div className="space-y-1.5 pt-2 border-t border-zinc-850">
-                  <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-widest font-black block">HUD & Card Scale</span>
-                  <div className="grid grid-cols-5 gap-1">
-                    {[
-                      { value: 0.5, label: '50%' },
-                      { value: 0.65, label: '65%' },
-                      { value: 0.8, label: '80%' },
-                      { value: 1.0, label: '100%' },
-                      { value: 1.2, label: '120%' },
-                    ].map((item) => {
-                      const currentScale = settings.hudScale !== undefined ? settings.hudScale : 0.85;
-                      return (
-                        <button
-                          key={item.value}
-                          onClick={() => {
-                            updateSettings({ hudScale: item.value });
-                            soundManager.playRollTick();
-                          }}
-                          className={`py-1 font-mono text-[9px] font-bold uppercase border tracking-tight transition rounded-lg ${
-                            Math.abs(currentScale - item.value) < 0.01
-                              ? 'bg-red-600 text-white border-red-500 shadow'
-                              : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:bg-zinc-900 hover:text-white'
-                          }`}
-                        >
-                          {item.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Full Settings & HUD Reconfiguration Buttons */}
-                <div className="grid grid-cols-2 gap-1.5 pt-1">
-                  <button
-                    onClick={() => {
-                      setShowFullSettings(true);
-                      soundManager.playRollTick();
-                    }}
-                    className="py-2 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 text-white font-mono font-bold uppercase text-[9px] tracking-wider transition rounded-lg flex items-center justify-center gap-1.5 shadow"
-                  >
-                    <Settings className="w-3.5 h-3.5 text-red-500" />
-                    <span>All Settings</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowMobileMenu(false);
-                      setShowFullSettings(false);
-                      setIsLiveHudEditing(true);
-                      soundManager.playRollTick();
-                    }}
-                    className="py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-mono font-bold uppercase text-[9px] tracking-wider transition rounded-lg flex items-center justify-center gap-1.5 shadow active:scale-95 cursor-pointer"
-                  >
-                    <Move className="w-3.5 h-3.5" />
-                    <span>HUD Editor</span>
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setShowMobileMenu(false);
-                    soundManager.playKO();
-                  }}
-                  className="w-full py-2 bg-white text-black font-display font-black italic uppercase text-[10px] tracking-widest hover:bg-zinc-200 transition active:scale-98 rounded-lg mt-1"
-                >
-                  Resume Combat Match
-                </button>
-              </motion.div>
-            </motion.div>
-          );
-        })()}
-      </AnimatePresence>
-
       {/* FULL SETTINGS MODAL */}
       {showFullSettings && (
         <SettingsView
@@ -14197,31 +13121,6 @@ function checkLineSegmentToCircle(
         />
       )}
 
-      {/* DEV FIGHTING STYLE SWITCHER - QUICK TAP CHANGER (Practice mode only, toggleable in settings) */}
-      {isPlaying && !isDead && !showModeSelector && !matchData?.isCompetitive && !matchData?.isAiMatch && !matchData?.isAiVsAiSpectator && settings.showDevSwitcher && (
-        <div className="flex absolute bottom-2 left-1/2 -translate-x-1/2 z-50 bg-black/95 border border-cyan-500/50 px-3 py-1.5 shadow-2xl items-center gap-3 pointer-events-auto rounded-none max-w-[95vw] overflow-x-auto scrollbar-none">
-          <div className="text-[8px] font-mono font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
-            <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping shrink-0" />
-            PRACTICE STYLE:
           </div>
-          <div className="flex gap-1.5">
-            {FIGHTING_STYLES.map(style => (
-              <button
-                key={style.id}
-                onClick={() => handleDevStyleChange(style.id)}
-                className={`px-3 py-1 text-[9px] font-mono font-black uppercase transition-all tracking-tight cursor-pointer ${
-                  practicePlayerStyleId === style.id
-                    ? 'bg-cyan-600 text-white border border-transparent shadow-md'
-                    : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-600'
-                }`}
-              >
-                {style.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-    </div>
   );
 }
