@@ -38,6 +38,8 @@ import {
   onLandedHitStaminaUpdate 
 } from '../combat/staminaEngine';
 import { CombatFighter } from '../combat/types';
+import { getStyleInitials, getStyleRarityColor, getHeavySkillName, getMaxHeavyCooldown, getHeavySkillIcon } from '../utils/styleHelpers';
+import { getMatchModeKey as getMatchModeKeyUtil } from '../utils/matchMode';
 import { QuestTracker } from '../utils/questTracker';
 import { OfflineQuestManager } from '../data/offlineQuests';
 import { CareerMilestoneManager } from '../data/careerMilestones';
@@ -45,6 +47,7 @@ import { isMobileDevice } from '../utils/deviceDetection';
 import { updateFighterAI as updateFighterAIModule } from '../combat/ai';
 import { getCapoeiraKickEase, getFistRelativePos, getClampedFistPos } from '../combat/fistIK';
 import { checkDirectionalBlock } from '../combat/blockEngine';
+import { evaluateParry } from '../combat/parry';
 import { 
   PERFECT_PARRY_WINDOW_SEC, 
   BLOCK_COOLDOWN_FRAMES, 
@@ -120,12 +123,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     return 'anon';
   })();
 
-  const getMatchModeKey = (): 'ranked_pvp' | 'unranked_pvp' | 'ranked_ai' | 'unranked_ai' => {
-    if (matchData?.isAiMatch) {
-      return (matchData.aiModeType === 'ranked' || matchData.aiModeType === 'tournament') ? 'ranked_ai' : 'unranked_ai';
-    }
-    return matchData?.isCompetitive ? 'ranked_pvp' : 'unranked_pvp';
-  };
+  const getMatchModeKey = () => getMatchModeKeyUtil(matchData);
   
   // Game states
   const [isPlaying, setIsPlaying] = useState(() => true);
@@ -4775,9 +4773,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
                 const blockCheck = checkDirectionalBlock(target, player);
                 const isDirectionalBlocked = blockCheck.isBlocked;
                 const blockTimeFrames = target.blockTimer || 0;
-                const maxParryFrames = target.styleId === 'muay_thai' ? 23 : 11;
-                const canParry = (!target.parryLockoutTimer || target.parryLockoutTimer <= 0) && !target.cqcWasBlockingAtHit4;
-                const isParry = isDirectionalBlocked && target.isBlocking && (target.armorBreakTime || 0) <= 0 && canParry && blockTimeFrames <= maxParryFrames;
+                const isParry = evaluateParry(target, player, isDirectionalBlocked, blockTimeFrames, { isFrames: true });
 
                 if (isParry) {
                   // Successful Perfect Parry on Hit 5: Parried strike deals 0 damage to the opponent!
@@ -4900,8 +4896,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
                 const inPocketRange = dist <= (player.radius + target.radius + 24); // ~72px pocket clinch range
                 const blockCheck = checkDirectionalBlock(target, player);
                 const blockTimeSec = (target.blockTimer || 0) / 60;
-                const canParry = (!target.parryLockoutTimer || target.parryLockoutTimer <= 0) && (!target.keysiVulnerableTimer || target.keysiVulnerableTimer <= 0);
-                const isParry = inPocketRange && blockCheck.isBlocked && target.isBlocking && (target.armorBreakTime || 0) <= 0 && canParry && blockTimeSec >= 0.0 && blockTimeSec <= PERFECT_PARRY_WINDOW_SEC;
+                const isParry = inPocketRange && evaluateParry(target, player, blockCheck.isBlocked, blockTimeSec);
 
                 if (isParry) {
                   // Opponent parried the clinch grab the moment the elbow hits! Zero knockback!
@@ -6734,9 +6729,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
                   const blockCheck = checkDirectionalBlock(target, dummy);
                   const isDirectionalBlocked = blockCheck.isBlocked;
                   const blockTimeFrames = target.blockTimer || 0;
-                  const maxParryFrames = target.styleId === 'muay_thai' ? 23 : 11;
-                  const canParry = (!target.parryLockoutTimer || target.parryLockoutTimer <= 0) && !target.cqcWasBlockingAtHit4;
-                  const isParry = isDirectionalBlocked && target.isBlocking && (target.armorBreakTime || 0) <= 0 && canParry && blockTimeFrames <= maxParryFrames;
+                  const isParry = evaluateParry(target, dummy, isDirectionalBlocked, blockTimeFrames, { isFrames: true });
 
                   if (isParry) {
                     // Successful Perfect Parry on Hit 5: Parried strike deals 0 damage to the opponent!
@@ -6865,8 +6858,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
                 const inPocketRange = dist <= (dummy.radius + target.radius + 24);
                 const blockCheck = checkDirectionalBlock(target, dummy);
                 const blockTimeSec = (target.blockTimer || 0) / 60;
-                const canParry = (!target.parryLockoutTimer || target.parryLockoutTimer <= 0) && (!target.keysiVulnerableTimer || target.keysiVulnerableTimer <= 0);
-                const isParry = inPocketRange && blockCheck.isBlocked && target.isBlocking && (target.armorBreakTime || 0) <= 0 && canParry && blockTimeSec >= 0.0 && blockTimeSec <= PERFECT_PARRY_WINDOW_SEC;
+                const isParry = inPocketRange && evaluateParry(target, dummy, blockCheck.isBlocked, blockTimeSec);
 
                 if (isParry) {
                   // Opponent parried the clinch grab the moment the elbow hits! Zero knockback!
@@ -8022,83 +8014,7 @@ export default function Arena({ stats, updateStats, settings, updateSettings, cu
     onBackToMenu(targetDest);
   };
 
-  const getStyleInitials = (styleId: string) => {
-    switch (styleId) {
-      case 'street_boxing': return 'SB';
-      case 'shotokan': return 'SK';
-      case 'slugger': return 'SL';
-      case 'muay_thai': return 'MT';
-      case 'ashihara': return 'AK';
-      case 'capoeira': return 'CP';
-      case 'kickboxing': return 'KB';
-      case 'street_taekwondo': return 'TK';
-      case 'kyokushin': return 'KK';
-      default: return 'BS';
-    }
-  };
 
-  const getStyleRarityColor = (_rarity?: string) => {
-    return 'text-amber-400 border-amber-500/40 bg-amber-950/40';
-  };
-
-  const getHeavySkillName = (styleId: string) => {
-    switch (styleId) {
-      case 'basic': return 'Shadow Step Strike';
-      case 'street_boxing': return 'Pocket Flurry';
-      case 'shotokan': return 'Back Kick';
-      case 'slugger': return 'Charged Heavy Hook';
-      case 'muay_thai': return 'Clinch Knee Strike';
-      case 'ashihara': return 'Sabaki Tsukami Counter';
-      case 'capoeira': return 'Meia Lua de Compasso';
-      case 'kickboxing': return 'Dazing Hook to Teep';
-      case 'street_taekwondo': return 'Brazilian Kick';
-      case 'kyokushin': return 'Gedan Mawashi Geri';
-      case 'keysi': return 'Pensador Drive';
-      case 'cqc': return 'Tactical CQC Assault';
-      case 'boxing_shell': return 'Shoulder Roll';
-      case 'aikido': return 'Aiki Redirection Stance';
-      default: return 'Heavy Right Hook';
-    }
-  };
-
-  const getMaxHeavyCooldown = (styleId: string) => {
-    switch (styleId) {
-      case 'slugger': return 720;
-      case 'basic': return 840;
-      case 'kickboxing': return 480;
-      case 'street_boxing': return 780;
-      case 'keysi': return 720;
-      case 'muay_thai': return 420;
-      case 'ashihara': return 480;
-      case 'shotokan': return 720;
-      case 'kyokushin': return 600;
-      case 'capoeira': return 480;
-      case 'street_taekwondo': return 420;
-      case 'cqc': return 900;
-      case 'boxing_shell': return 600;
-      case 'aikido': return 780;
-      default: return 480;
-    }
-  };
-
-  const getHeavySkillIcon = (styleId: string) => {
-    switch (styleId) {
-      case 'street_boxing': return '⚡';
-      case 'shotokan': return '💫';
-      case 'slugger': return '💥';
-      case 'muay_thai': return '🦵';
-      case 'ashihara': return '🛡️';
-      case 'capoeira': return '🔄';
-      case 'kickboxing': return '🥊';
-      case 'street_taekwondo': return '🥋';
-      case 'kyokushin': return '🥋';
-      case 'keysi': return '🛡️';
-      case 'cqc': return '♟️';
-      case 'boxing_shell': return '🔄';
-      case 'aikido': return '🛡️';
-      default: return '🥊';
-    }
-  };
 
   const dummyStyle = stateRef.current?.dummy 
     ? FIGHTING_STYLES.find(s => s.id === stateRef.current.dummy?.styleId) 

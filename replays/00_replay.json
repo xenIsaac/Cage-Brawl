@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-11-08T18:04:54.137Z",
+  "scenarios": [
+    {
+      "scenario": "Kickboxing vs Kickboxing",
+      "hash": "82050a0e960cc4a2",
+      "totalTicks": 300
+    },
+    {
+      "scenario": "Muay Thai vs Ashihara",
+      "hash": "82050a0e960cc4a2",
+      "totalTicks": 300
+    },
+    {
+      "scenario": "CQC vs Kyokushin",
+      "hash": "82050a0e960cc4a2",
+      "totalTicks": 300
+    },
+    {
+      "scenario": "Keysi vs Capoeira",
+      "hash": "82050a0e960cc4a2",
+      "totalTicks": 300
+    },
+    {
+      "scenario": "Parry Heavy Combat",
+      "hash": "49d702ad96acb653",
+      "totalTicks": 600
+    },
+    {
+      "scenario": "Block Spam Combat",
+      "hash": "49d702ad96acb653",
+      "totalTicks": 600
+    }
+  ]
+}

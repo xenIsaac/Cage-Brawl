@@ -1,0 +1,591 @@
+{
+  "timestamp": "2026-11-08T17:41:49.270Z",
+  "arenaStats": {
+    "totalLines": 8657,
+    "useState": 120,
+    "useRef": 61,
+    "useEffect": 15,
+    "asAny": 67,
+    "tsIgnore": 0
+  },
+  "arenaFunctions": [
+    {
+      "name": "Arena",
+      "startLine": 105,
+      "endLine": 8657,
+      "length": 8553
+    },
+    {
+      "name": "getMatchModeKey",
+      "startLine": 123,
+      "endLine": 128,
+      "length": 6
+    },
+    {
+      "name": "handleGameSpeedChange",
+      "startLine": 164,
+      "endLine": 175,
+      "length": 12
+    },
+    {
+      "name": "handleResize",
+      "startLine": 215,
+      "endLine": 217,
+      "length": 3
+    },
+    {
+      "name": "handleTouchStart",
+      "startLine": 218,
+      "endLine": 220,
+      "length": 3
+    },
+    {
+      "name": "recordMatchEnd",
+      "startLine": 336,
+      "endLine": 455,
+      "length": 120
+    },
+    {
+      "name": "handleMatchVictory",
+      "startLine": 584,
+      "endLine": 655,
+      "length": 72
+    },
+    {
+      "name": "handleMatchDefeat",
+      "startLine": 657,
+      "endLine": 728,
+      "length": 72
+    },
+    {
+      "name": "updateTournamentBracketFromSpectate",
+      "startLine": 730,
+      "endLine": 765,
+      "length": 36
+    },
+    {
+      "name": "handleRoundWinner",
+      "startLine": 767,
+      "endLine": 1190,
+      "length": 424
+    },
+    {
+      "name": "handleSocketMessage",
+      "startLine": 1269,
+      "endLine": 1447,
+      "length": 179
+    },
+    {
+      "name": "getActiveSettingsMode",
+      "startLine": 1654,
+      "endLine": 1734,
+      "length": 81
+    },
+    {
+      "name": "toggleSound",
+      "startLine": 1737,
+      "endLine": 1740,
+      "length": 4
+    },
+    {
+      "name": "updateDimensions",
+      "startLine": 1747,
+      "endLine": 1780,
+      "length": 34
+    },
+    {
+      "name": "handleOrientationChange",
+      "startLine": 1786,
+      "endLine": 1788,
+      "length": 3
+    },
+    {
+      "name": "handleTouchStart",
+      "startLine": 1808,
+      "endLine": 1818,
+      "length": 11
+    },
+    {
+      "name": "handleTouchMove",
+      "startLine": 1820,
+      "endLine": 1844,
+      "length": 25
+    },
+    {
+      "name": "handleTouchEnd",
+      "startLine": 1846,
+      "endLine": 1850,
+      "length": 5
+    },
+    {
+      "name": "handleWheel",
+      "startLine": 1852,
+      "endLine": 1867,
+      "length": 16
+    },
+    {
+      "name": "handleTouchReFullscreen",
+      "startLine": 1888,
+      "endLine": 1897,
+      "length": 10
+    },
+    {
+      "name": "handleKeyDown",
+      "startLine": 1907,
+      "endLine": 2008,
+      "length": 102
+    },
+    {
+      "name": "handleKeyUp",
+      "startLine": 2010,
+      "endLine": 2045,
+      "length": 36
+    },
+    {
+      "name": "handleBlur",
+      "startLine": 2047,
+      "endLine": 2060,
+      "length": 14
+    },
+    {
+      "name": "handleTargetSwitch",
+      "startLine": 2074,
+      "endLine": 2091,
+      "length": 18
+    },
+    {
+      "name": "spawnFloatingText",
+      "startLine": 2094,
+      "endLine": 2111,
+      "length": 18
+    },
+    {
+      "name": "spawnKyokushinPunchGust",
+      "startLine": 2114,
+      "endLine": 2186,
+      "length": 73
+    },
+    {
+      "name": "initGame",
+      "startLine": 2189,
+      "endLine": 2452,
+      "length": 264
+    },
+    {
+      "name": "gameLoop",
+      "startLine": 2463,
+      "endLine": 2674,
+      "length": 212
+    },
+    {
+      "name": "applyFighterHit",
+      "startLine": 2682,
+      "endLine": 2739,
+      "length": 58
+    },
+    {
+      "name": "triggerKOCinematic",
+      "startLine": 2741,
+      "endLine": 2798,
+      "length": 58
+    },
+    {
+      "name": "handleSparringKO",
+      "startLine": 2801,
+      "endLine": 2915,
+      "length": 115
+    },
+    {
+      "name": "spawnKOExplosion",
+      "startLine": 2917,
+      "endLine": 2938,
+      "length": 22
+    },
+    {
+      "name": "triggerPlayerDash",
+      "startLine": 2940,
+      "endLine": 3079,
+      "length": 140
+    },
+    {
+      "name": "triggerFighterDash",
+      "startLine": 3081,
+      "endLine": 3167,
+      "length": 87
+    },
+    {
+      "name": "triggerDummyDash",
+      "startLine": 3169,
+      "endLine": 3174,
+      "length": 6
+    },
+    {
+      "name": "syncCombatStatesToUI",
+      "startLine": 3177,
+      "endLine": 3336,
+      "length": 160
+    },
+    {
+      "name": "handleMouseMove",
+      "startLine": 3383,
+      "endLine": 3409,
+      "length": 27
+    },
+    {
+      "name": "handleMouseLeave",
+      "startLine": 3411,
+      "endLine": 3415,
+      "length": 5
+    },
+    {
+      "name": "handleCanvasClick",
+      "startLine": 3417,
+      "endLine": 3419,
+      "length": 3
+    },
+    {
+      "name": "handleMouseDown",
+      "startLine": 3430,
+      "endLine": 3455,
+      "length": 26
+    },
+    {
+      "name": "handleCanvasTouchStart",
+      "startLine": 3457,
+      "endLine": 3465,
+      "length": 9
+    },
+    {
+      "name": "handleCanvasTouchMove",
+      "startLine": 3467,
+      "endLine": 3496,
+      "length": 30
+    },
+    {
+      "name": "handleCanvasTouchEnd",
+      "startLine": 3498,
+      "endLine": 3515,
+      "length": 18
+    },
+    {
+      "name": "handleMouseUp",
+      "startLine": 3517,
+      "endLine": 3537,
+      "length": 21
+    },
+    {
+      "name": "onUp",
+      "startLine": 3540,
+      "endLine": 3540,
+      "length": 1
+    },
+    {
+      "name": "onBlur",
+      "startLine": 3541,
+      "endLine": 3541,
+      "length": 1
+    },
+    {
+      "name": "handleContextMenu",
+      "startLine": 3551,
+      "endLine": 3553,
+      "length": 3
+    },
+    {
+      "name": "updatePlayerAI",
+      "startLine": 3556,
+      "endLine": 3563,
+      "length": 8
+    },
+    {
+      "name": "updateDummyAI",
+      "startLine": 3566,
+      "endLine": 3577,
+      "length": 12
+    },
+    {
+      "name": "updatePhysics",
+      "startLine": 3580,
+      "endLine": 7631,
+      "length": 4052
+    },
+    {
+      "name": "handlePracticePlayerStyleChange",
+      "startLine": 7667,
+      "endLine": 7734,
+      "length": 68
+    },
+    {
+      "name": "handlePracticePlayerHeightChange",
+      "startLine": 7737,
+      "endLine": 7767,
+      "length": 31
+    },
+    {
+      "name": "handleDevStyleChange",
+      "startLine": 7770,
+      "endLine": 7772,
+      "length": 3
+    },
+    {
+      "name": "handleDummyStyleChange",
+      "startLine": 7774,
+      "endLine": 7816,
+      "length": 43
+    },
+    {
+      "name": "handleDummyHeightChange",
+      "startLine": 7818,
+      "endLine": 7838,
+      "length": 21
+    },
+    {
+      "name": "handleResetTrainingSession",
+      "startLine": 7840,
+      "endLine": 7894,
+      "length": 55
+    },
+    {
+      "name": "handleCenterDummy",
+      "startLine": 7896,
+      "endLine": 7908,
+      "length": 13
+    },
+    {
+      "name": "handleClearTelemetry",
+      "startLine": 7910,
+      "endLine": 7930,
+      "length": 21
+    },
+    {
+      "name": "handleRefreshM1Sequence",
+      "startLine": 7932,
+      "endLine": 7946,
+      "length": 15
+    },
+    {
+      "name": "handleResetM2Cooldown",
+      "startLine": 7948,
+      "endLine": 7962,
+      "length": 15
+    },
+    {
+      "name": "handleExitArena",
+      "startLine": 7965,
+      "endLine": 8023,
+      "length": 59
+    },
+    {
+      "name": "getStyleInitials",
+      "startLine": 8025,
+      "endLine": 8038,
+      "length": 14
+    },
+    {
+      "name": "getStyleRarityColor",
+      "startLine": 8040,
+      "endLine": 8042,
+      "length": 3
+    },
+    {
+      "name": "getHeavySkillName",
+      "startLine": 8044,
+      "endLine": 8062,
+      "length": 19
+    },
+    {
+      "name": "getMaxHeavyCooldown",
+      "startLine": 8064,
+      "endLine": 8082,
+      "length": 19
+    },
+    {
+      "name": "getHeavySkillIcon",
+      "startLine": 8084,
+      "endLine": 8101,
+      "length": 18
+    }
+  ],
+  "fileLineCounts": {
+    "server.ts": 1445,
+    "src/App.tsx": 887,
+    "src/combat/ArenaRenderer.ts": 628,
+    "src/combat/ai.ts": 1347,
+    "src/combat/animation_engine.ts": 30,
+    "src/combat/attackTriggers.ts": 1019,
+    "src/combat/blockEngine.ts": 328,
+    "src/combat/collisionEngine.ts": 391,
+    "src/combat/combat.fixes.ts": 200,
+    "src/combat/combatEngine.ts": 433,
+    "src/combat/ds.config.ts": 205,
+    "src/combat/effects.ts": 122,
+    "src/combat/effects/kyokushinImpactFrame.ts": 41,
+    "src/combat/effects/sluggerImpactFrame.ts": 486,
+    "src/combat/evaluationEngine.ts": 393,
+    "src/combat/fistIK.ts": 288,
+    "src/combat/fistIK/aikido.ts": 178,
+    "src/combat/fistIK/ashihara.ts": 113,
+    "src/combat/fistIK/basic.ts": 111,
+    "src/combat/fistIK/boxingShell.ts": 169,
+    "src/combat/fistIK/capoeira.ts": 168,
+    "src/combat/fistIK/cqc.ts": 94,
+    "src/combat/fistIK/index.ts": 218,
+    "src/combat/fistIK/keysi.ts": 105,
+    "src/combat/fistIK/kickboxing.ts": 116,
+    "src/combat/fistIK/kyokushin.ts": 192,
+    "src/combat/fistIK/muayThai.ts": 87,
+    "src/combat/fistIK/shotokan.ts": 92,
+    "src/combat/fistIK/slugger.ts": 131,
+    "src/combat/fistIK/streetBoxing.ts": 190,
+    "src/combat/fistIK/streetTaekwondo.ts": 32,
+    "src/combat/fistIK/types.ts": 20,
+    "src/combat/hitResolution.ts": 2726,
+    "src/combat/hitboxCalculator.ts": 345,
+    "src/combat/hitboxOverlay.ts": 222,
+    "src/combat/hitbox_pipeline.ts": 18,
+    "src/combat/impactFrame.ts": 102,
+    "src/combat/inspector.ts": 167,
+    "src/combat/kickAnimation.ts": 2,
+    "src/combat/kickAnimation/index.ts": 279,
+    "src/combat/kickAnimation/types.ts": 15,
+    "src/combat/loop.ts": 41,
+    "src/combat/medalsEngine.ts": 464,
+    "src/combat/motionTrails.ts": 2,
+    "src/combat/motionTrails/aikido.ts": 126,
+    "src/combat/motionTrails/boxingShell.ts": 108,
+    "src/combat/motionTrails/cqc.ts": 149,
+    "src/combat/motionTrails/flowBoxing.ts": 119,
+    "src/combat/motionTrails/index.ts": 90,
+    "src/combat/motionTrails/kyokushin.ts": 63,
+    "src/combat/motionTrails/types.ts": 40,
+    "src/combat/parry.ts": 38,
+    "src/combat/physics.ts": 63,
+    "src/combat/posture/postureEngine.ts": 144,
+    "src/combat/renderArena.ts": 400,
+    "src/combat/renderFighter.ts": 4743,
+    "src/combat/staminaEngine.ts": 239,
+    "src/combat/stats.config.ts": 318,
+    "src/combat/streetBoxing.ts": 662,
+    "src/combat/street_tkd.config.ts": 58,
+    "src/combat/styles/aikido.ts": 70,
+    "src/combat/styles/ashihara.ts": 76,
+    "src/combat/styles/boxingShell.ts": 74,
+    "src/combat/styles/capoeira.ts": 79,
+    "src/combat/styles/cqc.ts": 76,
+    "src/combat/styles/flowBoxing.ts": 124,
+    "src/combat/styles/index.ts": 240,
+    "src/combat/styles/keysi.ts": 99,
+    "src/combat/styles/kickboxing.ts": 90,
+    "src/combat/styles/kyokushin.ts": 173,
+    "src/combat/styles/muayThai.ts": 75,
+    "src/combat/styles/shotokan.ts": 78,
+    "src/combat/styles/slugger.ts": 94,
+    "src/combat/styles/streetBoxing.ts": 90,
+    "src/combat/styles/streetTaekwondo.ts": 84,
+    "src/combat/styles/street_tkd.config.ts": 55,
+    "src/combat/styles/types.ts": 77,
+    "src/combat/three/Fighter3D.ts": 904,
+    "src/combat/three/OctagonArena.ts": 350,
+    "src/combat/three/SceneManager.ts": 158,
+    "src/combat/three/animator.ts": 214,
+    "src/combat/three/index.ts": 4,
+    "src/combat/three/streetBoxing3D.ts": 290,
+    "src/combat/types.ts": 210,
+    "src/components/AccountCenterModal.tsx": 1178,
+    "src/components/AiMatchScreen.tsx": 1503,
+    "src/components/Arena.tsx": 8657,
+    "src/components/CareerMilestonesScreen.tsx": 471,
+    "src/components/CodexModal.tsx": 577,
+    "src/components/CrateUnboxingSystem.tsx": 1166,
+    "src/components/HudEditorModal.tsx": 1056,
+    "src/components/HudTestBox.tsx": 668,
+    "src/components/Incoming1v1InviteModal.tsx": 97,
+    "src/components/LeftNavRail.tsx": 542,
+    "src/components/LiveHudEditor.tsx": 1260,
+    "src/components/LoginScreen.tsx": 569,
+    "src/components/MatchmakingScreen.tsx": 2111,
+    "src/components/Menu.tsx": 26,
+    "src/components/MobileControls.tsx": 613,
+    "src/components/NamingScreen.tsx": 234,
+    "src/components/OnlinePlayerListModal.tsx": 1153,
+    "src/components/PostMatchHUD.tsx": 919,
+    "src/components/QuestsAchievementsPanel.tsx": 646,
+    "src/components/RollSystem.tsx": 22,
+    "src/components/SingleplayerQuestsScreen.tsx": 665,
+    "src/components/SoundManager.ts": 679,
+    "src/components/StatusBar.tsx": 571,
+    "src/components/arena/ModeSelectorOverlay.tsx": 488,
+    "src/components/arena/SpectatorChamberModal.tsx": 249,
+    "src/components/arena/TournamentLadderModal.tsx": 806,
+    "src/components/arena/TrainingDrawer.tsx": 764,
+    "src/components/codex/CodexHeader.tsx": 99,
+    "src/components/codex/CodexIdentificationView.tsx": 647,
+    "src/components/codex/CodexMobileView.tsx": 316,
+    "src/components/codex/CodexMoveSpecsView.tsx": 178,
+    "src/components/codex/CodexPassivesView.tsx": 92,
+    "src/components/codex/CodexPcView.tsx": 381,
+    "src/components/codex/CodexSidebar.tsx": 259,
+    "src/components/codex/CodexStatsMatrix.tsx": 261,
+    "src/components/codex/CodexTacticsView.tsx": 101,
+    "src/components/codex/CodexUniversalRulesView.tsx": 304,
+    "src/components/combat/CombatHUD.tsx": 118,
+    "src/components/combat/FighterHealthBars.tsx": 818,
+    "src/components/combat/MatchOverlays.tsx": 792,
+    "src/components/crate/CrateContainerCanvas.tsx": 680,
+    "src/components/mainmenu/AccountCenterView.tsx": 22,
+    "src/components/mainmenu/CodexView.tsx": 24,
+    "src/components/mainmenu/GameInfoView.tsx": 326,
+    "src/components/mainmenu/HudEditorView.tsx": 18,
+    "src/components/mainmenu/MainMenuDashboard.tsx": 1472,
+    "src/components/mainmenu/OnlinePlayersView.tsx": 17,
+    "src/components/mainmenu/PracticeDojoView.tsx": 725,
+    "src/components/mainmenu/QuestsAchievementsView.tsx": 19,
+    "src/components/mainmenu/SettingsView.tsx": 1479,
+    "src/components/mainmenu/UpdateLogsModal.tsx": 325,
+    "src/components/mainmenu/index.ts": 12,
+    "src/components/mainmenu/types.ts": 35,
+    "src/components/navigation/CodexNavRail.tsx": 347,
+    "src/components/navigation/CrateSanctumNavRail.tsx": 157,
+    "src/components/navigation/FighterProfileNavRail.tsx": 126,
+    "src/components/navigation/GameInfoNavRail.tsx": 196,
+    "src/components/navigation/MainMenuNavRail.tsx": 125,
+    "src/components/navigation/QuestsNavRail.tsx": 96,
+    "src/components/navigation/SettingsNavRail.tsx": 221,
+    "src/components/navigation/SingleplayerNavRail.tsx": 361,
+    "src/components/navigation/SingleplayerQuestsNavRail.tsx": 158,
+    "src/components/singleplayer/RulebookModal.tsx": 828,
+    "src/data/aiChallengers.ts": 88,
+    "src/data/careerMilestones.ts": 526,
+    "src/data/codexData.ts": 889,
+    "src/data/crateData.ts": 370,
+    "src/data/hudDefaults.ts": 106,
+    "src/data/offlineQuests.ts": 1464,
+    "src/data/styleClassification.ts": 412,
+    "src/data/styles.ts": 187,
+    "src/data/titlesData.ts": 397,
+    "src/data/updateLogs.data.ts": 90,
+    "src/data/updateLogs.registry.ts": 190,
+    "src/index.css": 190,
+    "src/lib/netcode.ts": 324,
+    "src/main.tsx": 11,
+    "src/modes/casual_ai.mode.ts": 26,
+    "src/modes/dojo.mode.ts": 45,
+    "src/modes/index.ts": 10,
+    "src/modes/ranked_ai.mode.ts": 54,
+    "src/modes/tournament.mode.ts": 45,
+    "src/services/websocket.ts": 490,
+    "src/styles/bridge.ts": 223,
+    "src/styles/defineStyle.ts": 266,
+    "src/styles/index.ts": 54,
+    "src/styles/street_tkd.style.ts": 253,
+    "src/styles/types.ts": 183,
+    "src/types.ts": 711,
+    "src/utils/countdownBuffer.ts": 209,
+    "src/utils/deviceDetection.ts": 126,
+    "src/utils/elo.ts": 475,
+    "src/utils/evaluationEngine.ts": 481,
+    "src/utils/heightModifiers.ts": 177,
+    "src/utils/questTracker.ts": 868,
+    "src/utils/useResponsiveLayout.ts": 83
+  }
+}

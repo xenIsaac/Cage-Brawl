@@ -5,48 +5,41 @@ import { Fighter } from '../types';
  * Standardized steering physics, defensive buffering, 0.45s hitstun & attack lockout
  */
 
-/** Universal Base Steering Turn Rate (radians per frame at 60fps) */
-export const BASE_STEERING_TURN_RATE = 0.18; // ~10.3 deg/frame (smooth turning across PC mouse & Mobile Auto-Lock)
+import {
+  BASE_STEERING_TURN_RATE,
+  HITSTUN_DURATION_SEC,
+  HITSTUN_FRAMES,
+  HIT_ATTACK_LOCKOUT_FRAMES,
+  STEERING_LOCKOUT_FRAMES,
+  HIT_MOVEMENT_LOCKOUT_FRAMES,
+  BLOCK_COOLDOWN_FRAMES,
+  PERFECT_PARRY_WINDOW_SEC,
+  POST_M1_BLOCK_LOCKOUT_FRAMES,
+  POST_BLOCK_ATTACK_DELAY_FRAMES,
+  POST_DASH_ATTACK_LOCKOUT_FRAMES,
+  DASH_DELAYED_STOP_FRAMES,
+  BASE_MOVEMENT_SPEED,
+  BASE_MOVEMENT_FORCE,
+  BASE_COMBO_RESET_FRAMES,
+} from './rules';
 
-/** Universal Hit-Stun Duration (0.45s = 27 frames at 60fps) */
-export const HITSTUN_DURATION_SEC = 0.45;
-export const HITSTUN_FRAMES = 27; // 0.45s at 60fps
-
-/** Universal Attack Lockout on Hit (0.45s = 27 frames at 60fps) - you can no longer attack when hit */
-export const HIT_ATTACK_LOCKOUT_FRAMES = 27; // 0.45s at 60fps
-
-/** Hit-Stun Steering Lockout duration (0.45s = 27 frames) */
-export const STEERING_LOCKOUT_FRAMES = 27;
-
-/** Hit-Stun Directional Movement Lockout duration (0.45s = 27 frames) */
-export const HIT_MOVEMENT_LOCKOUT_FRAMES = 27;
-
-/** Block Cooldown duration after releasing or exiting Guard (0.1s = 6 frames) */
-export const BLOCK_COOLDOWN_FRAMES = 6;
-
-/** Strict Perfect Parry Window from moment block is initiated (0.19s = 190ms) */
-export const PERFECT_PARRY_WINDOW_SEC = 0.19;
-
-/** Section 2.8: Post-M1 Block Lockout duration (0.15s = 9 frames at 60fps) */
-export const POST_M1_BLOCK_LOCKOUT_FRAMES = 9;
-
-/** Section 2.8: Post-Block Attack Re-Initiation Delay (0.10s = 6 frames at 60fps) */
-export const POST_BLOCK_ATTACK_DELAY_FRAMES = 6;
-
-/** Section 2.8: Post-Dash Attack Lockout duration (0.30s = 18 frames at 60fps) */
-export const POST_DASH_ATTACK_LOCKOUT_FRAMES = 18;
-
-/** Section 2.8: Dash Hit Delayed Momentum Stop duration (0.10s = 6 frames at 60fps) */
-export const DASH_DELAYED_STOP_FRAMES = 6;
-
-/** Universal Base Movement Speed (pixels per frame at 60fps) - slowed for grounded, tactical footwork */
-export const BASE_MOVEMENT_SPEED = 2.3;
-
-/** Base Directional Movement Acceleration Force */
-export const BASE_MOVEMENT_FORCE = 0.32;
-
-/** Default Combo Reset Timer in frames (Section 1.14: 2.0s = 120 frames at 60 FPS) */
-export const BASE_COMBO_RESET_FRAMES = 120; // 2.0s reset window (120 frames at 60 FPS)
+export {
+  BASE_STEERING_TURN_RATE,
+  HITSTUN_DURATION_SEC,
+  HITSTUN_FRAMES,
+  HIT_ATTACK_LOCKOUT_FRAMES,
+  STEERING_LOCKOUT_FRAMES,
+  HIT_MOVEMENT_LOCKOUT_FRAMES,
+  BLOCK_COOLDOWN_FRAMES,
+  PERFECT_PARRY_WINDOW_SEC,
+  POST_M1_BLOCK_LOCKOUT_FRAMES,
+  POST_BLOCK_ATTACK_DELAY_FRAMES,
+  POST_DASH_ATTACK_LOCKOUT_FRAMES,
+  DASH_DELAYED_STOP_FRAMES,
+  BASE_MOVEMENT_SPEED,
+  BASE_MOVEMENT_FORCE,
+  BASE_COMBO_RESET_FRAMES,
+};
 import {
   UNIVERSAL_BASELINE_EXECUTION_SPEED,
   calculateHeightModifiers,

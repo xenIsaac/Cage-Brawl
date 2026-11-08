@@ -1,0 +1,6 @@
+Node version: v22.23.2
+npm version: 10.9.8
+OS: Linux localhost 4.19.0-gvisor #1 SMP Sun Jan 10 15:06:54 PST 2016 x86_64 GNU/Linux
+Architecture: x86_64
+Package Lock: package-lock.json present and audited
+Git: Initialized in /app/applet (safe.directory configured)

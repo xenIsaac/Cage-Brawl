@@ -18,6 +18,7 @@ import {
   HITSTUN_FRAMES, 
   HIT_ATTACK_LOCKOUT_FRAMES 
 } from "./combatEngine";
+import { evaluateParry } from "./parry";
 import { getHeightModifiers } from "../utils/heightModifiers";
 
 export interface HitResolutionContext {
@@ -636,13 +637,8 @@ export function executeFighterHit(
     const isEffectivelyBlocked = isStreetBoxingUnbreakable ? false : blockCheck.isBlocked;
 
     // PERFECT PARRY SYSTEM CHECK:
-    // Base Perfect Parry window: 0.19s (190ms).
-    // Iron Guard (Muay Thai): extends Perfect Parry window by +0.20s (so 0.0s to 0.39s)
     const blockTimeSec = (defender.blockTimer || 0) / 60;
-    const maxParryWindow = defender.styleId === 'muay_thai' ? (PERFECT_PARRY_WINDOW_SEC + 0.20) : PERFECT_PARRY_WINDOW_SEC;
-    const isCqcM2Unparriable = attacker.styleId === 'cqc' && attacker.cqcM2Stage === 'assault';
-    const canParry = (!defender.parryLockoutTimer || defender.parryLockoutTimer <= 0) && (!defender.keysiVulnerableTimer || defender.keysiVulnerableTimer <= 0) && !isCqcM2Unparriable && !(attacker.styleId === 'basic' && comboStage === 3 && attacker.flowS3ParryBaited) && !isStreetBoxingUnbreakable;
-    const isParry = isEffectivelyBlocked && blockTimeSec >= 0.0 && blockTimeSec <= maxParryWindow && canParry;
+    const isParry = evaluateParry(defender, attacker, isEffectivelyBlocked, blockTimeSec, { comboStage });
 
     if (isParry) {
       // In online PvP or local game, debounce rapid duplicate collision triggers across single animation frames

@@ -63,7 +63,9 @@ export const muayThaiStyle: FightingStyleModule = {
 
   block: {
     type: 'standard',
-    maxParryWindowSec: 0.35, // Iron Guard: +0.2s Perfect Parry window
+    maxParryWindowSec: 0.39, // Iron Guard: +0.20s (0.39s total) Perfect Parry window
+    parryWindowBonusSec: 0.20,
+    parryWindowBonusFrames: 12,
   },
 
   passives: {

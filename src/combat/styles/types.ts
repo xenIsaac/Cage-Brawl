@@ -61,6 +61,8 @@ export interface FightingStyleModule {
   block: {
     type?: 'standard' | 'rooted' | 'stacks' | 'philly_shell';
     maxParryWindowSec?: number;
+    parryWindowBonusSec?: number;
+    parryWindowBonusFrames?: number;
     onBlockHit?: (defender: CombatFighter, attacker: CombatFighter, damage: number) => void;
   };
 

@@ -1,0 +1,56 @@
+{
+  "hooks": {
+    "useArenaSettings": [
+      "simulationSpeed",
+      "simulationSpeedRef",
+      "showHitboxes",
+      "soundEnabled",
+      "isTouchDevice",
+      "isPortrait",
+      "settingsRef"
+    ],
+    "useUIState": [
+      "showModeSelector",
+      "showControlsHelp",
+      "showMobileMenu",
+      "showHudEditor",
+      "isLiveHudEditing",
+      "showFullSettings",
+      "spectatorModalOpen",
+      "isTrainingHudOpen",
+      "practiceModalTab",
+      "trainingHudTab"
+    ],
+    "useMatchState": [
+      "isPlaying",
+      "dummyBehavior",
+      "dummyM1Speed",
+      "dummyFollow",
+      "dummyStyleId",
+      "dummyHeightInInches",
+      "infiniteStamina",
+      "oneHitKODummy",
+      "godMode",
+      "infiniteAIStamina",
+      "totalDamageDealt",
+      "totalHitsLanded",
+      "totalDamageTaken",
+      "totalSwings",
+      "totalParries",
+      "totalBlocks",
+      "maxCombo",
+      "opponentDistance",
+      "freezeAI",
+      "playerCombatState",
+      "dummyCombatState",
+      "streak",
+      "isDead",
+      "practicePlayerStyleId",
+      "practicePlayerHeightInInches",
+      "spectatorCount",
+      "spectatorCamMode",
+      "spectatorReactions",
+      "rankedState"
+    ]
+  }
+}

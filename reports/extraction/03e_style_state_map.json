@@ -1,0 +1,21 @@
+{
+  "styleStates": {
+    "capoeira": [
+      "capoeiraExhausted",
+      "capoeiraExhaustTimer",
+      "capoeiraDodgeStacks",
+      "capoeiraDodgeFlashTime",
+      "capoeiraRegenTimer",
+      "capoeiraWhiffBonusActive",
+      "capoeiraS3IFrameTimer"
+    ],
+    "ashihara": [
+      "ashiharaRecoveryTimer",
+      "ashiharaCounterActive"
+    ],
+    "muay_thai": [
+      "parryWindowBonusSec",
+      "parryWindowBonusFrames"
+    ]
+  }
+}
