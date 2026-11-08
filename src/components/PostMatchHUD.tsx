@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Trophy, 
@@ -9,17 +9,32 @@ import {
   Coins, 
   Award, 
   Swords,
-  Dices,
-  ChevronDown,
-  ChevronUp,
-  Shield,
-  Zap,
-  Target,
-  BarChart3
+  Shield, 
+  Zap, 
+  Target, 
+  Clock, 
+  FastForward,
+  ChevronRight,
+  Sparkles,
+  Info,
+  X
 } from 'lucide-react';
 import { FightingStyle, PlayerStats, MatchData, RoundReport, RankedAiEloBreakdown } from '../types';
-import { getRankInfo } from '../utils/elo';
 import { soundManager } from './SoundManager';
+import { 
+  evaluateMatchPerformance, 
+  OverallCombatGrade, 
+  PillarGrade, 
+  MatchEvaluationResult 
+} from '../combat/evaluationEngine';
+import { 
+  evaluateMatchMedals, 
+  calculateMedalsTotalCash, 
+  mergeLifetimeMedals, 
+  EarnedMedalResult,
+  MedalTier,
+  MedalDefinition
+} from '../combat/medalsEngine';
 
 interface PostMatchHUDProps {
   matchWinner: 'player' | 'opponent' | null;
@@ -47,18 +62,16 @@ interface PostMatchHUDProps {
   parriesLanded?: number;
   heaviesLanded?: number;
   lightsLanded?: number;
+  guardBreaksLanded?: number;
   rankedAiBreakdown?: RankedAiEloBreakdown | null;
   roundReports?: RoundReport[];
+  totalSwings?: number;
+  playerFinalHp?: number;
+  playerMaxHp?: number;
+  matchDurationSec?: number;
+  earlyDamageDealtPct?: number;
+  onUpdateStats?: (updates: Partial<PlayerStats>) => void;
 }
-
-const QUICK_CHAT_OPTIONS = [
-  'GG! 🥊',
-  'Well Played! 🔥',
-  'Close Match! ⚡',
-  'Rematch Me! ⚔️',
-  'Good defense! 🛡️',
-  'One more round!'
-];
 
 export default function PostMatchHUD({
   matchWinner,
@@ -76,659 +89,828 @@ export default function PostMatchHUD({
   onVoteRematch,
   onLeaveMatch,
   onNextAiOpponent,
-  onGoToGacha,
-  onSendChatMessage,
-  hudScale = 1.0,
   parriesLanded = 0,
   heaviesLanded = 0,
   lightsLanded = 0,
+  guardBreaksLanded = 0,
   rankedAiBreakdown = null,
   roundReports = [],
+  totalSwings,
+  playerFinalHp,
+  playerMaxHp = 100,
+  matchDurationSec = 35,
+  earlyDamageDealtPct = 50,
+  onUpdateStats,
 }: PostMatchHUDProps) {
   const isPlayerWinner = matchWinner === 'player';
   const isAiMatch = Boolean(matchData?.isAiMatch);
   const isOnlineMatch = Boolean(matchData?.isRealMatch || (matchData?.isCompetitive && !isAiMatch));
   const isRankedAi = isAiMatch && matchData?.aiModeType === 'ranked';
   const isTournamentAi = isAiMatch && matchData?.aiModeType === 'tournament';
-  const isOnlineRanked = isOnlineMatch && Boolean(matchData?.isCompetitive);
 
-  // Collapsible Evaluation Accordion State (default collapsed)
-  // When true: Header and Reward rows collapse to grant maximum viewport space to scrollable telemetry
-  const [isEvaluationExpanded, setIsEvaluationExpanded] = useState<boolean>(false);
-  
-  // Micro Screen-Shake Trigger for Heavy Stamp 2
+  // Micro Screen-Shake Trigger for Persona Explosion Stamp
   const [microShake, setMicroShake] = useState<boolean>(false);
 
-  // Online quick chat state
-  const [, setLocalChatList] = useState<Array<{ sender: string; text: string; time: string; isSelf?: boolean }>>([]);
+  // Inspector modal for inspecting a tapped/clicked medal in the tray
+  const [inspectedMedal, setInspectedMedal] = useState<EarnedMedalResult | null>(null);
 
-  // Calculate ELO values
-  const currentElo = isAiMatch ? (playerStats.aiElo ?? 100) : (playerStats.elo ?? 0);
-  const rankInfo = getRankInfo(currentElo);
+  // Animation Stage Pipeline:
+  // Phase 0: Init (0ms)
+  // Phase 1: Pillar A — Strike Accuracy (%) ticks up (100ms)
+  // Phase 2: Pillar B — Defense & Health Retained (%) ticks up (550ms)
+  // Phase 3: Pillar C — Match Pacing reveals (1000ms)
+  // Phase 4: Overall Combat Grade Explosion Stamp + Sound (1500ms)
+  // Phase 5: Medals Tray Gravity Drop Sequence starts (2000ms)
+  // Phase 6: Cash Payout (Base + Medals yield counter) (2600ms)
+  // Phase 7: Action Navigation Buttons Slide In (3100ms)
+  const [animPhase, setAnimPhase] = useState<number>(0);
 
-  // Drop-Stamp Audio & Screen-Shake Pipeline Trigger
+  // Number tick counters for smooth telemetry counters
+  const [displayedAccuracy, setDisplayedAccuracy] = useState<number>(1);
+  const [displayedHpRetained, setDisplayedHpRetained] = useState<number>(1);
+  const [displayedCash, setDisplayedCash] = useState<number>(0);
+
+  // Run the 3-Pillar Evaluation Engine (Section 8.8)
+  const evaluation: MatchEvaluationResult = useMemo(() => {
+    let computedEarlyPct = earlyDamageDealtPct;
+    if (roundReports && roundReports.length > 1) {
+      const firstRoundDmg = roundReports[0].damageDealt;
+      const totalDmg = roundReports.reduce((acc, r) => acc + r.damageDealt, 0);
+      if (totalDmg > 0) {
+        computedEarlyPct = Math.round((firstRoundDmg / totalDmg) * 100);
+      }
+    }
+
+    const resolvedHp = playerFinalHp !== undefined ? playerFinalHp : (isPlayerWinner ? 65 : 0);
+    const resolvedSwings = totalSwings || (hitsLanded > 0 ? Math.round(hitsLanded * 1.35) : 10);
+
+    return evaluateMatchPerformance({
+      isPlayerWinner,
+      strikesLanded: hitsLanded,
+      strikesThrown: resolvedSwings,
+      playerFinalHp: resolvedHp,
+      playerMaxHp,
+      durationSec: matchDurationSec,
+      earlyDamageDealtPct: computedEarlyPct,
+      isTournament: isTournamentAi,
+      isRanked: isRankedAi || Boolean(matchData?.isCompetitive),
+    });
+  }, [
+    isPlayerWinner,
+    hitsLanded,
+    totalSwings,
+    playerFinalHp,
+    playerMaxHp,
+    matchDurationSec,
+    earlyDamageDealtPct,
+    roundReports,
+    isTournamentAi,
+    isRankedAi,
+    matchData?.isCompetitive,
+  ]);
+
+  // Clean, integer-rounded player final HP to avoid floating point anomalies (e.g. 69.10000000000002)
+  const roundedPlayerHp = useMemo(() => {
+    return Math.round(evaluation.pillarB.playerFinalHp);
+  }, [evaluation.pillarB.playerFinalHp]);
+
+  // Section 8.9: Independent Stackable Medals Evaluation
+  const earnedMedals: EarnedMedalResult[] = useMemo(() => {
+    return evaluateMatchMedals({
+      isPlayerWinner,
+      damageDealt,
+      damageTaken,
+      hitsLanded,
+      totalSwings: totalSwings || (hitsLanded > 0 ? Math.round(hitsLanded * 1.35) : 10),
+      parriesLanded,
+      heaviesLanded,
+      lightsLanded,
+      guardBreaksLanded,
+      playerFinalHp: playerFinalHp !== undefined ? playerFinalHp : (isPlayerWinner ? 65 : 0),
+      playerMaxHp,
+      roundReports,
+      opponentKnockouts: isPlayerWinner ? 1 : 0,
+    });
+  }, [
+    isPlayerWinner,
+    damageDealt,
+    damageTaken,
+    hitsLanded,
+    totalSwings,
+    parriesLanded,
+    heaviesLanded,
+    lightsLanded,
+    guardBreaksLanded,
+    playerFinalHp,
+    playerMaxHp,
+    roundReports,
+  ]);
+
+  const medalsBonusCash = useMemo(() => calculateMedalsTotalCash(earnedMedals), [earnedMedals]);
+  const combinedCashPayout = useMemo(() => evaluation.cashPayout + medalsBonusCash, [evaluation.cashPayout, medalsBonusCash]);
+
+  // Once-per-match persistence to PlayerStats
+  const medalsSavedRef = useRef<boolean>(false);
   useEffect(() => {
-    // Stamp 1: Header Drop (t = 0ms)
-    try {
-      soundManager.playPunch?.();
-    } catch (e) {}
+    if (!medalsSavedRef.current && onUpdateStats && earnedMedals.length > 0) {
+      medalsSavedRef.current = true;
+      const updatedMedals = mergeLifetimeMedals(playerStats.medals || {}, earnedMedals);
+      onUpdateStats({
+        medals: updatedMedals,
+        cash: (playerStats.cash || 0) + medalsBonusCash,
+      });
+    }
+  }, [earnedMedals, medalsBonusCash, onUpdateStats, playerStats.cash, playerStats.medals]);
 
-    // Stamp 2: Evaluation Grade Slams Down (t = 120ms) + 3px Micro-Shake
+  // Timed Sequenced Animation Pipeline
+  useEffect(() => {
+    // Phase 1: Pillar A Accuracy Tick (t = 100ms)
+    const t1 = setTimeout(() => {
+      setAnimPhase(1);
+      try { soundManager.playRollTick?.(); } catch (e) {}
+    }, 100);
+
+    // Phase 2: Pillar B Defense Tick (t = 550ms)
     const t2 = setTimeout(() => {
-      try {
-        soundManager.playParry?.();
-      } catch (e) {}
-      setMicroShake(true);
-      setTimeout(() => setMicroShake(false), 140);
-    }, 120);
+      setAnimPhase(2);
+      try { soundManager.playRollTick?.(); } catch (e) {}
+    }, 550);
 
-    // Stamp 3: Rewards Row Drops (t = 220ms, 320ms, 420ms)
-    const t3a = setTimeout(() => {
+    // Phase 3: Pillar C Time Pacing (t = 1000ms)
+    const t3 = setTimeout(() => {
+      setAnimPhase(3);
+      try { soundManager.playParry?.(); } catch (e) {}
+    }, 1000);
+
+    // Phase 4: Overall Combat Grade Kinetic Scale Explosion (t = 1500ms)
+    const t4 = setTimeout(() => {
+      setAnimPhase(4);
+      setMicroShake(true);
+      try {
+        soundManager.playHeavyImpact?.();
+      } catch (e) {}
+      setTimeout(() => setMicroShake(false), 200);
+    }, 1500);
+
+    // Phase 5: Medals Tray Gravity Drop Sequence (t = 2000ms)
+    const t5 = setTimeout(() => {
+      setAnimPhase(5);
+      try {
+        const hasGold = earnedMedals.some(m => m.medal.tier === 'gold');
+        const hasSilver = earnedMedals.some(m => m.medal.tier === 'silver' || m.medal.tier === 'copper');
+        if (hasGold) {
+          soundManager.playLevelUp?.();
+        } else if (hasSilver) {
+          soundManager.playParry?.();
+        } else if (earnedMedals.length > 0) {
+          soundManager.playRollTick?.();
+        }
+      } catch (e) {}
+    }, 2000);
+
+    // Phase 6: Cash Payout (Base + Medals yield counter) (t = 2600ms)
+    const t6 = setTimeout(() => {
+      setAnimPhase(6);
+      try { 
+        (soundManager as any).playCoins?.() ?? soundManager.playRollTick?.(); 
+      } catch (e) {}
+    }, 2600);
+
+    // Phase 7: Delayed Action Buttons Reveal (t = 3100ms)
+    const t7 = setTimeout(() => {
+      setAnimPhase(7);
       try { soundManager.playRollTick?.(); } catch (e) {}
-    }, 220);
-    const t3b = setTimeout(() => {
-      try { soundManager.playRollTick?.(); } catch (e) {}
-    }, 320);
-    const t3c = setTimeout(() => {
-      try { soundManager.playRollTick?.(); } catch (e) {}
-    }, 420);
+    }, 3100);
 
     return () => {
+      clearTimeout(t1);
       clearTimeout(t2);
-      clearTimeout(t3a);
-      clearTimeout(t3b);
-      clearTimeout(t3c);
+      clearTimeout(t3);
+      clearTimeout(t4);
+      clearTimeout(t5);
+      clearTimeout(t6);
+      clearTimeout(t7);
     };
-  }, []);
+  }, [earnedMedals]);
 
-  // Performance Rating (Clean, Simple, Professional)
-  const calculateGrade = () => {
-    if (rankedAiBreakdown?.performanceGrade) {
-      const g = rankedAiBreakdown.performanceGrade;
-      if (g === 'SSS') return { grade: 'SSS', text: 'Grade SSS • Flawless', color: 'text-rose-400', border: 'border-rose-500/70', bg: 'bg-rose-500/15', glow: 'shadow-rose-500/20' };
-      if (g === 'SS') return { grade: 'SS', text: 'Grade SS • Master', color: 'text-purple-400', border: 'border-purple-500/70', bg: 'bg-purple-500/15', glow: 'shadow-purple-500/20' };
-      if (g === 'S') return { grade: 'S', text: 'Grade S • Dominant', color: 'text-amber-400', border: 'border-amber-500/70', bg: 'bg-amber-500/15', glow: 'shadow-amber-500/20' };
-      if (g === 'A') return { grade: 'A', text: 'Grade A • Decisive', color: 'text-emerald-400', border: 'border-emerald-500/70', bg: 'bg-emerald-500/15', glow: 'shadow-emerald-500/20' };
-      if (g === 'B') return { grade: 'B', text: 'Grade B • Contested', color: 'text-blue-400', border: 'border-blue-500/70', bg: 'bg-blue-500/15', glow: 'shadow-blue-500/20' };
-      return { grade: 'C', text: 'Grade C • Bout Concluded', color: 'text-zinc-400', border: 'border-zinc-600', bg: 'bg-zinc-800/40', glow: 'shadow-zinc-700/20' };
+  // Ticking number animation for Pillar A (Accuracy)
+  useEffect(() => {
+    if (animPhase >= 1) {
+      const target = evaluation.pillarA.accuracyPct;
+      let current = 1;
+      const step = Math.max(1, Math.ceil(target / 12));
+      const interval = setInterval(() => {
+        current = Math.min(target, current + step);
+        setDisplayedAccuracy(current);
+        if (current >= target) {
+          clearInterval(interval);
+        }
+      }, 20);
+      return () => clearInterval(interval);
     }
+  }, [animPhase, evaluation.pillarA.accuracyPct]);
 
-    if (!isPlayerWinner) {
-      if (playerScore > 0) return { grade: 'B', text: 'Grade B • Contested', color: 'text-blue-400', border: 'border-blue-500/70', bg: 'bg-blue-500/15', glow: 'shadow-blue-500/20' };
-      return { grade: 'C', text: 'Grade C • Defeat', color: 'text-zinc-400', border: 'border-zinc-700', bg: 'bg-zinc-800/40', glow: 'shadow-zinc-800/20' };
+  // Ticking number animation for Pillar B (HP Retained)
+  useEffect(() => {
+    if (animPhase >= 2) {
+      const target = evaluation.pillarB.hpRetainedPct;
+      let current = 1;
+      const step = Math.max(1, Math.ceil(target / 12));
+      const interval = setInterval(() => {
+        current = Math.min(target, current + step);
+        setDisplayedHpRetained(current);
+        if (current >= target) {
+          clearInterval(interval);
+        }
+      }, 20);
+      return () => clearInterval(interval);
     }
-    if (opponentScore === 0 && damageTaken < 30) {
-      return { grade: 'S+', text: 'Grade S+ • Clean Sweep', color: 'text-amber-400', border: 'border-amber-500/70', bg: 'bg-amber-500/15', glow: 'shadow-amber-500/20' };
+  }, [animPhase, evaluation.pillarB.hpRetainedPct]);
+
+  // Ticking number animation for Cash Payout (Base + Medals)
+  useEffect(() => {
+    if (animPhase >= 6) {
+      const target = combinedCashPayout;
+      let current = 0;
+      const step = Math.max(5, Math.ceil(target / 16));
+      const interval = setInterval(() => {
+        current = Math.min(target, current + step);
+        setDisplayedCash(current);
+        if (current >= target) {
+          clearInterval(interval);
+        }
+      }, 20);
+      return () => clearInterval(interval);
     }
-    if (opponentScore === 0) {
-      return { grade: 'S', text: 'Grade S • Flawless', color: 'text-yellow-400', border: 'border-yellow-500/70', bg: 'bg-yellow-500/15', glow: 'shadow-yellow-500/20' };
-    }
-    if (damageDealt > 150 && hitsLanded >= 12) {
-      return { grade: 'A+', text: 'Grade A+ • Dominant', color: 'text-emerald-400', border: 'border-emerald-500/70', bg: 'bg-emerald-500/15', glow: 'shadow-emerald-500/20' };
-    }
-    return { grade: 'A', text: 'Grade A • Victory', color: 'text-emerald-400', border: 'border-emerald-500/70', bg: 'bg-emerald-500/15', glow: 'shadow-emerald-500/20' };
+  }, [animPhase, combinedCashPayout]);
+
+  // Fast-forward animation when user clicks skip
+  const handleFastForward = () => {
+    setAnimPhase(7);
+    setDisplayedAccuracy(evaluation.pillarA.accuracyPct);
+    setDisplayedHpRetained(evaluation.pillarB.hpRetainedPct);
+    setDisplayedCash(combinedCashPayout);
+    try { soundManager.playRollTick?.(); } catch (e) {}
   };
 
-  const performanceGrade = calculateGrade();
-
-  // Rewards breakdown based on mode (Direct and simple)
-  const getRewardEstimates = () => {
-    if (isRankedAi) {
-      const diff = matchData?.aiDifficulty || 'silver';
-      const rewardCashMap: Record<string, number> = { rookie: 220, silver: 300, gold: 400, diamond: 550, amethyst: 800 };
-      const cash = isPlayerWinner ? (rewardCashMap[diff] || 300) : Math.round((rewardCashMap[diff] || 300) * 0.35);
-      const rolls = isPlayerWinner ? 1 : 0;
-      let eloChange = isPlayerWinner ? `+${rankInfo.baseGain} AI ELO` : `-${Math.max(1, Math.round(rankInfo.baseGain * 0.6))} AI ELO`;
-      if (rankedAiBreakdown) {
-        eloChange = isPlayerWinner ? `+${rankedAiBreakdown.totalEloChange} AI ELO` : `-${Math.abs(rankedAiBreakdown.totalEloChange)} AI ELO`;
-      }
-      return { cash, rolls, eloChange, keyLabel: isPlayerWinner ? '1 Iron Key' : null };
+  // Persona 5 Rank Stamp Thematic Colors & Hard Drop Shadows
+  const gradeStyles = useMemo(() => {
+    const g = evaluation.overallGrade;
+    if (g === 'S+' || g === 'S') {
+      return {
+        bg: 'bg-amber-400 text-black',
+        border: 'border-2 border-black',
+        shadow: 'shadow-[3px_3px_0px_#ffffff]',
+        tagBg: 'bg-black text-amber-300',
+        glow: 'drop-shadow-[0_0_12px_rgba(245,158,11,0.6)]',
+      };
     }
-    if (isTournamentAi) {
-      const round = matchData?.tournamentRound || 'quarter';
-      let cash = 500;
-      let rolls = 1;
-      let keyLabel: string | null = null;
-      if (round === 'final') {
-        cash = isPlayerWinner ? 1000 : 800;
-        rolls = isPlayerWinner ? 5 : 3;
-        keyLabel = isPlayerWinner ? '2 Gold Keys' : '1 Gold Key';
-      } else if (round === 'semi') {
-        cash = isPlayerWinner ? 600 : 350;
-        rolls = isPlayerWinner ? 2 : 1;
-        keyLabel = '1 Iron Key';
-      } else {
-        cash = isPlayerWinner ? 350 : 200;
-        rolls = isPlayerWinner ? 1 : 0;
-      }
-      return { cash, rolls, eloChange: null, keyLabel };
+    if (g === 'A+' || g === 'A' || g === 'A-') {
+      return {
+        bg: 'bg-red-600 text-white',
+        border: 'border-2 border-black',
+        shadow: 'shadow-[3px_3px_0px_#ffffff]',
+        tagBg: 'bg-black text-red-400',
+        glow: 'drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]',
+      };
     }
-    if (isOnlineMatch) {
-      const cash = isPlayerWinner ? 250 : 75;
-      const rolls = isPlayerWinner ? 2 : 1;
-      const eloChange = matchData?.isCompetitive
-        ? (isPlayerWinner ? `+${rankInfo.baseGain} ELO` : `-${Math.max(1, Math.round(rankInfo.baseGain * 0.6))} ELO`)
-        : null;
-      return { cash, rolls, eloChange, keyLabel: null };
+    if (g === 'B+' || g === 'B' || g === 'B-') {
+      return {
+        bg: 'bg-cyan-400 text-black',
+        border: 'border-2 border-black',
+        shadow: 'shadow-[3px_3px_0px_#ffffff]',
+        tagBg: 'bg-black text-cyan-300',
+        glow: 'drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]',
+      };
     }
-    // Casual VS AI
     return {
-      cash: isPlayerWinner ? 120 : 40,
-      rolls: 0,
-      eloChange: null,
-      keyLabel: isPlayerWinner ? '1 Iron Key' : null
+      bg: 'bg-zinc-800 text-white',
+      border: 'border-2 border-black',
+      shadow: 'shadow-[3px_3px_0px_#71717a]',
+      tagBg: 'bg-black text-zinc-400',
+      glow: 'drop-shadow-[0_0_6px_rgba(113,113,122,0.4)]',
     };
-  };
+  }, [evaluation.overallGrade]);
 
-  const rewards = getRewardEstimates();
-
-  const handleSendChat = (text: string) => {
-    if (!text.trim()) return;
-    const msg = {
-      sender: 'You',
-      text: text.trim(),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isSelf: true
-    };
-    setLocalChatList(prev => [...prev, msg]);
-    if (onSendChatMessage) {
-      onSendChatMessage(text.trim());
+  // Persona Pillar grade stamp chips
+  const getPillarBadgeStyle = (grade: PillarGrade) => {
+    switch (grade) {
+      case 'S':
+        return 'bg-amber-400 text-black border-2 border-black shadow-[2px_2px_0px_#ffffff]';
+      case 'A':
+        return 'bg-red-600 text-white border-2 border-black shadow-[2px_2px_0px_#ffffff]';
+      case 'B':
+        return 'bg-cyan-400 text-black border-2 border-black shadow-[2px_2px_0px_#ffffff]';
+      case 'C':
+      default:
+        return 'bg-zinc-800 text-zinc-300 border-2 border-black shadow-[2px_2px_0px_#000000]';
     }
-    soundManager.playRollTick?.();
   };
 
-  const opponentName = matchData?.opponent?.name || (isAiMatch ? `AI Bot (${(matchData?.aiDifficulty || 'Silver').toUpperCase()})` : 'Opponent');
-  const opponentStyle = matchData?.opponent?.style;
+  // Persona Medal Tier Pill Styles
+  const getMedalTierPillStyle = (tier: MedalTier) => {
+    switch (tier) {
+      case 'gold':
+        return 'bg-amber-400 text-black border-2 border-black shadow-[2px_2px_0px_#ffffff]';
+      case 'silver':
+        return 'bg-slate-200 text-black border-2 border-black shadow-[2px_2px_0px_#94a3b8]';
+      case 'copper':
+        return 'bg-orange-600 text-white border-2 border-black shadow-[2px_2px_0px_#000000]';
+      case 'base':
+      default:
+        return 'bg-zinc-900 text-zinc-200 border-2 border-zinc-700 shadow-[2px_2px_0px_#000000]';
+    }
+  };
 
-  // Drop-Stamp Animation Keyframe Generator
-  const dropStampAnimation = (delay: number) => ({
-    initial: {
-      scale: 2.0,
-      scaleY: 1.0,
-      scaleX: 1.0,
-      y: -32,
-      opacity: 0,
-    },
-    animate: {
-      scale: [2.0, 1.0, 1.05, 1.0],
-      scaleY: [1.0, 1.0, 0.95, 1.0],
-      scaleX: [1.0, 1.0, 1.05, 1.0],
-      y: [-32, 0, 1, 0],
-      opacity: [0, 1, 1, 1],
-    },
-    transition: {
-      duration: 0.24,
-      delay,
-      ease: [0.175, 0.885, 0.32, 1.275],
-    },
-  });
+  const opponentName = matchData?.opponent?.name || (isAiMatch ? `AI (${(matchData?.aiDifficulty || 'Silver').toUpperCase()})` : 'Opponent');
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className={`fixed inset-0 bg-black/90 backdrop-blur-2xl z-[140] flex items-center justify-center p-2 sm:p-4 md:p-6 select-none overflow-hidden pointer-events-auto transition-transform ${
+      transition={{ duration: 0.2 }}
+      className={`fixed inset-0 z-[140] pointer-events-auto flex items-center justify-center p-2 sm:p-4 select-none bg-black/85 backdrop-blur-md overflow-hidden ${
         microShake ? 'translate-x-[2px] -translate-y-[2px]' : ''
       }`}
     >
+      {/* Background Halftone Persona Graphic Matrix */}
+      <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
+      <div className="absolute -left-20 top-0 bottom-0 w-48 bg-red-600/15 -skew-x-[25deg] pointer-events-none" />
+      <div className="absolute -right-20 top-0 bottom-0 w-48 bg-white/5 -skew-x-[25deg] pointer-events-none" />
+
+      {/* ================================================================ */}
+      {/* MASTER CONTAINER: SPLIT 2-COLUMN PERSONA 5 EVALUATION TERMINAL   */}
+      {/* Dynamic Scaling: Ranking on Left, Medals on Right (Zero-Scroll)  */}
+      {/* ================================================================ */}
       <motion.div
-        initial={{ scale: 0.94, y: 12 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.94, y: 12 }}
-        transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-        style={{
-          transform: `scale(${Math.max(0.75, Math.min(1.15, hudScale))})`,
-          transformOrigin: 'center center',
-        }}
-        className="w-full max-w-4xl bg-zinc-950 border border-zinc-800 rounded-2xl shadow-[0_0_60px_rgba(0,0,0,0.95)] ring-1 ring-white/10 overflow-hidden flex flex-col relative my-auto max-h-[96dvh]"
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 280 }}
+        className="w-full max-w-5xl h-full max-h-[96dvh] sm:max-h-[92dvh] flex flex-col justify-between bg-black/95 border-2 sm:border-4 border-red-600 shadow-[0_0_50px_rgba(0,0,0,0.95)] p-2.5 sm:p-4 relative z-20 overflow-hidden"
       >
-        {/* TOP SHARP ACCENT LINE */}
-        <div 
-          className={`h-1 w-full shrink-0 ${
-            isPlayerWinner 
-              ? 'bg-gradient-to-r from-amber-500 via-emerald-400 to-teal-400 shadow-[0_0_15px_rgba(16,185,129,0.7)]' 
-              : isTournamentAi
-                ? 'bg-gradient-to-r from-amber-600 via-orange-500 to-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.7)]'
-                : 'bg-gradient-to-r from-red-600 via-rose-600 to-zinc-700 shadow-[0_0_15px_rgba(239,68,68,0.7)]'
-          }`} 
-        />
+        {/* Dynamic Top Red Cutout Accent Ribbon */}
+        <div className="absolute top-0 right-0 left-0 h-1 sm:h-1.5 bg-gradient-to-r from-red-600 via-amber-400 to-red-600 pointer-events-none" />
 
-        {/* MAIN BODY CONTAINER: Responsive Landscape & Portrait Layout */}
-        <div className="p-3 sm:p-5 flex flex-col md:flex-row gap-3.5 overflow-hidden max-h-[calc(96dvh-4px)]">
-          
-          {/* ================================================================ */}
-          {/* LEFT COLUMN: MATCH OUTCOME, ACCORDION EVALUATION & REWARDS ROW   */}
-          {/* ================================================================ */}
-          <div className="flex-1 min-w-0 flex flex-col gap-2.5 overflow-hidden">
-            
-            {/* 1. COMPACT MATCH OUTCOME HEADER (Hidden when evaluation is expanded) */}
-            <AnimatePresence>
-              {!isEvaluationExpanded && (
-                <motion.div 
-                  key="match-outcome-header"
-                  initial={{ height: 0, opacity: 0, scale: 0.95 }}
-                  animate={{ height: 'auto', opacity: 1, scale: 1 }}
-                  exit={{ height: 0, opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.2 }}
-                  {...(!isEvaluationExpanded ? dropStampAnimation(0.0) : {})}
-                  className="p-3 sm:p-3.5 bg-zinc-900/90 border border-zinc-800 rounded-xl flex items-center justify-between shadow-lg overflow-hidden shrink-0"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border shrink-0 shadow-md ${
-                      isPlayerWinner 
-                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' 
-                        : isTournamentAi
-                          ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
-                          : 'bg-red-500/15 border-red-500/40 text-red-400'
-                    }`}>
-                      {isPlayerWinner ? (
-                        <Trophy className="w-5 h-5 animate-bounce" />
-                      ) : isTournamentAi ? (
-                        <Award className="w-5 h-5" />
-                      ) : (
-                        <Skull className="w-5 h-5" />
-                      )}
-                    </div>
+        {/* ------------------------------------------------------------- */}
+        {/* 1. TOP HEADER RIBBON: MATCH STATUS & OPPONENT METRICS         */}
+        {/* ------------------------------------------------------------- */}
+        <div className="flex items-center justify-between pb-2 border-b-2 border-zinc-900 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 bg-red-600 text-black font-display font-black italic text-xs -skew-x-12 shadow-[2px_2px_0px_#ffffff]">
+              POST-MATCH
+            </span>
+            <span className="font-display font-black italic tracking-wider text-xs sm:text-base text-white uppercase -skew-x-6">
+              COMBAT EVALUATION
+            </span>
+            <span className="hidden sm:inline text-[9px] font-mono text-zinc-400">
+              // TELEMETRY PROTOCOL
+            </span>
+          </div>
 
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-400">
-                          {isRankedAi 
-                            ? 'RANKED AI LADDER' 
-                            : isTournamentAi 
-                              ? `TOURNAMENT • ${(matchData?.tournamentRound || 'quarter').toUpperCase()} ROUND` 
-                              : isOnlineRanked 
-                                ? '1V1 COMPETITIVE' 
-                                : (isAiMatch ? 'CASUAL AI MATCH' : 'ARENA MATCH')}
-                        </span>
-                        <span className={`px-1.5 py-0.2 rounded text-[8px] font-mono font-bold uppercase tracking-wider border ${
-                          isPlayerWinner 
-                            ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60' 
-                            : isTournamentAi
-                              ? 'bg-amber-950/80 text-amber-300 border-amber-700/60'
-                              : 'bg-red-950/80 text-red-300 border-red-700/60'
-                        }`}>
-                          {isPlayerWinner ? 'VICTORY' : 'DEFEAT'}
-                        </span>
-                      </div>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 bg-zinc-950 border border-zinc-700 -skew-x-6 text-[10px] font-mono">
+              <span className="text-zinc-500 font-bold">VS</span>
+              <span className="text-amber-300 font-black">{opponentName}</span>
+            </div>
 
-                      <h1 className="font-display font-black text-lg sm:text-xl italic tracking-tight uppercase text-white flex items-center gap-2 mt-0.5">
-                        <span>{isPlayerWinner ? 'VICTORY' : 'DEFEAT'}</span>
-                        <span className="text-zinc-400 text-sm sm:text-base font-mono font-bold not-italic">
-                          [{playerScore} - {opponentScore}]
-                        </span>
-                      </h1>
-
-                      <div className="text-[9px] font-mono text-zinc-400 truncate mt-0.5">
-                        vs <span className="text-zinc-200 font-semibold">{opponentName}</span> • <span className="text-zinc-400">{opponentStyle?.name || 'MMA Style'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Player Style Badge */}
-                  <div className="hidden sm:flex flex-col items-end shrink-0 pl-2">
-                    <div className="px-2.5 py-1 bg-zinc-950 border border-zinc-800 rounded-lg text-right font-mono text-[8.5px] text-zinc-400">
-                      <span className="text-zinc-500">STYLE:</span>
-                      <div className="text-amber-400 font-bold uppercase text-[9.5px]">{activeStyle.name}</div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* 2. INTERACTIVE PERFORMANCE EVALUATION (Expands & Becomes Scrollable) */}
-            <motion.div 
-              {...dropStampAnimation(0.12)}
-              className={`bg-zinc-900/90 border rounded-xl overflow-hidden shadow-xl flex flex-col transition-all duration-200 ${
-                isEvaluationExpanded 
-                  ? 'border-amber-500/50 ring-1 ring-amber-500/20 flex-1 min-h-0' 
-                  : 'border-zinc-800 shrink-0'
-              }`}
-            >
-              {/* Tappable Evaluation Header */}
-              <button
-                onClick={() => {
-                  soundManager.playRollTick?.();
-                  setIsEvaluationExpanded(prev => !prev);
-                }}
-                className={`w-full p-2.5 sm:p-3 bg-gradient-to-r from-zinc-900 via-zinc-850 to-zinc-900 hover:bg-zinc-800/80 flex items-center justify-between transition cursor-pointer text-left border-b ${
-                  isEvaluationExpanded ? 'border-zinc-700/80' : 'border-zinc-800/60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg border ${performanceGrade.border} ${performanceGrade.bg} ${performanceGrade.glow} flex items-center justify-center font-display font-black text-base italic ${performanceGrade.color} shadow-md shrink-0`}>
-                    {performanceGrade.grade}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] sm:text-[11px] font-mono font-bold uppercase tracking-wider text-white">
-                        PERFORMANCE EVALUATION
-                      </span>
-                      <span className="text-[8.5px] font-mono font-semibold text-amber-400">
-                        {isEvaluationExpanded ? '[TAP TO COLLAPSE]' : '[TAP TO EXPAND]'}
-                      </span>
-                    </div>
-                    <div className="text-[9px] font-mono text-zinc-400">
-                      Match Rating: <span className={`${performanceGrade.color} font-bold`}>{performanceGrade.text}</span> ({roundReports.length || 1} Rounds)
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-zinc-400">
-                  <span className="text-[8.5px] font-mono uppercase font-bold hidden sm:inline text-zinc-400">
-                    {isEvaluationExpanded ? 'Hide Telemetry' : 'View Telemetry'}
-                  </span>
-                  {isEvaluationExpanded ? (
-                    <ChevronUp className="w-4 h-4 text-amber-400 transition-transform" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-zinc-400 group-hover:text-white transition-transform" />
-                  )}
-                </div>
-              </button>
-
-              {/* Scrollable Telemetry Breakdown Content */}
-              <AnimatePresence>
-                {isEvaluationExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2, ease: 'easeInOut' }}
-                    className="flex-1 overflow-hidden flex flex-col min-h-0 bg-zinc-950/90"
-                  >
-                    {/* SCROLLABLE CONTAINER */}
-                    <div className="p-3 space-y-3 overflow-y-auto max-h-[52vh] sm:max-h-[58vh] md:max-h-[62vh] custom-scrollbar pr-2">
-                      
-                      {/* Round-by-Round Breakdown Cards */}
-                      {roundReports && roundReports.length > 0 ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between border-b border-zinc-800/80 pb-1">
-                            <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-widest font-bold flex items-center gap-1.5">
-                              <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
-                              Round Breakdown
-                            </span>
-                            <span className="text-[8.5px] font-mono text-zinc-500">
-                              Total Rounds: {roundReports.length}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {roundReports.map((rep) => {
-                              const isRoundWon = rep.winner === 'player';
-                              const roundTotalDmg = Math.max(1, rep.damageDealt + rep.damageTaken);
-                              const roundPlayerPct = Math.round((rep.damageDealt / roundTotalDmg) * 100);
-                              
-                              const gradeColors: Record<string, { badge: string; border: string }> = {
-                                'SSS': { badge: 'bg-rose-500/20 text-rose-300 border-rose-500/50', border: 'border-rose-500/30' },
-                                'SS': { badge: 'bg-purple-500/20 text-purple-300 border-purple-500/50', border: 'border-purple-500/30' },
-                                'S+': { badge: 'bg-amber-500/20 text-amber-300 border-amber-400/50', border: 'border-amber-500/30' },
-                                'S': { badge: 'bg-yellow-500/20 text-yellow-300 border-yellow-400/50', border: 'border-yellow-500/30' },
-                                'A+': { badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50', border: 'border-emerald-500/30' },
-                                'A': { badge: 'bg-teal-500/20 text-teal-300 border-teal-400/50', border: 'border-teal-500/30' },
-                                'B': { badge: 'bg-blue-500/20 text-blue-300 border-blue-400/50', border: 'border-blue-500/30' },
-                                'C': { badge: 'bg-zinc-800 text-zinc-400 border-zinc-700', border: 'border-zinc-800' }
-                              };
-                              const colorScheme = gradeColors[rep.grade] || gradeColors['B'];
-
-                              return (
-                                <div 
-                                  key={rep.roundNumber}
-                                  className={`p-2.5 bg-zinc-900/90 border ${colorScheme.border} rounded-lg space-y-1.5 shadow-sm`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-[10px] font-mono font-black text-white uppercase">
-                                        R{rep.roundNumber}
-                                      </span>
-                                      <span className={`text-[8px] font-mono px-1.5 py-0.2 rounded font-bold uppercase border ${
-                                        isRoundWon ? 'bg-emerald-950 text-emerald-300 border-emerald-700/50' : 'bg-rose-950 text-rose-300 border-rose-700/50'
-                                      }`}>
-                                        {isRoundWon ? 'WON' : 'LOST'}
-                                      </span>
-                                      {rep.isFlawless && (
-                                        <span className="text-[7.5px] font-mono px-1 rounded bg-amber-500/20 text-amber-300 font-bold uppercase border border-amber-500/40">
-                                          FLAWLESS
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-[8.5px] font-mono text-zinc-400">
-                                        {rep.durationSec}s
-                                      </span>
-                                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border ${colorScheme.badge}`}>
-                                        [{rep.grade}]
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {/* Damage Share bar */}
-                                  <div className="space-y-0.5">
-                                    <div className="flex justify-between text-[7.5px] font-mono font-bold text-zinc-400">
-                                      <span className="text-cyan-400">DEALT: {rep.damageDealt} HP</span>
-                                      <span className="text-rose-400">TAKEN: {rep.damageTaken} HP</span>
-                                    </div>
-                                    <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden flex border border-zinc-800">
-                                      <div className="h-full bg-cyan-400" style={{ width: `${roundPlayerPct}%` }} />
-                                      <div className="h-full bg-rose-500" style={{ width: `${100 - roundPlayerPct}%` }} />
-                                    </div>
-                                  </div>
-
-                                  {/* Metrics */}
-                                  <div className="grid grid-cols-4 gap-1 text-[7.5px] font-mono text-center">
-                                    <div className="bg-zinc-950 p-1 rounded border border-zinc-800/80">
-                                      <span className="text-zinc-500 block text-[7px]">DOM</span>
-                                      <span className="text-emerald-400 font-bold">{rep.dominancePct ?? 50}%</span>
-                                    </div>
-                                    <div className="bg-zinc-950 p-1 rounded border border-zinc-800/80">
-                                      <span className="text-zinc-500 block text-[7px]">PARRY</span>
-                                      <span className="text-purple-400 font-bold">{rep.parriesLanded}</span>
-                                    </div>
-                                    <div className="bg-zinc-950 p-1 rounded border border-zinc-800/80">
-                                      <span className="text-zinc-500 block text-[7px]">LIGHT</span>
-                                      <span className="text-cyan-400 font-bold">{rep.lightsLanded}</span>
-                                    </div>
-                                    <div className="bg-zinc-950 p-1 rounded border border-zinc-800/80">
-                                      <span className="text-zinc-500 block text-[7px]">HEAVY</span>
-                                      <span className="text-amber-400 font-bold">{rep.heaviesLanded}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-[9px] font-mono text-zinc-400 border-b border-zinc-800 pb-1">
-                            <span>Damage Dealt: <b className="text-cyan-400">{Math.round(damageDealt)} HP</b></span>
-                            <span>Damage Taken: <b className="text-rose-400">{Math.round(damageTaken)} HP</b></span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-2 text-center font-mono text-[9px]">
-                            <div className="bg-zinc-900 p-2 rounded-lg border border-zinc-800">
-                              <span className="text-zinc-500 block text-[8px]">LIGHT STRIKES</span>
-                              <span className="text-cyan-400 font-bold text-xs">{lightsLanded ?? hitsLanded}</span>
-                            </div>
-                            <div className="bg-zinc-900 p-2 rounded-lg border border-zinc-800">
-                              <span className="text-zinc-500 block text-[8px]">HEAVY STRIKES</span>
-                              <span className="text-amber-400 font-bold text-xs">{heaviesLanded ?? 0}</span>
-                            </div>
-                            <div className="bg-zinc-900 p-2 rounded-lg border border-zinc-800">
-                              <span className="text-zinc-500 block text-[8px]">PARRIES</span>
-                              <span className="text-purple-400 font-bold text-xs">{parriesLanded ?? 0}</span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Summary Aggregates */}
-                      <div className="p-2.5 bg-zinc-900/60 border border-zinc-800/80 rounded-lg flex items-center justify-between text-[8.5px] font-mono text-zinc-400">
-                        <div className="flex items-center gap-3">
-                          <span>Total Dealt: <b className="text-cyan-400">{Math.round(damageDealt)} HP</b></span>
-                          <span>Total Taken: <b className="text-rose-400">{Math.round(damageTaken)} HP</b></span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span>Parries: <b className="text-purple-400">{parriesLanded}</b></span>
-                          <span>Strikes: <b className="text-amber-400">{lightsLanded + heaviesLanded}</b></span>
-                        </div>
-                      </div>
-
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-
-            {/* 3. REWARDS ROW: SEQUENTIAL DROPPING CARDS (Hidden when evaluation is expanded) */}
-            <AnimatePresence>
-              {!isEvaluationExpanded && (
-                <motion.div 
-                  key="rewards-row"
-                  initial={{ height: 0, opacity: 0, scale: 0.95 }}
-                  animate={{ height: 'auto', opacity: 1, scale: 1 }}
-                  exit={{ height: 0, opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.2 }}
-                  className="grid grid-cols-1 sm:grid-cols-3 gap-2 overflow-hidden shrink-0"
-                >
-                  {/* Reward Card 1: Cash Reward */}
-                  <motion.div 
-                    {...(!isEvaluationExpanded ? dropStampAnimation(0.22) : {})}
-                    className="p-2.5 sm:p-3 bg-zinc-900/90 border border-emerald-500/30 rounded-xl flex items-center gap-2.5 shadow-sm"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
-                      <Coins className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[8px] font-mono text-zinc-400 uppercase tracking-wider block truncate">
-                        CASH REWARD
-                      </span>
-                      <span className="font-mono font-bold text-emerald-400 text-sm sm:text-base leading-tight block">
-                        +${rewards.cash.toLocaleString()}
-                      </span>
-                    </div>
-                  </motion.div>
-
-                  {/* Reward Card 2: Keys / Rolls */}
-                  <motion.div 
-                    {...(!isEvaluationExpanded ? dropStampAnimation(0.32) : {})}
-                    className="p-2.5 sm:p-3 bg-zinc-900/90 border border-cyan-500/30 rounded-xl flex items-center gap-2.5 shadow-sm"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-cyan-500/15 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shrink-0">
-                      <Dices className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[8px] font-mono text-zinc-400 uppercase tracking-wider block truncate">
-                        KEYS & ROLLS
-                      </span>
-                      <span className="font-mono font-bold text-cyan-400 text-sm sm:text-base leading-tight block truncate">
-                        {rewards.keyLabel || (rewards.rolls > 0 ? `+${rewards.rolls} ROLLS` : 'NONE')}
-                      </span>
-                    </div>
-                  </motion.div>
-
-                  {/* Reward Card 3: Rating / Streak */}
-                  <motion.div 
-                    {...(!isEvaluationExpanded ? dropStampAnimation(0.42) : {})}
-                    className="p-2.5 sm:p-3 bg-zinc-900/90 border border-amber-500/30 rounded-xl flex items-center gap-2.5 shadow-sm"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
-                      <Flame className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[8px] font-mono text-zinc-400 uppercase tracking-wider block truncate">
-                        {rewards.eloChange ? 'RATING DELTA' : 'WIN STREAK'}
-                      </span>
-                      <span className="font-mono font-bold text-amber-400 text-sm sm:text-base leading-tight block truncate">
-                        {rewards.eloChange || `${streak} KOs`}
-                      </span>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Quick Chat for Online Match */}
-            {isOnlineMatch && !isEvaluationExpanded && (
-              <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-xl flex items-center justify-between shrink-0">
-                <span className="text-[8.5px] font-mono uppercase text-zinc-400 font-bold">Quick Chat</span>
-                <div className="flex gap-1">
-                  {QUICK_CHAT_OPTIONS.slice(0, 4).map(phrase => (
-                    <button
-                      key={phrase}
-                      onClick={() => handleSendChat(phrase)}
-                      className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-[8.5px] font-mono text-zinc-300 rounded cursor-pointer transition"
-                    >
-                      {phrase}
-                    </button>
-                  ))}
-                </div>
+            {streak > 1 && isPlayerWinner && (
+              <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 bg-red-600 text-black font-display font-black italic text-[10px] -skew-x-12 shadow-[2px_2px_0px_#ffffff] border border-black">
+                <Flame className="w-3 h-3 fill-black" />
+                <span>{streak} KO STREAK</span>
               </div>
             )}
 
-          </div>
-
-          {/* ================================================================ */}
-          {/* RIGHT COLUMN / MOBILE BOTTOM: ACTION BUTTONS (STAMP 4: t = 480ms) */}
-          {/* ================================================================ */}
-          <motion.div
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.28, delay: 0.44, ease: 'easeOut' }}
-            className="w-full md:w-48 lg:w-52 shrink-0 flex flex-col justify-center gap-2 bg-zinc-900/90 p-3 rounded-xl border border-zinc-800 shadow-xl"
-          >
-            <span className="text-[8.5px] font-mono text-zinc-400 uppercase tracking-wider text-center block font-bold">
-              ACTIONS
-            </span>
-
-            {/* 1. [ NEXT AI ]: Primary High-Contrast Red Action */}
-            {onNextAiOpponent && (
+            {animPhase < 7 && (
               <button
-                onClick={() => {
-                  soundManager.playLevelUp?.();
-                  onNextAiOpponent();
-                }}
-                className="w-full py-2.5 sm:py-3 px-3 bg-red-600 hover:bg-red-500 text-white font-mono font-bold uppercase text-xs tracking-wider rounded-lg shadow-md shadow-red-600/30 active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer border border-red-400/50"
+                onClick={handleFastForward}
+                className="px-2.5 py-0.5 bg-zinc-900 hover:bg-white text-zinc-300 hover:text-black border-2 border-zinc-700 -skew-x-12 text-[10px] font-mono font-black flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-[2px_2px_0px_#000000]"
               >
-                <Swords className="w-4 h-4" />
-                <span>NEXT AI</span>
+                <FastForward className="w-3 h-3 text-amber-400" />
+                <span>SKIP</span>
               </button>
             )}
+          </div>
+        </div>
 
-            {/* 2. [ REMATCH ]: Secondary Blue Action (Online Matches Only - AI opponents cannot be rematched directly) */}
-            {isOnlineMatch && (
-              <button
-                onClick={() => {
-                  soundManager.playRollTick?.();
-                  onVoteRematch();
-                }}
-                disabled={rematchRequested || opponentDisconnected}
-                className={`w-full py-2.5 sm:py-3 px-3 rounded-lg font-mono font-bold uppercase text-xs tracking-wider transition flex items-center justify-center gap-2 shadow-md active:scale-95 cursor-pointer border ${
-                  rematchRequested
-                    ? 'bg-emerald-600 text-white border-emerald-400 cursor-default animate-pulse'
-                    : opponentDisconnected
-                      ? 'bg-zinc-850 text-zinc-500 border-zinc-800 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400/50 shadow-blue-600/20'
+        {/* ------------------------------------------------------------- */}
+        {/* 2. MAIN SPLIT BODY: RANKING ON LEFT // MEDALS ON RIGHT        */}
+        {/* ------------------------------------------------------------- */}
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-2 sm:gap-3 py-2 overflow-hidden min-h-0">
+
+          {/* =========================================================== */}
+          {/* LEFT PANEL (COL 1-5): COMBAT RATING & 3-PILLAR TELEMETRY    */}
+          {/* =========================================================== */}
+          <div className="md:col-span-5 flex flex-col gap-1.5 sm:gap-2 overflow-y-auto custom-scrollbar pr-1 min-h-0">
+            
+            {/* OVERALL COMBAT RATING EMBLEM (PERSONA RANK STAMP) */}
+            <div className="p-2 sm:p-2.5 bg-zinc-950 border-2 border-white -skew-x-3 shadow-[4px_4px_0px_#ef4444] relative flex items-center justify-between shrink-0 overflow-hidden">
+              <div className="space-y-0.5 z-10">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-red-500 rounded-none -skew-x-12" />
+                  <span className="text-[8.5px] font-mono font-black tracking-widest text-zinc-400 uppercase">
+                    OVERALL COMBAT GRADE
+                  </span>
+                </div>
+                <div className="font-display font-black italic text-xs sm:text-sm text-white uppercase leading-tight truncate">
+                  {evaluation.title}
+                </div>
+                <div className="text-[8px] font-mono text-amber-300 font-bold">
+                  [{evaluation.pillarA.grade}] ACC &bull; [{evaluation.pillarB.grade}] DEF &bull; [{evaluation.pillarC.grade}] TIME
+                </div>
+              </div>
+
+              {/* Kinetic Persona Explosive Rank Stamp */}
+              {animPhase >= 4 ? (
+                <motion.div
+                  initial={{ scale: 0.25, opacity: 0, rotate: -12 }}
+                  animate={{ scale: [0.25, 1.2, 1.0], opacity: 1, rotate: [-12, 4, 0] }}
+                  transition={{ duration: 0.35, ease: 'easeOut' }}
+                  className={`px-3 py-1 -skew-x-12 font-display font-black italic text-2xl sm:text-3xl tracking-tighter shrink-0 ${gradeStyles.bg} ${gradeStyles.border} ${gradeStyles.shadow}`}
+                >
+                  <span>{evaluation.overallGrade}</span>
+                </motion.div>
+              ) : (
+                <div className="h-8 px-2 flex items-center justify-center shrink-0">
+                  <span className="text-[8.5px] font-mono text-zinc-500 animate-pulse">
+                    CALCULATING...
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* 3-PILLAR TELEMETRY ROWS */}
+            <div className="flex flex-col gap-1 sm:gap-1.5 shrink-0">
+              
+              {/* PILLAR A: STRIKE ACCURACY */}
+              <motion.div
+                initial={{ opacity: 0, x: -15 }}
+                animate={{ opacity: animPhase >= 1 ? 1 : 0.25, x: animPhase >= 1 ? 0 : -15 }}
+                transition={{ duration: 0.15 }}
+                className={`p-1.5 sm:p-2 -skew-x-3 border-2 transition-all duration-200 flex items-center justify-between shadow-[2px_2px_0px_#000000] ${
+                  animPhase >= 1 ? 'bg-zinc-950 border-zinc-700' : 'bg-black/60 border-zinc-900 opacity-30'
                 }`}
               >
-                <RotateCcw className="w-4 h-4" />
-                <span>{rematchRequested ? 'REMATCHING...' : 'REMATCH'}</span>
-              </button>
-            )}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[8px] font-mono font-black text-amber-400 px-1 py-0.2 bg-zinc-900 -skew-x-6">
+                    //01 ACC
+                  </span>
+                  <div>
+                    <span className="font-display font-black italic text-xs text-white uppercase leading-none block">
+                      ACCURACY
+                    </span>
+                    <span className="text-[7.5px] font-mono text-zinc-400 leading-none">
+                      {evaluation.pillarA.strikesLanded}/{evaluation.pillarA.strikesThrown} Strikes
+                    </span>
+                  </div>
+                </div>
 
-            {/* 4. [ EXIT TO HUB ]: Return (Grey Action) */}
-            <button
-              onClick={() => {
-                soundManager.playRollTick?.();
-                onLeaveMatch();
-              }}
-              className="w-full py-2 sm:py-2.5 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg font-mono font-bold uppercase text-xs tracking-wider transition flex items-center justify-center gap-2 cursor-pointer active:scale-95 border border-zinc-700"
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-black text-sm sm:text-base text-white tracking-tight">
+                    {displayedAccuracy}%
+                  </span>
+                  {animPhase >= 1 && (
+                    <motion.div
+                      initial={{ scale: 1.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: 'spring', damping: 16, stiffness: 350 }}
+                      className={`w-5 h-5 -skew-x-12 flex items-center justify-center font-display font-black italic text-[11px] ${getPillarBadgeStyle(evaluation.pillarA.grade)}`}
+                    >
+                      <span>{evaluation.pillarA.grade}</span>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* PILLAR B: DEFENSE & HP RETAINED (ROUNDED HP TO FIX FLOAT BUG) */}
+              <motion.div
+                initial={{ opacity: 0, x: -15 }}
+                animate={{ opacity: animPhase >= 2 ? 1 : 0.25, x: animPhase >= 2 ? 0 : -15 }}
+                transition={{ duration: 0.15 }}
+                className={`p-1.5 sm:p-2 -skew-x-3 border-2 transition-all duration-200 flex items-center justify-between shadow-[2px_2px_0px_#000000] ${
+                  animPhase >= 2 ? 'bg-zinc-950 border-zinc-700' : 'bg-black/60 border-zinc-900 opacity-30'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[8px] font-mono font-black text-emerald-400 px-1 py-0.2 bg-zinc-900 -skew-x-6">
+                    //02 DEF
+                  </span>
+                  <div>
+                    <span className="font-display font-black italic text-xs text-white uppercase leading-none block">
+                      HEALTH RETAINED
+                    </span>
+                    <span className="text-[7.5px] font-mono text-zinc-400 leading-none">
+                      {roundedPlayerHp} HP &bull; {evaluation.pillarB.gradeLabel}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-black text-sm sm:text-base text-white tracking-tight">
+                    {displayedHpRetained}%
+                  </span>
+                  {animPhase >= 2 && (
+                    <motion.div
+                      initial={{ scale: 1.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: 'spring', damping: 16, stiffness: 350 }}
+                      className={`w-5 h-5 -skew-x-12 flex items-center justify-center font-display font-black italic text-[11px] ${getPillarBadgeStyle(evaluation.pillarB.grade)}`}
+                    >
+                      <span>{evaluation.pillarB.grade}</span>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* PILLAR C: MATCH PACING */}
+              <motion.div
+                initial={{ opacity: 0, x: -15 }}
+                animate={{ opacity: animPhase >= 3 ? 1 : 0.25, x: animPhase >= 3 ? 0 : -15 }}
+                transition={{ duration: 0.15 }}
+                className={`p-1.5 sm:p-2 -skew-x-3 border-2 transition-all duration-200 flex items-center justify-between shadow-[2px_2px_0px_#000000] ${
+                  animPhase >= 3 ? 'bg-zinc-950 border-zinc-700' : 'bg-black/60 border-zinc-900 opacity-30'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[8px] font-mono font-black text-cyan-400 px-1 py-0.2 bg-zinc-900 -skew-x-6">
+                    //03 TIME
+                  </span>
+                  <div>
+                    <span className="font-display font-black italic text-xs text-white uppercase leading-none block">
+                      MATCH PACING
+                    </span>
+                    <span className="text-[7.5px] font-mono text-zinc-400 leading-none">
+                      {evaluation.pillarC.gradeLabel} ({evaluation.pillarC.durationSec}s)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-black text-sm sm:text-base text-white tracking-tight">
+                    {evaluation.pillarC.durationFormatted}
+                  </span>
+                  {animPhase >= 3 && (
+                    <motion.div
+                      initial={{ scale: 1.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: 'spring', damping: 16, stiffness: 350 }}
+                      className={`w-5 h-5 -skew-x-12 flex items-center justify-center font-display font-black italic text-[11px] ${getPillarBadgeStyle(evaluation.pillarC.grade)}`}
+                    >
+                      <span>{evaluation.pillarC.grade}</span>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+
+            {/* CLASH CASH PURSE PAYOUT REWARD STRIP */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: animPhase >= 6 ? 1 : 0.25, y: animPhase >= 6 ? 0 : 8 }}
+              transition={{ duration: 0.15 }}
+              className={`p-1.5 sm:p-2 -skew-x-3 border-2 flex items-center justify-between transition-all duration-200 shadow-[3px_3px_0px_#10b981] shrink-0 ${
+                animPhase >= 6 ? 'bg-black border-emerald-400' : 'bg-black/60 border-zinc-900 opacity-30'
+              }`}
             >
-              <LogOut className="w-4 h-4 text-zinc-400" />
-              <span>EXIT TO HUB</span>
-            </button>
-          </motion.div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 bg-emerald-400 text-black flex items-center justify-center -skew-x-12 shrink-0">
+                  <Coins className="w-3 h-3" />
+                </div>
+                <div>
+                  <span className="text-[8px] font-mono font-black text-emerald-400 block uppercase leading-none">
+                    // PURSE AUTHORIZED
+                  </span>
+                  <span className="text-[7px] font-mono text-zinc-400 leading-none">
+                    Base: ${evaluation.cashPayout} &bull; Medals: +${medalsBonusCash}
+                  </span>
+                </div>
+              </div>
+
+              <div className="font-display font-black italic text-base sm:text-lg text-emerald-300 tracking-tight">
+                +${displayedCash.toLocaleString()}
+              </div>
+            </motion.div>
+
+          </div>
+
+          {/* =========================================================== */}
+          {/* RIGHT PANEL (COL 6-12): MEDAL ACCREDITATION SHOWCASE TRAY   */}
+          {/* =========================================================== */}
+          <div className="md:col-span-7 flex flex-col justify-between bg-zinc-950/90 border-2 border-zinc-800 -skew-x-2 shadow-[3px_3px_0px_#000000] p-2 sm:p-2.5 overflow-hidden">
+            
+            {/* Medals Tray Header */}
+            <div className="flex items-center justify-between pb-1.5 mb-1 border-b border-zinc-800 shrink-0">
+              <span className="text-[9px] font-mono font-black uppercase text-amber-400 flex items-center gap-1">
+                <Award className="w-3.5 h-3.5" /> // MEDAL ACCREDITATIONS
+              </span>
+              <span className="text-[8.5px] font-mono text-emerald-400 font-bold">
+                {earnedMedals.length > 0 ? `+${earnedMedals.reduce((sum, m) => sum + m.count, 0)} Stacks (+$${medalsBonusCash})` : '0 Feats'}
+              </span>
+            </div>
+
+            {/* Medals Grid / Staggered Drop Chips */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 min-h-[90px]">
+              {animPhase >= 5 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {earnedMedals.length > 0 ? (
+                    earnedMedals.map((earned, index) => (
+                      <motion.button
+                        key={earned.medal.id}
+                        initial={{ y: -15, opacity: 0, scale: 0.8 }}
+                        animate={{ y: 0, opacity: 1, scale: 1 }}
+                        transition={{ 
+                          type: 'spring', 
+                          damping: 14, 
+                          stiffness: 300, 
+                          delay: index * 0.04 
+                        }}
+                        onClick={() => {
+                          soundManager.playRollTick?.();
+                          setInspectedMedal(earned);
+                        }}
+                        className={`p-1 -skew-x-12 flex items-center justify-between gap-1 text-[9px] font-mono font-black transition-all hover:scale-105 active:scale-95 cursor-pointer truncate ${getMedalTierPillStyle(earned.medal.tier)}`}
+                      >
+                        <div className="flex items-center gap-1 truncate">
+                          <span className="text-xs select-none shrink-0">{earned.medal.icon}</span>
+                          <span className="truncate">{earned.medal.name}</span>
+                        </div>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <span className="px-1 py-0.2 bg-black text-white text-[7.5px]">
+                            x{earned.count}
+                          </span>
+                          <span className="text-[7.5px] opacity-90 font-bold">
+                            +${earned.totalCash}
+                          </span>
+                        </div>
+                      </motion.button>
+                    ))
+                  ) : (
+                    <div className="col-span-full py-4 text-center">
+                      <span className="text-[8.5px] font-mono text-zinc-500 italic">
+                        Zero medal triggers achieved during this bout.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center">
+                  <span className="text-[8.5px] font-mono text-zinc-600 animate-pulse">
+                    CALCULATING MEDAL FEATS...
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-1 border-t border-zinc-900 text-[7.5px] font-mono text-zinc-500 flex items-center justify-between shrink-0">
+              <span>Tap any medal to inspect feat criteria</span>
+              <span className="text-amber-400 font-bold">INDEPENDENT STACKING ACTIVE</span>
+            </div>
+
+          </div>
 
         </div>
+
+        {/* ------------------------------------------------------------- */}
+        {/* 3. FOOTER: SLANTED PERSONA NAVIGATION ACTION BUTTONS          */}
+        {/* ------------------------------------------------------------- */}
+        <div className="pt-2 border-t-2 border-zinc-900 shrink-0">
+          <AnimatePresence>
+            {animPhase >= 7 ? (
+              <motion.div
+                initial={{ y: 15, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 15, opacity: 0 }}
+                transition={{ type: 'spring', damping: 20, stiffness: 280 }}
+                className="flex items-center gap-2"
+              >
+                {/* 1. PRIMARY ACTION: [ NEXT FIGHT ] or [ REMATCH ] */}
+                {onNextAiOpponent ? (
+                  <button
+                    onClick={() => {
+                      soundManager.playLevelUp?.();
+                      onNextAiOpponent();
+                    }}
+                    className="flex-1 py-2 sm:py-2.5 px-3 bg-red-600 hover:bg-white text-black font-display font-black italic uppercase text-xs sm:text-sm tracking-wider transition-all duration-150 flex items-center justify-center gap-1.5 -skew-x-12 shadow-[3px_3px_0px_#ffffff] hover:shadow-[3px_3px_0px_#ef4444] border-2 border-black active:scale-95 cursor-pointer"
+                  >
+                    <Swords className="w-4 h-4 text-black" />
+                    <span>NEXT FIGHT</span>
+                  </button>
+                ) : isOnlineMatch ? (
+                  <button
+                    onClick={() => {
+                      soundManager.playRollTick?.();
+                      onVoteRematch();
+                    }}
+                    disabled={rematchRequested || opponentDisconnected}
+                    className={`flex-1 py-2 sm:py-2.5 px-3 font-display font-black italic uppercase text-xs sm:text-sm tracking-wider transition-all duration-150 flex items-center justify-center gap-1.5 -skew-x-12 border-2 border-black active:scale-95 cursor-pointer ${
+                      rematchRequested
+                        ? 'bg-emerald-400 text-black shadow-[3px_3px_0px_#ffffff] animate-pulse'
+                        : opponentDisconnected
+                          ? 'bg-zinc-800 text-zinc-500 border-zinc-700 cursor-not-allowed'
+                          : 'bg-cyan-400 hover:bg-white text-black shadow-[3px_3px_0px_#ffffff]'
+                    }`}
+                  >
+                    <RotateCcw className="w-4 h-4 text-black" />
+                    <span>{rematchRequested ? 'WAITING...' : 'REMATCH'}</span>
+                  </button>
+                ) : null}
+
+                {/* 2. SECONDARY ACTION: [ MENU ] */}
+                <button
+                  onClick={() => {
+                    soundManager.playRollTick?.();
+                    onLeaveMatch();
+                  }}
+                  className="py-2 sm:py-2.5 px-4 bg-black hover:bg-zinc-900 text-zinc-300 hover:text-white font-mono font-bold uppercase text-xs -skew-x-12 shadow-[2px_2px_0px_#000000] border-2 border-zinc-700 active:scale-95 cursor-pointer flex items-center justify-center gap-1 transition-all"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>MENU</span>
+                </button>
+              </motion.div>
+            ) : (
+              <div className="py-2 text-center">
+                <span className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-widest animate-pulse">
+                  // AUTHORIZING BOUT TELEMETRY...
+                </span>
+              </div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ============================================================= */}
+        {/* MODAL INSPECTOR: TAPPED MEDAL DETAILS DIALOG                  */}
+        {/* ============================================================= */}
+        <AnimatePresence>
+          {inspectedMedal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3"
+              onClick={() => setInspectedMedal(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 15 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-xs bg-black border-2 border-amber-400 -skew-x-3 p-4 shadow-[6px_6px_0px_#f59e0b] relative text-left"
+              >
+                <button
+                  onClick={() => setInspectedMedal(null)}
+                  className="absolute top-2 right-2 p-1 bg-zinc-900 hover:bg-white text-zinc-400 hover:text-black cursor-pointer border border-zinc-700 transition"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="flex items-center gap-2.5 pb-2 border-b border-zinc-800">
+                  <div className="text-3xl p-1.5 bg-zinc-950 border border-amber-400">
+                    {inspectedMedal.medal.icon}
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-mono uppercase tracking-widest text-amber-400 font-bold block">
+                      {inspectedMedal.medal.tier} TIER FEAT
+                    </span>
+                    <h3 className="text-sm font-display font-black italic uppercase text-white">
+                      {inspectedMedal.medal.name}
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="mt-2.5 space-y-2 text-[10px] font-mono">
+                  <p className="text-zinc-300">
+                    {inspectedMedal.medal.description}
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-1.5 pt-1 text-[9px]">
+                    <div className="p-1.5 bg-zinc-950 border border-zinc-800">
+                      <span className="text-zinc-500 block font-bold">STACKS:</span>
+                      <span className="font-black text-xs text-white">x{inspectedMedal.count}</span>
+                    </div>
+                    <div className="p-1.5 bg-zinc-950 border border-emerald-900">
+                      <span className="text-emerald-500 block font-bold">YIELD:</span>
+                      <span className="font-black text-xs text-emerald-400">+${inspectedMedal.totalCash}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-1.5 bg-zinc-950 border border-zinc-800 text-[8.5px] text-zinc-400">
+                    <span className="text-amber-300 font-bold">TRACKS:</span> {inspectedMedal.medal.statTracked}
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2 border-t border-zinc-800">
+                  <button
+                    onClick={() => setInspectedMedal(null)}
+                    className="w-full py-1.5 bg-amber-400 hover:bg-white text-black font-display font-black italic uppercase text-[10px] tracking-wider transition cursor-pointer border border-black shadow-[2px_2px_0px_#ffffff]"
+                  >
+                    DISMISS
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </motion.div>
     </motion.div>

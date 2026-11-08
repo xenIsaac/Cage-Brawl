@@ -4,7 +4,8 @@ import {
   User, Shield, ShieldCheck, Mail, Clock, Dices, Ruler, Trophy, 
   Swords, Flame, Award, CheckCircle2, Edit2, ArrowLeft, Sparkles, 
   ExternalLink, RefreshCw, Users, LogOut, Copy, Globe, Palette, 
-  Crown, Lock, Trash2, AlertTriangle, Check, CheckCheck, Eye, DollarSign
+  Crown, Lock, Trash2, AlertTriangle, Check, CheckCheck, Eye, DollarSign,
+  Info, X, ChevronRight, Zap, Target, Coins
 } from 'lucide-react';
 import { PlayerStats, UserSession } from '../types';
 import { soundManager } from './SoundManager';
@@ -19,6 +20,12 @@ import {
   TitleItem 
 } from '../data/titlesData';
 import { FighterProfileTab } from './navigation/FighterProfileNavRail';
+import { 
+  MASTER_MEDALS_CATALOG, 
+  MEDAL_MAP, 
+  MedalDefinition, 
+  MedalTier 
+} from '../combat/medalsEngine';
 
 interface AccountCenterModalProps {
   stats: PlayerStats;
@@ -55,6 +62,68 @@ export default function AccountCenterModal({
   const [gmailInput, setGmailInput] = useState(currentUser?.linkedEmail || currentUser?.email || '');
   const [toastMessage, setToastMessage] = useState('');
   const [titleFilter, setTitleFilter] = useState<'all' | 'career' | 'ranked_pvp' | 'ranked_ai' | 'tournaments'>('all');
+  const [medalCabinetFilter, setMedalCabinetFilter] = useState<'all' | 'gold' | 'silver' | 'copper' | 'base'>('all');
+  const [inspectedCabinetMedal, setInspectedCabinetMedal] = useState<MedalDefinition | null>(null);
+
+  // Section 8.9 Lifetime Medal Totals
+  const lifetimeMedals = useMemo(() => stats.medals || {}, [stats.medals]);
+  const totalMedalsCount = useMemo(() => {
+    return Object.values(lifetimeMedals).reduce<number>((sum, count) => sum + (Number(count) || 0), 0);
+  }, [lifetimeMedals]);
+  const totalMedalsCash = useMemo(() => {
+    return Object.entries(lifetimeMedals).reduce<number>((sum, [id, count]) => {
+      const def = MEDAL_MAP[id];
+      const validCount = Number(count) || 0;
+      return sum + (def ? def.cashPerMedal * validCount : 0);
+    }, 0);
+  }, [lifetimeMedals]);
+
+  const filteredCabinetMedals = useMemo(() => {
+    if (medalCabinetFilter === 'all') return MASTER_MEDALS_CATALOG;
+    return MASTER_MEDALS_CATALOG.filter(m => m.tier === medalCabinetFilter);
+  }, [medalCabinetFilter]);
+
+  const getMedalStatTranslation = (medal: MedalDefinition, count: number): string => {
+    if (count === 0) return `Feat Condition: ${medal.description}`;
+    switch (medal.id) {
+      case 'fighters_mark':
+        return `${count.toLocaleString()} Verified Knockouts & Match Victories`;
+      case 'century_strike':
+        return `${(count * 100).toLocaleString()} Cumulative HP Damage Inflicted`;
+      case 'deflection':
+        return `${count.toLocaleString()} Clean Parries Landed (0.12s Frame Window)`;
+      case 'heavy_strike':
+        return `${count.toLocaleString()} Clean M2 Heavy Attacks Landed`;
+      case 'counter_timing':
+        return `${(count * 3).toLocaleString()} Parries in 3-Parry single-match clusters`;
+      case 'guard_breaker':
+        return `${count.toLocaleString()} Opponent Armor Guards (AP) Completely Shattered`;
+      case 'paced_striker':
+        return `${count.toLocaleString()} Combat Rounds finished with >=50% Strike Accuracy`;
+      case 'resilient':
+        return `${count.toLocaleString()} Grit Rounds won with <30% HP Remaining`;
+      case 'iron_guard':
+        return `${(count * 6).toLocaleString()} Parries in 6-Parry single-match masteries`;
+      case 'blunt_force':
+        return `${(count * 3).toLocaleString()} Heavy Strikes in 3-Heavy single round sets`;
+      case 'sharp_cadence':
+        return `${count.toLocaleString()} Tactical Rounds finished with >=70% Accuracy`;
+      case 'unbroken':
+        return `${count.toLocaleString()} Dominant Rounds won with >=90% HP Preserved`;
+      case 'master_deflection':
+        return `${(count * 10).toLocaleString()} Parries across Deca-Parry masterclasses`;
+      case 'heavy_devastation':
+        return `${count.toLocaleString()} Matches with 5+ Clean Heavy Strikes Landed`;
+      case 'surgical_execution':
+        return `${count.toLocaleString()} Masterclass Rounds finished with >=85% Accuracy`;
+      case 'untouchable':
+        return `${count.toLocaleString()} Flawless Rounds (100% HP, zero damage taken)`;
+      case 'clutch_recovery':
+        return `${count.toLocaleString()} Legendary Comeback Rounds won from <15% HP`;
+      default:
+        return `${count.toLocaleString()} Stacks Verified (${medal.statTracked})`;
+    }
+  };
 
   const rankInfo = getRankInfo(stats.elo || 0);
   const isGmailLinked = currentUser?.gmailLinked || currentUser?.email?.includes('@gmail.com');
@@ -475,6 +544,242 @@ export default function AccountCenterModal({
                   </div>
                 </div>
               </div>
+
+              {/* ============================================================== */}
+              {/* SECTION 8.9: PERSONA MEDAL CABINET // LIFETIME COMBAT FEATS     */}
+              {/* ============================================================== */}
+              <div className="p-5 sm:p-6 bg-black border-2 border-amber-500/80 -skew-x-1 shadow-[5px_5px_0px_#f59e0b] space-y-4">
+                {/* Header & Overview Telemetry */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b-2 border-zinc-800 gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded bg-amber-500/20 border border-amber-400 text-amber-300">
+                      <Award className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-display font-black italic uppercase text-base sm:text-lg text-white tracking-wide">
+                        // PERSONA MEDAL CABINET
+                      </h3>
+                      <p className="text-[10px] font-mono text-zinc-400">
+                        17 Independent Stackable Feats &bull; Infinite Duplication &bull; Lifetime Verified Telemetry
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Summary Overview Badges */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="px-2.5 py-1 bg-zinc-950 border border-zinc-700 -skew-x-6 text-[10px] font-mono">
+                      <span className="text-zinc-500 block uppercase font-bold text-[8px]">TOTAL STACKS</span>
+                      <span className="font-black text-amber-300">{totalMedalsCount.toLocaleString()} Medals</span>
+                    </div>
+                    <div className="px-2.5 py-1 bg-zinc-950 border border-emerald-700/80 -skew-x-6 text-[10px] font-mono">
+                      <span className="text-emerald-500 block uppercase font-bold text-[8px]">PURSE YIELD</span>
+                      <span className="font-black text-emerald-300">+${totalMedalsCash.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter Selector Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {(['all', 'gold', 'silver', 'copper', 'base'] as const).map(tierKey => {
+                    const label = tierKey === 'all' ? `ALL (17)` : `${tierKey.toUpperCase()} (${MASTER_MEDALS_CATALOG.filter(m => m.tier === tierKey).length})`;
+                    const isActive = medalCabinetFilter === tierKey;
+                    return (
+                      <button
+                        key={tierKey}
+                        onClick={() => {
+                          soundManager.playRollTick?.();
+                          setMedalCabinetFilter(tierKey);
+                        }}
+                        className={`px-3 py-1 -skew-x-12 text-xs font-mono font-bold uppercase transition cursor-pointer shrink-0 border ${
+                          isActive
+                            ? 'bg-amber-400 text-black border-amber-300 shadow-[2px_2px_0px_#ffffff]'
+                            : 'bg-zinc-900 text-zinc-400 hover:text-white border-zinc-700 hover:border-zinc-500'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 17 Master Medals Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 pt-1">
+                  {filteredCabinetMedals.map(medal => {
+                    const count = lifetimeMedals[medal.id] || 0;
+                    const isUnlocked = count > 0;
+                    
+                    let tierBorder = 'border-zinc-800';
+                    let tierBg = 'bg-zinc-950/70';
+                    let tierText = 'text-zinc-400';
+                    let badgeGlow = '';
+
+                    if (isUnlocked) {
+                      if (medal.tier === 'gold') {
+                        tierBorder = 'border-amber-400/80';
+                        tierBg = 'bg-gradient-to-br from-amber-950/50 via-zinc-950 to-yellow-950/30';
+                        tierText = 'text-amber-300';
+                        badgeGlow = 'shadow-[0_0_12px_rgba(245,158,11,0.25)]';
+                      } else if (medal.tier === 'silver') {
+                        tierBorder = 'border-slate-300/80';
+                        tierBg = 'bg-gradient-to-br from-slate-900/50 via-zinc-950 to-zinc-900/40';
+                        tierText = 'text-slate-200';
+                        badgeGlow = 'shadow-[0_0_10px_rgba(203,213,225,0.2)]';
+                      } else if (medal.tier === 'copper') {
+                        tierBorder = 'border-amber-700/80';
+                        tierBg = 'bg-gradient-to-br from-amber-950/40 via-zinc-950 to-stone-900/40';
+                        tierText = 'text-amber-400';
+                        badgeGlow = 'shadow-[0_0_8px_rgba(180,83,9,0.2)]';
+                      } else {
+                        tierBorder = 'border-zinc-600/80';
+                        tierBg = 'bg-zinc-900/80';
+                        tierText = 'text-zinc-200';
+                      }
+                    }
+
+                    return (
+                      <div
+                        key={medal.id}
+                        onClick={() => {
+                          soundManager.playRollTick?.();
+                          setInspectedCabinetMedal(medal);
+                        }}
+                        className={`p-3 rounded -skew-x-2 border transition-all duration-200 flex flex-col justify-between relative cursor-pointer group hover:scale-[1.02] ${tierBorder} ${tierBg} ${badgeGlow} ${
+                          !isUnlocked ? 'opacity-40 hover:opacity-75' : ''
+                        }`}
+                      >
+                        {/* Top: Icon & Tier Tag */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl select-none group-hover:scale-110 transition-transform">
+                            {medal.icon}
+                          </span>
+                          <span className={`text-[8px] font-mono uppercase font-black px-1.5 py-0.5 rounded border border-current/40 ${tierText}`}>
+                            {medal.tier}
+                          </span>
+                        </div>
+
+                        {/* Middle: Title & Stacks */}
+                        <div className="my-2">
+                          <h4 className="font-display font-black italic uppercase text-xs text-white leading-tight">
+                            {medal.name}
+                          </h4>
+                          <span className="text-[8.5px] font-mono text-zinc-400 line-clamp-1 block mt-0.5">
+                            {medal.description}
+                          </span>
+                        </div>
+
+                        {/* Bottom: Stack Badge & Cash */}
+                        <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs font-mono">
+                          <span className={`font-black ${isUnlocked ? 'text-white' : 'text-zinc-600'}`}>
+                            {isUnlocked ? `x${count.toLocaleString()}` : '0x'}
+                          </span>
+                          <span className="text-[9px] font-bold text-emerald-400">
+                            {isUnlocked ? `+$${(count * medal.cashPerMedal).toLocaleString()}` : `+$${medal.cashPerMedal}/ea`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Cabinet Medal Inspector Modal */}
+              <AnimatePresence>
+                {inspectedCabinetMedal && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[160] bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+                    onClick={() => setInspectedCabinetMedal(null)}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, y: 20 }}
+                      animate={{ scale: 1, y: 0 }}
+                      exit={{ scale: 0.9, y: 20 }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-full max-w-md bg-zinc-950 border-2 border-amber-400 -skew-x-2 p-5 shadow-[8px_8px_0px_#f59e0b] relative text-left"
+                    >
+                      <button
+                        onClick={() => setInspectedCabinetMedal(null)}
+                        className="absolute top-3 right-3 p-1 rounded-full bg-zinc-900 hover:bg-white text-zinc-400 hover:text-black cursor-pointer transition"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+
+                      {/* Header */}
+                      <div className="flex items-center gap-3 pb-3 border-b-2 border-zinc-800">
+                        <div className="text-4xl p-2.5 rounded bg-black border border-amber-400/80">
+                          {inspectedCabinetMedal.icon}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                              {inspectedCabinetMedal.tier} TIER MEDAL
+                            </span>
+                          </div>
+                          <h3 className="text-xl font-display font-black italic uppercase text-white mt-1">
+                            {inspectedCabinetMedal.name}
+                          </h3>
+                        </div>
+                      </div>
+
+                      {/* Body Description & Verified Telemetry */}
+                      <div className="mt-4 space-y-3 font-mono text-xs">
+                        <div className="p-3 bg-zinc-900/90 border border-zinc-700/80 rounded">
+                          <span className="text-[9px] text-zinc-400 font-bold block uppercase mb-1">
+                            // TRIGGER CRITERIA
+                          </span>
+                          <p className="text-zinc-200">
+                            {inspectedCabinetMedal.description}
+                          </p>
+                        </div>
+
+                        {/* Verified Combat Telemetry Translation */}
+                        <div className="p-3 bg-amber-950/30 border border-amber-400/60 rounded">
+                          <span className="text-[9px] text-amber-400 font-bold block uppercase mb-1">
+                            // VERIFIED COMBAT TRANSLATION
+                          </span>
+                          <p className="text-amber-200 font-black text-sm">
+                            {getMedalStatTranslation(inspectedCabinetMedal, lifetimeMedals[inspectedCabinetMedal.id] || 0)}
+                          </p>
+                        </div>
+
+                        {/* Account Totals Grid */}
+                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                          <div className="p-2.5 bg-zinc-900 border border-zinc-800 rounded">
+                            <span className="text-zinc-500 block uppercase font-bold text-[8.5px]">LIFETIME STACKS</span>
+                            <span className="font-display font-black text-lg text-white">
+                              {(lifetimeMedals[inspectedCabinetMedal.id] || 0).toLocaleString()}x
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 bg-zinc-900 border border-emerald-800/80 rounded">
+                            <span className="text-emerald-500 block uppercase font-bold text-[8.5px]">TOTAL CASH GENERATED</span>
+                            <span className="font-display font-black text-lg text-emerald-400">
+                              +${((lifetimeMedals[inspectedCabinetMedal.id] || 0) * inspectedCabinetMedal.cashPerMedal).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-[9px] text-zinc-500 flex items-center justify-between pt-1">
+                          <span>Stat Metric: {inspectedCabinetMedal.statTracked}</span>
+                          <span className="text-amber-400 font-bold">+${inspectedCabinetMedal.cashPerMedal} / trigger</span>
+                        </div>
+                      </div>
+
+                      {/* Footer Dismiss Button */}
+                      <div className="mt-4 pt-3 border-t border-zinc-800">
+                        <button
+                          onClick={() => setInspectedCabinetMedal(null)}
+                          className="w-full py-2 bg-amber-400 hover:bg-white text-black font-display font-black italic uppercase text-xs tracking-wider transition cursor-pointer shadow-[3px_3px_0px_#000000] border-2 border-black"
+                        >
+                          CLOSE INSPECTOR
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 

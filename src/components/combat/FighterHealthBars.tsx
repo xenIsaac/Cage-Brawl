@@ -185,47 +185,78 @@ export const FighterHealthBars: React.FC<FighterHealthBarsProps> = ({
 
   const baseHudScale = settings.hudScale !== undefined ? settings.hudScale : 0.85;
   const uiScaleMultiplier = baseHudScale / 0.85;
-  const portraitWidthScale = isPortrait && typeof window !== 'undefined' ? Math.min(1.0, Math.max(0.55, window.innerWidth / 500)) : 1.0;
 
-  const pCardX = playerCardItem ? playerCardItem.x : (legacyCardsItem ? Math.max(12, legacyCardsItem.x - 28) : (isPortrait ? 25 : 22));
-  const pCardY = playerCardItem ? playerCardItem.y : (legacyCardsItem ? legacyCardsItem.y : (isPortrait ? 7 : 6));
-  const pCardItemScale = playerCardItem?.scale ?? legacyCardsItem?.scale ?? 0.85;
-  const pCardScale = pCardItemScale * uiScaleMultiplier * portraitWidthScale;
+  // Responsive scale multipliers for viewport adaptation
+  const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 800;
+  const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 600;
+  
+  // In portrait, scale down to prevent gauge overflow
+  const portraitScale = isPortrait ? Math.min(1.0, Math.max(0.65, windowWidth / 480)) : 1.0;
+  // In landscape, scale down on short mobile screens (e.g. 360-400px height) to avoid blocking fight center
+  const landscapeHeightScale = !isPortrait ? Math.min(1.0, Math.max(0.70, windowHeight / 500)) : 1.0;
+  const effectiveHudScale = uiScaleMultiplier * (isPortrait ? portraitScale : landscapeHeightScale);
+
+  // Layout coordinate resolution (User custom coordinates take priority if set in HUD editor)
+  const hasCustomPlayerCard = Boolean(playerCardItem);
+  const hasCustomOpponentCard = Boolean(opponentCardItem);
+
+  // Clean non-colliding default positions:
+  // In Portrait: cards are side-by-side beneath top match timer bar with strict half-screen boundaries
+  const pCardScale = (playerCardItem?.scale ?? 0.85) * effectiveHudScale;
   const pCardOpacity = playerCardItem?.opacity ?? legacyCardsItem?.opacity ?? (settings.hudOpacity ?? 0.85);
 
-  const oppCardX = opponentCardItem ? opponentCardItem.x : (legacyCardsItem ? Math.min(88, legacyCardsItem.x + 28) : (isPortrait ? 75 : 78));
-  const oppCardY = opponentCardItem ? opponentCardItem.y : (legacyCardsItem ? legacyCardsItem.y : (isPortrait ? 7 : 6));
-  const oppCardItemScale = opponentCardItem?.scale ?? legacyCardsItem?.scale ?? 0.85;
-  const oppCardScale = oppCardItemScale * uiScaleMultiplier * portraitWidthScale;
+  const oppCardScale = (opponentCardItem?.scale ?? 0.85) * effectiveHudScale;
   const oppCardOpacity = opponentCardItem?.opacity ?? legacyCardsItem?.opacity ?? (settings.hudOpacity ?? 0.85);
 
-  const m2X = m2Item ? m2Item.x : 10;
-  const m2Y = m2Item ? m2Item.y : 40;
-  const m2Scale = m2Item?.scale ?? 1.0;
+  const m2X = m2Item ? m2Item.x : (isPortrait ? 12 : 8);
+  const m2Y = m2Item ? m2Item.y : (isPortrait ? 32 : 38);
+  const m2Scale = (m2Item?.scale ?? 1.0) * effectiveHudScale;
   const m2Opacity = m2Item?.opacity ?? 0.95;
 
-  const menuX = menuItem ? menuItem.x : (isPortrait ? 90 : 94);
-  const menuY = menuItem ? menuItem.y : 5;
-  const menuScale = (menuItem?.scale ?? 1.0) * uiScaleMultiplier;
+  const menuX = menuItem ? menuItem.x : (isPortrait ? 92 : 95);
+  const menuY = menuItem ? menuItem.y : (isPortrait ? 2.5 : 4);
+  const menuScale = (menuItem?.scale ?? 1.0) * effectiveHudScale;
   const menuOpacity = menuItem?.opacity ?? 0.95;
+
+  const hasTopMatchBar = Boolean(matchData?.isCompetitive || matchData?.isAiMatch || matchData?.isRealMatch);
 
   return (
     <>
       {/* LOCAL PLAYER CARD & DEDICATED STATUS BAR */}
       {!isLiveHudEditing && (
         <div 
-          className="absolute z-20 pointer-events-none transition-all duration-75 flex flex-col items-start gap-1 select-none"
-          style={{
-            top: `${pCardY}%`,
-            left: `${pCardX}%`,
-            transform: `translate(-50%, 0) scale(${pCardScale})`,
-            transformOrigin: 'top center',
-            width: isPortrait ? 'min(210px, 42vw)' : '270px',
-            maxWidth: '92vw',
-          }}
+          className="absolute z-20 pointer-events-none transition-all duration-75 flex flex-col items-start gap-0.5 select-none"
+          style={
+            hasCustomPlayerCard
+              ? {
+                  top: `${playerCardItem!.y}%`,
+                  left: `${playerCardItem!.x}%`,
+                  transform: `translate(-50%, 0) scale(${pCardScale})`,
+                  transformOrigin: 'top center',
+                  width: isPortrait ? 'min(200px, 46vw)' : '270px',
+                  maxWidth: '92vw',
+                }
+              : isPortrait
+              ? {
+                  top: hasTopMatchBar ? '38px' : '6px',
+                  left: '4px',
+                  transform: `scale(${pCardScale})`,
+                  transformOrigin: 'top left',
+                  width: 'calc(50vw - 8px)',
+                  maxWidth: '210px',
+                }
+              : {
+                  top: `${playerCardItem ? playerCardItem.y : 5}%`,
+                  left: `${playerCardItem ? playerCardItem.x : 18}%`,
+                  transform: `translate(-50%, 0) scale(${pCardScale})`,
+                  transformOrigin: 'top center',
+                  width: '270px',
+                  maxWidth: '45vw',
+                }
+          }
         >
           <div 
-            className="w-full bg-zinc-950/85 backdrop-blur-md border border-zinc-800/80 p-1.5 sm:p-2.5 pointer-events-auto flex gap-1.5 sm:gap-2.5 shadow-2xl relative rounded-xl transition-all"
+            className="w-full bg-zinc-950/85 backdrop-blur-md border border-zinc-800/80 p-1 sm:p-2 pointer-events-auto flex gap-1 sm:gap-2 shadow-2xl relative rounded-xl transition-all"
             style={{
               opacity: pCardOpacity,
             }}
@@ -393,7 +424,7 @@ export const FighterHealthBars: React.FC<FighterHealthBarsProps> = ({
           </div>
 
           {/* DEDICATED PLAYER STATUS BAR */}
-          <div className="w-full flex justify-start pl-8 sm:pl-12 pointer-events-auto">
+          <div className="w-full flex justify-start pl-1 sm:pl-2 pointer-events-auto">
             <StatusBar 
               statuses={playerActiveStatuses}
               align="left"
@@ -406,8 +437,9 @@ export const FighterHealthBars: React.FC<FighterHealthBarsProps> = ({
 
       {/* CENTER VS BADGE AND FOV / ROUND TIMERS */}
       <div 
-        className="absolute top-1.5 z-20 pointer-events-none flex flex-col items-center justify-center transition-all duration-150 gap-1 select-none"
+        className="absolute z-30 pointer-events-none flex flex-col items-center justify-center transition-all duration-150 gap-0.5 select-none"
         style={{ 
+          top: isPortrait ? '4px' : '8px',
           left: '50%',
           transform: `translate(-50%, 0) scale(${Math.min(pCardScale, oppCardScale)})`,
           transformOrigin: 'top center',
@@ -415,55 +447,55 @@ export const FighterHealthBars: React.FC<FighterHealthBarsProps> = ({
       >
         {(matchData?.isCompetitive || matchData?.isAiMatch || matchData?.isRealMatch) && (
           <div className="flex flex-col items-center gap-1">
-            <div className={`px-2.5 py-1 text-center rounded-xl pointer-events-auto flex items-center gap-2.5 font-mono text-[10px] sm:text-xs shadow-2xl transition-all duration-300 ${
+            <div className={`px-2 py-0.5 sm:px-2.5 sm:py-1 text-center rounded-xl pointer-events-auto flex items-center gap-2 sm:gap-2.5 font-mono text-[9px] sm:text-xs shadow-2xl transition-all duration-300 ${
               rankedState === 'round_over'
                 ? 'bg-zinc-950 border-2 border-yellow-500 shadow-[0_0_25px_rgba(234,179,8,0.35)] scale-105'
-                : 'bg-zinc-950/90 border border-zinc-800'
+                : 'bg-zinc-950/90 border border-zinc-800 backdrop-blur-md'
             }`}>
               {/* Fighter 1 / Player Score Badge */}
-              <div className="flex items-center gap-1.5 text-blue-400">
-                <span className="font-bold text-[9px] sm:text-[10px] tracking-wider truncate max-w-[60px] sm:max-w-[80px]">
+              <div className="flex items-center gap-1 sm:gap-1.5 text-blue-400">
+                <span className="font-bold text-[8px] sm:text-[10px] tracking-wider truncate max-w-[45px] sm:max-w-[80px]">
                   {matchData?.isAiVsAiSpectator ? (matchData.opponent?.name || matchData.bot1Name || 'BOT 1') : 'YOU'}
                 </span>
                 <motion.span 
                   key={`p-score-${playerScore}`}
                   initial={{ scale: 1.4, color: '#60a5fa' }}
                   animate={{ scale: 1, color: '#ffffff' }}
-                  className="px-2 py-0.5 bg-blue-950 border border-blue-700 text-white rounded-md font-black text-xs sm:text-sm shadow-inner"
+                  className="px-1.5 py-0.2 sm:px-2 sm:py-0.5 bg-blue-950 border border-blue-700 text-white rounded font-black text-[10px] sm:text-sm shadow-inner"
                 >
                   {playerScore}
                 </motion.span>
               </div>
 
               {/* Integrated Round & Timer / Break Countdown */}
-              <div className="flex flex-col items-center min-w-[65px] sm:min-w-[80px]">
-                <span className="text-[8px] sm:text-[9px] text-yellow-400 font-black uppercase tracking-widest">
+              <div className="flex flex-col items-center min-w-[55px] sm:min-w-[80px]">
+                <span className="text-[7px] sm:text-[9px] text-yellow-400 font-black uppercase tracking-widest leading-none">
                   {rankedState === 'round_over' ? 'NEXT ROUND' : `ROUND ${roundNumber}`}
                 </span>
-                <span className={`text-xs sm:text-sm font-black font-display tracking-wide ${
-                  rankedState === 'round_over' ? 'text-yellow-400 font-mono text-sm sm:text-base animate-pulse' : 'text-red-400'
+                <span className={`text-[10px] sm:text-sm font-black font-display tracking-wide leading-none mt-0.5 ${
+                  rankedState === 'round_over' ? 'text-yellow-400 font-mono animate-pulse' : 'text-red-400'
                 }`}>
                   {rankedState === 'round_over'
                     ? `${rankedCountdown}s`
                     : `${Math.floor(roundTimeLeft / 60)}:${String(roundTimeLeft % 60).padStart(2, '0')}`
                   }
                 </span>
-                <span className="text-[7px] text-zinc-500 font-mono font-bold tracking-tighter">
+                <span className="text-[6px] sm:text-[7px] text-zinc-500 font-mono font-bold tracking-tighter leading-none mt-0.5">
                   FIRST TO {matchData?.targetScore || (matchData?.isAiVsAiSpectator ? 2 : 3)}
                 </span>
               </div>
 
               {/* Fighter 2 / Opponent Score Badge */}
-              <div className="flex items-center gap-1.5 text-red-400">
+              <div className="flex items-center gap-1 sm:gap-1.5 text-red-400">
                 <motion.span 
                   key={`opp-score-${opponentScore}`}
                   initial={{ scale: 1.4, color: '#f87171' }}
                   animate={{ scale: 1, color: '#ffffff' }}
-                  className="px-2 py-0.5 bg-red-950 border border-red-700 text-white rounded-md font-black text-xs sm:text-sm shadow-inner"
+                  className="px-1.5 py-0.2 sm:px-2 sm:py-0.5 bg-red-950 border border-red-700 text-white rounded font-black text-[10px] sm:text-sm shadow-inner"
                 >
                   {opponentScore}
                 </motion.span>
-                <span className="font-bold text-[9px] sm:text-[10px] tracking-wider truncate max-w-[60px] sm:max-w-[80px]">
+                <span className="font-bold text-[8px] sm:text-[10px] tracking-wider truncate max-w-[45px] sm:max-w-[80px]">
                   {matchData?.isAiVsAiSpectator ? (matchData.spectatorFighter2?.name || matchData.bot2Name || 'BOT 2') : 'OPP'}
                 </span>
               </div>
@@ -495,18 +527,39 @@ export const FighterHealthBars: React.FC<FighterHealthBarsProps> = ({
       {/* ENEMY SPARRING PARTNER CARD & DEDICATED STATUS BAR */}
       {!isLiveHudEditing && (
         <div 
-          className="absolute z-20 pointer-events-none transition-all duration-75 flex flex-col items-end gap-1 select-none"
-          style={{
-            top: `${oppCardY}%`,
-            left: `${oppCardX}%`,
-            transform: `translate(-50%, 0) scale(${oppCardScale})`,
-            transformOrigin: 'top center',
-            width: isPortrait ? 'min(210px, 42vw)' : '270px',
-            maxWidth: '92vw',
-          }}
+          className="absolute z-20 pointer-events-none transition-all duration-75 flex flex-col items-end gap-0.5 select-none"
+          style={
+            hasCustomOpponentCard
+              ? {
+                  top: `${opponentCardItem!.y}%`,
+                  left: `${opponentCardItem!.x}%`,
+                  transform: `translate(-50%, 0) scale(${oppCardScale})`,
+                  transformOrigin: 'top center',
+                  width: isPortrait ? 'min(200px, 46vw)' : '270px',
+                  maxWidth: '92vw',
+                }
+              : isPortrait
+              ? {
+                  top: hasTopMatchBar ? '38px' : '6px',
+                  right: '4px',
+                  left: 'auto',
+                  transform: `scale(${oppCardScale})`,
+                  transformOrigin: 'top right',
+                  width: 'calc(50vw - 8px)',
+                  maxWidth: '210px',
+                }
+              : {
+                  top: `${opponentCardItem ? opponentCardItem.y : 5}%`,
+                  left: `${opponentCardItem ? opponentCardItem.x : 82}%`,
+                  transform: `translate(-50%, 0) scale(${oppCardScale})`,
+                  transformOrigin: 'top center',
+                  width: '270px',
+                  maxWidth: '45vw',
+                }
+          }
         >
           <div 
-            className="w-full bg-zinc-950/85 backdrop-blur-md border border-zinc-800/80 p-1.5 sm:p-2.5 pointer-events-auto flex gap-1.5 sm:gap-2.5 shadow-2xl relative rounded-xl transition-all"
+            className="w-full bg-zinc-950/85 backdrop-blur-md border border-zinc-800/80 p-1 sm:p-2 pointer-events-auto flex gap-1 sm:gap-2 shadow-2xl relative rounded-xl transition-all"
             style={{
               opacity: oppCardOpacity,
             }}
@@ -657,7 +710,7 @@ export const FighterHealthBars: React.FC<FighterHealthBarsProps> = ({
           </div>
 
           {/* DEDICATED OPPONENT STATUS BAR */}
-          <div className="w-full flex justify-end pr-8 sm:pr-12 pointer-events-auto">
+          <div className="w-full flex justify-end pr-1 sm:pr-2 pointer-events-auto">
             <StatusBar 
               statuses={dummyActiveStatuses}
               align="right"

@@ -80,6 +80,7 @@ export interface PlayerStats {
   unlockedTitles?: string[];
   selectedTitle?: string;
   savedKeybinds?: KeybindSettings;
+  medals?: Record<string, number>;
 }
 
 export type RoundGrade = 'S+' | 'S' | 'A+' | 'A' | 'B' | 'C';
