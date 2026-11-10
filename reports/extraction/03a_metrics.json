@@ -1,0 +1,14 @@
+{
+  "file": "src/components/Arena.tsx",
+  "lineCount": 8603,
+  "hooks": {
+    "useState": 120,
+    "useRef": 61,
+    "useEffect": 15,
+    "total": 196
+  },
+  "typingIssues": {
+    "asAny": 67,
+    "tsIgnore": 0
+  }
+}

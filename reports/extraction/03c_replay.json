@@ -1,0 +1,61 @@
+{
+  "timestamp": "2026-11-10T09:53:40.569Z",
+  "scenarios": [
+    {
+      "scenario": "Kickboxing vs Kickboxing",
+      "hash": "013b03486eed575a",
+      "totalTicks": 3000,
+      "playerFinalHp": 100,
+      "opponentFinalHp": 100,
+      "koOccurred": false
+    },
+    {
+      "scenario": "Muay Thai vs Ashihara",
+      "hash": "1d0455d9ac864b6d",
+      "totalTicks": 3000,
+      "playerFinalHp": 100,
+      "opponentFinalHp": 100,
+      "koOccurred": false
+    },
+    {
+      "scenario": "CQC vs Kyokushin",
+      "hash": "5c8a687fa7073e13",
+      "totalTicks": 3000,
+      "playerFinalHp": 100,
+      "opponentFinalHp": 56.5,
+      "koOccurred": false
+    },
+    {
+      "scenario": "Keysi vs Capoeira",
+      "hash": "3665cd2681945211",
+      "totalTicks": 3000,
+      "playerFinalHp": 100,
+      "opponentFinalHp": 57.1,
+      "koOccurred": false
+    },
+    {
+      "scenario": "Parry Heavy Combat",
+      "hash": "3cc09a9c82da443b",
+      "totalTicks": 3000,
+      "playerFinalHp": 100,
+      "opponentFinalHp": 100,
+      "koOccurred": false
+    },
+    {
+      "scenario": "Block Spam Combat",
+      "hash": "25cebdd6b65be482",
+      "totalTicks": 3000,
+      "playerFinalHp": 100,
+      "opponentFinalHp": 100,
+      "koOccurred": false
+    },
+    {
+      "scenario": "KO Scenario",
+      "hash": "55f5349fd14cf7f8",
+      "totalTicks": 3000,
+      "playerFinalHp": 100,
+      "opponentFinalHp": 0,
+      "koOccurred": true
+    }
+  ]
+}
